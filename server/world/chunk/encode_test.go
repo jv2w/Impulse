@@ -793,13 +793,10 @@ func TestDecodePaletteNetworkZeroCount(t *testing.T) {
 	}
 }
 
-func TestDecodePaletteNetworkLeavesStaleLastCache(t *testing.T) {
-	// BUG, pinned as-is: networkEncoding.decodePalette builds a &Palette{} literal instead of calling
-	// newPalette, so the `last` lookup cache keeps its zero value rather than math.MaxUint32. Index(0)
-	// then takes the fast path and answers lastIndex (0) even though the value 0 is not in the palette at
-	// all. Since air is runtime ID 0, PalettedStorage.Set(x, y, z, air) on a network-decoded storage writes
-	// palette index 0 and therefore stores the wrong block. The disk decoder goes through newPalette and
-	// does not have this problem. Neither round-trip test above catches it, because they only read.
+func TestDecodePaletteMissesValueZero(t *testing.T) {
+	// Palette.last must start at math.MaxUint32, or Index takes its fast path for the value 0 and answers
+	// lastIndex (0) even when 0 is not in the palette. Air is runtime ID 0, so both encodings have to agree
+	// on -1 here. Neither round-trip test above catches this, because they only read.
 	//
 	// Network palettes are zigzag varint32s, so 2, 5 and 6 encode as 0x04, 0x0a and 0x0c.
 	network, err := NetworkEncoding.decodePalette(bytes.NewBuffer([]byte{0x04, 0x0a, 0x0c}), 1, BiomePaletteEncoding)
@@ -807,14 +804,30 @@ func TestDecodePaletteNetworkLeavesStaleLastCache(t *testing.T) {
 	if got, want := network.values, []uint32{5, 6}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("network palette values = %v, want %v", got, want)
 	}
-	if got := network.Index(0); got != 0 {
-		t.Errorf("network palette Index(0) = %d, want the current (wrong) answer 0", got)
+	if got := network.Index(0); got != -1 {
+		t.Errorf("network palette Index(0) = %d, want -1", got)
 	}
 
 	disk, err := DiskEncoding.decodePalette(bytes.NewBuffer([]byte{2, 0, 0, 0, 5, 0, 0, 0, 6, 0, 0, 0}), 1, BiomePaletteEncoding)
 	assertNoError(t, err, "disk decodePalette")
 	if got := disk.Index(0); got != -1 {
 		t.Errorf("disk palette Index(0) = %d, want -1", got)
+	}
+}
+
+func TestDecodePaletteNetworkStorageAcceptsValueZero(t *testing.T) {
+	// The consequence of a stale last cache: writing air into a network-decoded storage resolves to palette
+	// index 0 and silently stores whatever value that index happens to hold.
+	data := append([]byte{1<<1 | 1}, make([]byte, 128*4)...)
+	data = append(data, 0x04, 0x0a, 0x0c) // a palette of 5 and 6, neither of which is 0
+	s, err := decodePalettedStorage(bytes.NewBuffer(data), NetworkEncoding, BiomePaletteEncoding)
+	assertNoError(t, err, "decodePalettedStorage")
+	if got := s.At(0, 0, 0); got != 5 {
+		t.Fatalf("At(0, 0, 0) = %d, want 5", got)
+	}
+	s.Set(0, 0, 0, 0)
+	if got := s.At(0, 0, 0); got != 0 {
+		t.Errorf("At(0, 0, 0) = %d after Set to 0, want 0", got)
 	}
 }
 
