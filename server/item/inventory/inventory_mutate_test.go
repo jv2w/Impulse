@@ -19,14 +19,14 @@ import (
 //
 // Two properties recur and are worth stating once:
 //
-//   - AddItem, RemoveItemFunc and Clear register their setItem callbacks with
-//     defer inside their loop and unlock before returning, so every SlotFunc
-//     call fires in LIFO order relative to the slots visited, after the return
-//     value has been fixed but before the caller resumes. Swap instead calls its
-//     two callbacks explicitly and so fires in ascending order.
-//   - setItem writes nothing and returns a no-op callback when the
-//     SlotValidatorFunc rejects the write, but no caller checks for that. The
-//     accounting therefore continues as if the write had landed.
+//   - AddItem, RemoveItemFunc and Clear collect their setItem callbacks and run
+//     them once the lock is released, in LIFO order relative to the slots
+//     visited, after the return value has been fixed but before the caller
+//     resumes. Swap instead calls its two callbacks explicitly and so fires in
+//     ascending order.
+//   - setItem writes nothing and returns a nil callback when the
+//     SlotValidatorFunc rejects the write. AddItem, Swap and Clear act on that;
+//     RemoveItemFunc still deducts the count as if the write had landed.
 
 // mutRejectAll is a SlotValidatorFunc that refuses every write.
 func mutRejectAll(item.Stack, int) bool { return false }
@@ -264,17 +264,16 @@ func TestMutAddItemFullInventory(t *testing.T) {
 	}
 }
 
-func TestMutAddItemRejectingValidatorReportsFalseSuccess(t *testing.T) {
-	// PINNED BUG: AddItem reports the full count as added even when the slot
-	// validator rejected every write, so nothing was stored. setItem silently
-	// returns a no-op callback on rejection and AddItem never checks. Pinned
-	// as-is; decide in stage 1.
+func TestMutAddItemRejectingValidatorReportsShortfall(t *testing.T) {
+	// A slot the validator refuses stores nothing, so the stack is not consumed
+	// there and the count reported is what actually landed. The refused slot is
+	// skipped and the remainder goes on to the next one.
 	inv, r := mutRecording(t, 2)
 	inv.SlotValidatorFunc(mutRejectAll)
 
 	n, err := inv.AddItem(diamonds(10))
-	if n != 10 || err != nil {
-		t.Fatalf("AddItem with rejecting validator: got (%v, %v), want (10, nil)", n, err)
+	if n != 0 || err == nil {
+		t.Fatalf("AddItem with rejecting validator: got (%v, %v), want (0, an error)", n, err)
 	}
 	if !inv.Empty() {
 		t.Fatalf("AddItem with rejecting validator: inventory is %v, want empty", inv)
@@ -282,6 +281,18 @@ func TestMutAddItemRejectingValidatorReportsFalseSuccess(t *testing.T) {
 	if got := r.count(); got != 0 {
 		t.Fatalf("AddItem with rejecting validator: got %v SlotFunc calls, want 0", got)
 	}
+}
+
+func TestMutAddItemSkipsRejectedSlots(t *testing.T) {
+	inv, r := mutRecording(t, 2)
+	inv.SlotValidatorFunc(mutOnlySlot(1))
+
+	n, err := inv.AddItem(diamonds(10))
+	if n != 10 || err != nil {
+		t.Fatalf("AddItem: got (%v, %v), want (10, nil)", n, err)
+	}
+	assertSlots(t, inv, item.Stack{}, diamonds(10))
+	mutAssertCalls(t, r, slotCall{slot: 1, before: item.Stack{}, after: diamonds(10)})
 }
 
 func TestMutRemoveItemEmptyStackIsRejected(t *testing.T) {
@@ -683,30 +694,17 @@ func TestMutSwapOutOfRange(t *testing.T) {
 	}
 }
 
-func TestMutSwapRejectedValidatorDestroysItem(t *testing.T) {
-	// PINNED BUG: Swap performs its two writes independently. When the
-	// validator accepts one and rejects the other, the accepted write lands and
-	// the stack that should have moved the other way is destroyed, while the
-	// stack that did move is left duplicated in both slots. Pinned as-is;
-	// decide in stage 1.
+func TestMutSwapRejectedValidatorIsAtomic(t *testing.T) {
+	// A swap is a single move of two stacks. Landing only the accepted half
+	// would destroy the stack that could not move and leave the other one in
+	// both slots, so a rejection of either write cancels the whole swap. Like
+	// SetItem, the rejection itself is not reported.
 	for _, c := range []struct {
 		name     string
 		accepted int
-		want     []item.Stack
-		wantCall slotCall
 	}{
-		{
-			name:     "only slot 0 accepted",
-			accepted: 0,
-			want:     []item.Stack{sticks(3), sticks(3)},
-			wantCall: slotCall{slot: 0, before: diamonds(5), after: sticks(3)},
-		},
-		{
-			name:     "only slot 1 accepted",
-			accepted: 1,
-			want:     []item.Stack{diamonds(5), diamonds(5)},
-			wantCall: slotCall{slot: 1, before: sticks(3), after: diamonds(5)},
-		},
+		{name: "only slot 0 accepted", accepted: 0},
+		{name: "only slot 1 accepted", accepted: 1},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			inv, r := mutRecording(t, 2, diamonds(5), sticks(3))
@@ -715,10 +713,10 @@ func TestMutSwapRejectedValidatorDestroysItem(t *testing.T) {
 			if err := inv.Swap(0, 1); err != nil {
 				t.Fatalf("Swap(0, 1): got error %v, want nil", err)
 			}
-			assertSlots(t, inv, c.want...)
-			// Only the accepted write reports a change: the rejected one
-			// returns a no-op callback.
-			mutAssertCalls(t, r, c.wantCall)
+			assertSlots(t, inv, diamonds(5), sticks(3))
+			if got := r.count(); got != 0 {
+				t.Fatalf("got %v SlotFunc calls, want 0", got)
+			}
 		})
 	}
 }
@@ -779,23 +777,35 @@ func TestMutClearReturnedSliceIsNotAliased(t *testing.T) {
 	assertStack(t, got[1], sticks(3))
 }
 
-func TestMutClearRejectingValidatorDuplicates(t *testing.T) {
-	// PINNED BUG: Clear returns the stacks it intended to remove even when the
-	// validator rejects the writes, so the items exist both in the returned
-	// slice and still in the inventory. Pinned as-is; decide in stage 1.
-	inv, r := mutRecording(t, 2, diamonds(5), sticks(3))
-	inv.SlotValidatorFunc(mutRejectAll)
+func TestMutClearReturnsOnlyWhatItTook(t *testing.T) {
+	// Clear hands the caller the stacks it removed. A slot the validator refuses
+	// to empty keeps its stack, so that stack must not also be returned: the
+	// caller would put it somewhere else while it is still in the inventory.
+	t.Run("every slot rejected", func(t *testing.T) {
+		inv, r := mutRecording(t, 2, diamonds(5), sticks(3))
+		inv.SlotValidatorFunc(mutRejectAll)
 
-	got := inv.Clear()
-	if len(got) != 2 {
-		t.Fatalf("Clear(): got %v stacks, want 2", len(got))
-	}
-	assertStack(t, got[0], diamonds(5))
-	assertStack(t, got[1], sticks(3))
-	assertSlots(t, inv, diamonds(5), sticks(3))
-	if c := r.count(); c != 0 {
-		t.Fatalf("got %v SlotFunc calls, want 0", c)
-	}
+		if got := inv.Clear(); len(got) != 0 {
+			t.Fatalf("Clear(): got %v stacks, want 0", len(got))
+		}
+		assertSlots(t, inv, diamonds(5), sticks(3))
+		if c := r.count(); c != 0 {
+			t.Fatalf("got %v SlotFunc calls, want 0", c)
+		}
+	})
+
+	t.Run("one slot rejected", func(t *testing.T) {
+		inv, r := mutRecording(t, 2, diamonds(5), sticks(3))
+		inv.SlotValidatorFunc(mutOnlySlot(1))
+
+		got := inv.Clear()
+		if len(got) != 1 {
+			t.Fatalf("Clear(): got %v stacks, want 1", len(got))
+		}
+		assertStack(t, got[0], sticks(3))
+		assertSlots(t, inv, diamonds(5), item.Stack{})
+		mutAssertCalls(t, r, slotCall{slot: 1, before: sticks(3), after: item.Stack{}})
+	})
 }
 
 func TestMutMergeSizeAndOrder(t *testing.T) {

@@ -100,7 +100,9 @@ func (inv *Inventory) SetItem(slot int, item item.Stack) error {
 	if err != nil {
 		return err
 	}
-	f()
+	if f != nil {
+		f()
+	}
 	return nil
 }
 
@@ -167,18 +169,22 @@ func (inv *Inventory) FirstEmpty() (int, bool) {
 }
 
 // Swap swaps the items between two slots. Returns an error if either slot A or B are invalid.
+// A swap is atomic with respect to the slot validator: if it refuses either of the two stacks in its new
+// slot, neither slot is written and no change is reported.
 func (inv *Inventory) Swap(slotA, slotB int) error {
 	fa, fb, err := inv.lockedSwap(slotA, slotB)
 	if err != nil {
 		return err
 	}
-	fa()
-	fb()
+	if fa != nil {
+		fa()
+		fb()
+	}
 	return nil
 }
 
 // lockedSwap performs both writes of Swap under the write lock and returns the callbacks announcing them, to
-// be run by the caller with the lock released.
+// be run by the caller with the lock released. Both callbacks are nil if the validator refused the swap.
 func (inv *Inventory) lockedSwap(slotA, slotB int) (func(), func(), error) {
 	inv.mu.Lock()
 	defer inv.mu.Unlock()
@@ -188,7 +194,12 @@ func (inv *Inventory) lockedSwap(slotA, slotB int) (func(), func(), error) {
 		return nil, nil, ErrSlotOutOfRange
 	}
 	a, b := inv.slots[slotA], inv.slots[slotB]
-	return inv.setItem(slotA, b), inv.setItem(slotB, a), nil
+	if !inv.validator(b, slotA) || !inv.validator(a, slotB) {
+		// Writing only the accepted half would destroy the stack that could not move and leave the other one
+		// in both slots, so the whole swap is dropped.
+		return nil, nil, nil
+	}
+	return inv.writeItem(slotA, b), inv.writeItem(slotB, a), nil
 }
 
 // AddItem attempts to add an item to the inventory. It does so in a couple of steps: It first iterates over
@@ -197,7 +208,8 @@ func (inv *Inventory) lockedSwap(slotA, slotB int) (func(), func(), error) {
 // If no existing stacks with leftover space are left, empty slots will be filled up with the remainder of the
 // item added.
 // If the item could not be fully added to the inventory, an error is returned along with the count that was
-// added to the inventory.
+// added to the inventory. A slot the slot validator refuses stores nothing and does not count towards that
+// total, so a stack the validator rejects everywhere is reported as an error with a count of 0.
 func (inv *Inventory) AddItem(it item.Stack) (n int, err error) {
 	if it.Empty() {
 		return 0, nil
@@ -228,7 +240,12 @@ func (inv *Inventory) lockedAddItem(it item.Stack) (fs []func(), n int, err erro
 			// Count stayed the same, meaning this slot either wasn't equal to this stack or was max size.
 			continue
 		}
-		fs = append(fs, inv.setItem(slot, a))
+		f := inv.setItem(slot, a)
+		if f == nil {
+			// The validator refused this slot, so nothing was stored here and the stack keeps its count.
+			continue
+		}
+		fs = append(fs, f)
 
 		if it = b; it.Empty() {
 			// We were able to add the entire stack to existing stacks in the inventory.
@@ -238,7 +255,11 @@ func (inv *Inventory) lockedAddItem(it item.Stack) (fs []func(), n int, err erro
 	for _, slot := range emptySlots {
 		a, b := it.Grow(-math.MaxInt32).AddStack(it)
 
-		fs = append(fs, inv.setItem(slot, a))
+		f := inv.setItem(slot, a)
+		if f == nil {
+			continue
+		}
+		fs = append(fs, f)
 
 		if it = b; it.Empty() {
 			// We were able to add the entire stack to empty slots.
@@ -288,10 +309,14 @@ func (inv *Inventory) lockedRemoveItemFunc(n int, comparable func(stack item.Sta
 		}
 		c := slotIt.Count() - n
 
+		var f func()
 		if c <= 0 {
-			fs = append(fs, inv.setItem(slot, item.Stack{}))
+			f = inv.setItem(slot, item.Stack{})
 		} else {
-			fs = append(fs, inv.setItem(slot, slotIt.Grow(-n)))
+			f = inv.setItem(slot, slotIt.Grow(-n))
+		}
+		if f != nil {
+			fs = append(fs, f)
 		}
 
 		if n -= slotIt.Count(); n <= 0 {
@@ -356,7 +381,9 @@ func (inv *Inventory) Empty() bool {
 	return true
 }
 
-// Clear clears the entire inventory. All non-zero items are returned.
+// Clear clears the entire inventory. The non-empty stacks it took out are returned, in ascending slot order.
+// A slot the slot validator refuses to empty keeps its stack and is not reported: the caller only ever
+// receives stacks that are no longer in the inventory.
 func (inv *Inventory) Clear() []item.Stack {
 	items, fs := inv.lockedClear()
 	runSlotFuncs(fs)
@@ -374,10 +401,17 @@ func (inv *Inventory) lockedClear() ([]item.Stack, []func()) {
 	items := make([]item.Stack, 0, inv.size())
 	var fs []func()
 	for slot, i := range inv.slots {
-		if !i.Empty() {
-			items = append(items, i)
-			fs = append(fs, inv.setItem(slot, item.Stack{}))
+		if i.Empty() {
+			continue
 		}
+		f := inv.setItem(slot, item.Stack{})
+		if f == nil {
+			// The validator refused to empty this slot, so the stack is still in the inventory and handing it
+			// to the caller as well would duplicate it.
+			continue
+		}
+		items = append(items, i)
+		fs = append(fs, f)
 	}
 	return items, fs
 }
@@ -414,14 +448,22 @@ func runSlotFuncs(fs []func()) {
 }
 
 // setItem sets an item to a specific slot and overwrites the existing item. It does not lock the inventory:
-// the caller must hold the write lock. The callback returned announces the change and must be run with the
-// lock released. The SlotFunc is captured here rather than read from inv.f inside the callback, so that a
-// concurrent SlotFunc or Close is not an unsynchronised access and the change is announced to the function
-// that was installed when it happened.
+// the caller must hold the write lock. It returns nil, having written nothing, if the slot validator rejects
+// the write. Otherwise it returns the callback announcing the change, which must be run with the lock
+// released.
 func (inv *Inventory) setItem(slot int, it item.Stack) func() {
 	if !inv.validator(it, slot) {
-		return func() {}
+		return nil
 	}
+	return inv.writeItem(slot, it)
+}
+
+// writeItem writes it to slot without consulting the slot validator, clamping the count to the maximum the
+// stack may hold, and returns the callback announcing the change. Callers that must decide whether to write
+// several slots at all before writing any of them consult the validator themselves and come here. The
+// SlotFunc is captured here rather than read from inv.f inside the callback, so that a concurrent SlotFunc or
+// Close is not an unsynchronised access and the change is announced to the function installed at write time.
+func (inv *Inventory) writeItem(slot int, it item.Stack) func() {
 	if it.Count() > it.MaxCount() {
 		it = it.Grow(it.MaxCount() - it.Count())
 	}

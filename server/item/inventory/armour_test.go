@@ -332,29 +332,25 @@ func TestArmourCloneDropsValidator(t *testing.T) {
 	assertStack(t, a.Helmet(), h)
 }
 
-// TestArmourAddItem pins that Inventory.AddItem reports a success it did not
-// achieve when the armour validator rejects the stack.
-//
-// PINNED BUG: AddItem consumes the stack it is adding regardless of whether
-// setItem actually stored it, because setItem no-ops on a rejected write. The
-// returned count claims every item was added while the inventory stayed empty,
-// so the caller destroys the stack. Worse, for boots the stack is consumed in
-// slot 0 and AddItem returns before slot 3 is ever tried.
+// TestArmourAddItem pins that Inventory.AddItem walks past the slots the armour
+// validator refuses instead of consuming the stack in them, and reports what it
+// actually stored.
 func TestArmourAddItem(t *testing.T) {
 	for _, c := range []struct {
-		name  string
-		it    item.Stack
-		wantN int
+		name    string
+		it      item.Stack
+		wantN   int
+		wantErr bool
 		// wantSlots is the full slot content expected afterwards.
 		wantSlots []item.Stack
 	}{
 		{
-			name: "non-armour is consumed and lost", it: diamonds(5), wantN: 5,
+			name: "non-armour fits nowhere", it: diamonds(5), wantN: 0, wantErr: true,
 			wantSlots: []item.Stack{{}, {}, {}, {}},
 		},
 		{
-			name: "boots are consumed in slot 0 and never reach slot 3", it: boots(), wantN: 1,
-			wantSlots: []item.Stack{{}, {}, {}, {}},
+			name: "boots skip the first three slots", it: boots(), wantN: 1,
+			wantSlots: []item.Stack{{}, {}, {}, boots()},
 		},
 		{
 			name: "a helmet lands in slot 0", it: helmet(), wantN: 1,
@@ -366,8 +362,8 @@ func TestArmourAddItem(t *testing.T) {
 			a := NewArmour(r.fn)
 
 			n, err := a.Inventory().AddItem(c.it)
-			if err != nil {
-				t.Fatalf("AddItem: got error %v, want nil", err)
+			if (err != nil) != c.wantErr {
+				t.Fatalf("AddItem: got error %v, want error: %v", err, c.wantErr)
 			}
 			if n != c.wantN {
 				t.Fatalf("AddItem count: got %v, want %v", n, c.wantN)
