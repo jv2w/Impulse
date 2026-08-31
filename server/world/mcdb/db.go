@@ -325,7 +325,10 @@ func (db *DB) blockEntities(k dbKey) ([]chunk.BlockEntity, error) {
 		if err := dec.Decode(&be.Data); err != nil {
 			return blockEntities, fmt.Errorf("decode nbt: %w", err)
 		}
-		be.Pos = blockPosFromNBT(be.Data)
+		var ok bool
+		if be.Pos, ok = blockPosFromNBT(be.Data); !ok {
+			return blockEntities, fmt.Errorf("block entity has no int32 x, y and z")
+		}
 		blockEntities = append(blockEntities, be)
 	}
 	return blockEntities, nil
@@ -350,7 +353,11 @@ func (db *DB) scheduledUpdates(k dbKey) ([]chunk.ScheduledBlockUpdate, int64, er
 			db.conf.Log.Error("read scheduled updates: decode block state: " + err.Error())
 			continue
 		}
-		updates[i] = chunk.ScheduledBlockUpdate{Pos: blockPosFromNBT(tick), Block: block, Tick: t}
+		pos, ok := blockPosFromNBT(tick)
+		if !ok {
+			return nil, 0, fmt.Errorf("scheduled tick has no int32 x, y and z")
+		}
+		updates[i] = chunk.ScheduledBlockUpdate{Pos: pos, Block: block, Tick: t}
 	}
 	return updates, int64(m.CurrentTick), nil
 }
@@ -571,11 +578,16 @@ func index(position world.ChunkPos, d world.Dimension) []byte {
 	return b
 }
 
-// blockPosFromNBT returns a position from the X, Y and Z components stored in the NBT data map passed. The
-// map is assumed to have an 'x', 'y' and 'z' key.
-func blockPosFromNBT(data map[string]any) cube.Pos {
-	x, _ := data["x"].(int32)
-	y, _ := data["y"].(int32)
-	z, _ := data["z"].(int32)
-	return cube.Pos{int(x), int(y), int(z)}
+// blockPosFromNBT returns the position held in the 'x', 'y' and 'z' keys of the NBT data map passed. It
+// returns false if any of the three is absent or is not the int32 the format stores, in which case the
+// position returned is the zero value and means nothing: the origin is a real block, so a caller must not
+// place anything there on the strength of unreadable coordinates.
+func blockPosFromNBT(data map[string]any) (cube.Pos, bool) {
+	x, xOK := data["x"].(int32)
+	y, yOK := data["y"].(int32)
+	z, zOK := data["z"].(int32)
+	if !xOK || !yOK || !zOK {
+		return cube.Pos{}, false
+	}
+	return cube.Pos{int(x), int(y), int(z)}, true
 }

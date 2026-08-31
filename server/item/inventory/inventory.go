@@ -96,19 +96,25 @@ func (inv *Inventory) Item(slot int) (item.Stack, error) {
 // slot, that item will be overwritten.
 // SetItem will return an error if the slot passed is out of range. (0 <= slot < inventory.Size())
 func (inv *Inventory) SetItem(slot int, item item.Stack) error {
+	f, err := inv.lockedSetItem(slot, item)
+	if err != nil {
+		return err
+	}
+	f()
+	return nil
+}
+
+// lockedSetItem performs the write of SetItem under the write lock and returns the callback announcing it.
+// The callback is run by the caller once the lock is released, because a SlotFunc may reenter the Inventory.
+func (inv *Inventory) lockedSetItem(slot int, it item.Stack) (func(), error) {
 	inv.mu.Lock()
+	defer inv.mu.Unlock()
 
 	inv.check()
 	if !inv.validSlot(slot) {
-		inv.mu.Unlock()
-		return ErrSlotOutOfRange
+		return nil, ErrSlotOutOfRange
 	}
-	f := inv.setItem(slot, item)
-
-	inv.mu.Unlock()
-
-	f()
-	return nil
+	return inv.setItem(slot, it), nil
 }
 
 // Slots returns the all slots in the inventory as a slice. The index in the slice is the slot of the inventory that a
@@ -162,21 +168,27 @@ func (inv *Inventory) FirstEmpty() (int, bool) {
 
 // Swap swaps the items between two slots. Returns an error if either slot A or B are invalid.
 func (inv *Inventory) Swap(slotA, slotB int) error {
-	inv.mu.Lock()
-
-	inv.check()
-	if !inv.validSlot(slotA) || !inv.validSlot(slotB) {
-		inv.mu.Unlock()
-		return ErrSlotOutOfRange
+	fa, fb, err := inv.lockedSwap(slotA, slotB)
+	if err != nil {
+		return err
 	}
-	a, b := inv.slots[slotA], inv.slots[slotB]
-	fa, fb := inv.setItem(slotA, b), inv.setItem(slotB, a)
-
-	inv.mu.Unlock()
-
 	fa()
 	fb()
 	return nil
+}
+
+// lockedSwap performs both writes of Swap under the write lock and returns the callbacks announcing them, to
+// be run by the caller with the lock released.
+func (inv *Inventory) lockedSwap(slotA, slotB int) (func(), func(), error) {
+	inv.mu.Lock()
+	defer inv.mu.Unlock()
+
+	inv.check()
+	if !inv.validSlot(slotA) || !inv.validSlot(slotB) {
+		return nil, nil, ErrSlotOutOfRange
+	}
+	a, b := inv.slots[slotA], inv.slots[slotB]
+	return inv.setItem(slotA, b), inv.setItem(slotB, a), nil
 }
 
 // AddItem attempts to add an item to the inventory. It does so in a couple of steps: It first iterates over
@@ -190,10 +202,19 @@ func (inv *Inventory) AddItem(it item.Stack) (n int, err error) {
 	if it.Empty() {
 		return 0, nil
 	}
+	fs, n, err := inv.lockedAddItem(it)
+	runSlotFuncs(fs)
+	return n, err
+}
+
+// lockedAddItem performs the writes of AddItem under the write lock and returns the callbacks announcing
+// them, to be run by the caller with the lock released.
+func (inv *Inventory) lockedAddItem(it item.Stack) (fs []func(), n int, err error) {
 	first := it.Count()
 	emptySlots := make([]int, 0, 16)
 
 	inv.mu.Lock()
+	defer inv.mu.Unlock()
 
 	inv.check()
 	for slot, invIt := range inv.slots {
@@ -207,32 +228,25 @@ func (inv *Inventory) AddItem(it item.Stack) (n int, err error) {
 			// Count stayed the same, meaning this slot either wasn't equal to this stack or was max size.
 			continue
 		}
-		f := inv.setItem(slot, a)
-		//noinspection GoDeferInLoop
-		defer f()
+		fs = append(fs, inv.setItem(slot, a))
 
 		if it = b; it.Empty() {
-			inv.mu.Unlock()
 			// We were able to add the entire stack to existing stacks in the inventory.
-			return first, nil
+			return fs, first, nil
 		}
 	}
 	for _, slot := range emptySlots {
 		a, b := it.Grow(-math.MaxInt32).AddStack(it)
 
-		f := inv.setItem(slot, a)
-		//noinspection GoDeferInLoop
-		defer f()
+		fs = append(fs, inv.setItem(slot, a))
 
 		if it = b; it.Empty() {
-			inv.mu.Unlock()
 			// We were able to add the entire stack to empty slots.
-			return first, nil
+			return fs, first, nil
 		}
 	}
-	inv.mu.Unlock()
 	// We were unable to clear out the entire stack to be added to the inventory: There wasn't enough space.
-	return first - it.Count(), fmt.Errorf("could not add full item stack to inventory")
+	return fs, first - it.Count(), fmt.Errorf("could not add full item stack to inventory")
 }
 
 // RemoveItem attempts to remove an item from the inventory. It will visit all slots in the inventory and
@@ -254,34 +268,40 @@ func (inv *Inventory) RemoveItemFunc(n int, comparable func(stack item.Stack) bo
 		// negative count duplicates items rather than removing them.
 		return ErrCountOutOfRange
 	}
+	fs, err := inv.lockedRemoveItemFunc(n, comparable)
+	runSlotFuncs(fs)
+	return err
+}
+
+// lockedRemoveItemFunc performs the writes of RemoveItemFunc under the write lock and returns the callbacks
+// announcing them, to be run by the caller with the lock released.
+func (inv *Inventory) lockedRemoveItemFunc(n int, comparable func(stack item.Stack) bool) ([]func(), error) {
 	inv.mu.Lock()
+	defer inv.mu.Unlock()
+
 	inv.check()
+
+	var fs []func()
 	for slot, slotIt := range inv.slots {
 		if slotIt.Empty() || !comparable(slotIt) {
 			continue
 		}
 		c := slotIt.Count() - n
 
-		var f func()
 		if c <= 0 {
-			f = inv.setItem(slot, item.Stack{})
+			fs = append(fs, inv.setItem(slot, item.Stack{}))
 		} else {
-			f = inv.setItem(slot, slotIt.Grow(-n))
+			fs = append(fs, inv.setItem(slot, slotIt.Grow(-n)))
 		}
-
-		//noinspection GoDeferInLoop
-		defer f()
 
 		if n -= slotIt.Count(); n <= 0 {
 			break
 		}
 	}
-	inv.mu.Unlock()
-
 	if n > 0 {
-		return fmt.Errorf("could not remove all items from the inventory")
+		return fs, fmt.Errorf("could not remove all items from the inventory")
 	}
-	return nil
+	return fs, nil
 }
 
 // ContainsItem checks if the Inventory contains an item.Stack. It will visit all slots in the Inventory until it finds
@@ -338,22 +358,28 @@ func (inv *Inventory) Empty() bool {
 
 // Clear clears the entire inventory. All non-zero items are returned.
 func (inv *Inventory) Clear() []item.Stack {
+	items, fs := inv.lockedClear()
+	runSlotFuncs(fs)
+	return items
+}
+
+// lockedClear empties every slot under the write lock and returns the stacks taken along with the callbacks
+// announcing the writes, to be run by the caller with the lock released.
+func (inv *Inventory) lockedClear() ([]item.Stack, []func()) {
 	inv.mu.Lock()
+	defer inv.mu.Unlock()
 
 	inv.check()
 
 	items := make([]item.Stack, 0, inv.size())
+	var fs []func()
 	for slot, i := range inv.slots {
 		if !i.Empty() {
 			items = append(items, i)
-			f := inv.setItem(slot, item.Stack{})
-			//noinspection GoDeferInLoop
-			defer f()
+			fs = append(fs, inv.setItem(slot, item.Stack{}))
 		}
 	}
-	inv.mu.Unlock()
-
-	return items
+	return items, fs
 }
 
 // Handle assigns a Handler to an Inventory so that its methods are called for the respective events. Nil may be passed
@@ -376,6 +402,15 @@ func (inv *Inventory) Handler() Handler {
 
 	inv.check()
 	return inv.h
+}
+
+// runSlotFuncs calls the callbacks setItem returned, last write first. The order is what a stack of deferred
+// calls produced, and listeners that reconstruct state from the callbacks depend on it. It must be called
+// with the inventory mutex released: a SlotFunc may reenter the Inventory.
+func runSlotFuncs(fs []func()) {
+	for i := len(fs) - 1; i >= 0; i-- {
+		fs[i]()
+	}
 }
 
 // setItem sets an item to a specific slot and overwrites the existing item. It calls the function which is

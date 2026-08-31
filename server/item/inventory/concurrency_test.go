@@ -691,11 +691,61 @@ func TestReentrantSlotFuncObservesReleasedLock(t *testing.T) {
 	}
 }
 
-// TestConcurrentValidatorPanicLeavesMutexLocked pins that a panic escaping the
-// slot validator is not recoverable at the inventory level.
-func TestConcurrentValidatorPanicLeavesMutexLocked(t *testing.T) {
-	inv := New(4, nil)
-	inv.SlotValidatorFunc(func(item.Stack, int) bool { panic("validator blew up") })
+// TestConcurrentValidatorPanicReleasesMutex pins that a panic escaping the slot
+// validator propagates to the caller without stranding the inventory mutex.
+// Every mutating entry point holds the write lock while it consults the
+// validator, so a validator that panics is the cheapest way to unwind out of
+// the locked section of each of them. A caller that recovers the panic must be
+// left with an inventory that still works.
+func TestConcurrentValidatorPanicReleasesMutex(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		run  func(inv *Inventory)
+	}{
+		{"SetItem", func(inv *Inventory) { _ = inv.SetItem(0, diamonds(1)) }},
+		{"Swap", func(inv *Inventory) { _ = inv.Swap(0, 1) }},
+		{"AddItem", func(inv *Inventory) { _, _ = inv.AddItem(diamonds(1)) }},
+		{"RemoveItemFunc", func(inv *Inventory) { _ = inv.RemoveItemFunc(1, diamonds(1).Comparable) }},
+		{"Clear", func(inv *Inventory) { _ = inv.Clear() }},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			inv := New(4, nil)
+			mustSet(t, inv, 0, diamonds(6))
+			inv.SlotValidatorFunc(func(item.Stack, int) bool { panic("validator blew up") })
+
+			panicked := make(chan any, 1)
+			go func() {
+				defer func() { panicked <- recover() }()
+				c.run(inv)
+			}()
+			select {
+			case r := <-panicked:
+				if r == nil {
+					t.Fatalf("%v did not propagate the validator panic", c.name)
+				}
+			case <-time.After(2 * time.Second):
+				t.Fatalf("%v never returned", c.name)
+			}
+
+			reachable := make(chan struct{})
+			go func() {
+				inv.Size()
+				close(reachable)
+			}()
+			select {
+			case <-reachable:
+			case <-time.After(2 * time.Second):
+				t.Fatalf("the inventory mutex is still held after %v propagated the validator panic", c.name)
+			}
+		})
+	}
+}
+
+// TestConcurrentCheckPanicReleasesMutex pins the same contract for the panic
+// raised by check on an inventory that was not built by New: it escapes to the
+// caller with the mutex released, so the panic stays recoverable.
+func TestConcurrentCheckPanicReleasesMutex(t *testing.T) {
+	inv := &Inventory{}
 
 	panicked := make(chan any, 1)
 	go func() {
@@ -705,18 +755,12 @@ func TestConcurrentValidatorPanicLeavesMutexLocked(t *testing.T) {
 	select {
 	case r := <-panicked:
 		if r == nil {
-			t.Fatal("SetItem did not propagate the validator panic")
+			t.Fatal("SetItem on a zero-value inventory did not panic")
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("SetItem never returned")
 	}
 
-	// PINNED BUG: SetItem, Swap, AddItem, RemoveItemFunc and Clear all unlock
-	// with a plain statement rather than defer, so a panic from the validator
-	// (or from a SlotValidatorFunc left nil, or from check) leaves the mutex
-	// held forever and every later call on the inventory blocks. A caller that
-	// recovers the panic is left with an inventory that can never be used again.
-	// Pinned as-is; the timeout is short because this asserts the hang.
 	reachable := make(chan struct{})
 	go func() {
 		inv.Size()
@@ -724,8 +768,8 @@ func TestConcurrentValidatorPanicLeavesMutexLocked(t *testing.T) {
 	}()
 	select {
 	case <-reachable:
-		t.Fatal("the inventory mutex was released after the validator panicked; the pinned deadlock is gone")
-	case <-time.After(250 * time.Millisecond):
+	case <-time.After(2 * time.Second):
+		t.Fatal("the inventory mutex is still held after check panicked")
 	}
 }
 

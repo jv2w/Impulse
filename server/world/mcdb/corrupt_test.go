@@ -491,8 +491,9 @@ func TestLoadColumnCorruptBlockEntities(t *testing.T) {
 	}
 }
 
-// TestLoadColumnBlockEntityWithoutCoordinates fixes what blockPosFromNBT does with a block entity that has no
-// usable x/y/z: the position becomes the origin and no error is raised.
+// TestLoadColumnBlockEntityWithoutCoordinates fixes what the load path does with a block entity that has no
+// usable x/y/z. Placing it at the chunk origin would put a chest's contents on top of whatever is there and
+// write that over the real block on the next store, so the column is refused instead.
 func TestLoadColumnBlockEntityWithoutCoordinates(t *testing.T) {
 	cases := []struct {
 		name string
@@ -507,15 +508,12 @@ func TestLoadColumnBlockEntityWithoutCoordinates(t *testing.T) {
 			k := seedColumn(t, db)
 			putRaw(t, db, k.Sum(keyBlockEntities), appendNBT(t, c.data))
 
-			col, err := db.LoadColumn(k.pos, k.dim)
-			if err != nil {
-				t.Fatalf("load: %v", err)
+			_, err := db.LoadColumn(k.pos, k.dim)
+			if err == nil {
+				t.Fatal("load succeeded")
 			}
-			if len(col.BlockEntities) != 1 {
-				t.Fatalf("block entities: want 1, got %v", len(col.BlockEntities))
-			}
-			if p := col.BlockEntities[0].Pos; p != (cube.Pos{0, 0, 0}) {
-				t.Errorf("pos = %v, want the origin", p)
+			if !strings.Contains(err.Error(), "block entity has no int32 x, y and z") {
+				t.Errorf("err = %v, want it to name the missing coordinates", err)
 			}
 		})
 	}
@@ -590,35 +588,56 @@ func TestLoadColumnUndecodableScheduledTickBecomesZeroValue(t *testing.T) {
 	}
 }
 
-// TestLoadColumnScheduledTickWithWrongFieldTypes fixes that the tick and position fields are read with
-// unchecked-value type assertions, so a value of the wrong NBT type silently becomes zero.
+// TestLoadColumnScheduledTickWithWrongFieldTypes fixes what a tick field of the wrong NBT type produces.
 func TestLoadColumnScheduledTickWithWrongFieldTypes(t *testing.T) {
-	db := newDB(t)
-	k := seedColumn(t, db)
+	// storeTick writes a single scheduled tick built from the fields passed, over a valid column.
+	storeTick := func(t *testing.T, db *DB, k dbKey, tick map[string]any) {
+		t.Helper()
+		tick["blockState"] = map[string]any{
+			"name": "impulse:stone", "states": map[string]any{}, "version": chunk.CurrentBlockVersion,
+		}
+		data, err := nbt.MarshalEncoding(scheduledUpdates{
+			CurrentTick: 40, TickList: []map[string]any{tick},
+		}, nbt.LittleEndian)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		putRaw(t, db, k.Sum(keyPendingScheduledTicks), data)
+	}
 
-	data, err := nbt.MarshalEncoding(scheduledUpdates{
-		CurrentTick: 40,
-		TickList: []map[string]any{{
-			// time as an int32 rather than an int64, x as a string.
-			"x": "1", "y": int32(2), "z": int32(3), "time": int32(50),
-			"blockState": map[string]any{
-				"name": "impulse:stone", "states": map[string]any{}, "version": chunk.CurrentBlockVersion,
-			},
-		}},
-	}, nbt.LittleEndian)
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
-	}
-	putRaw(t, db, k.Sum(keyPendingScheduledTicks), data)
+	// A scheduled tick carries the position it fires at, so an axis that cannot be read is refused for the
+	// same reason a block entity's is: tick zero at the chunk origin would break a block that is not the
+	// one the tick was scheduled for.
+	t.Run("position axis of the wrong type", func(t *testing.T) {
+		db := newDB(t)
+		k := seedColumn(t, db)
+		storeTick(t, db, k, map[string]any{"x": "1", "y": int32(2), "z": int32(3), "time": int64(50)})
 
-	col, err := db.LoadColumn(k.pos, k.dim)
-	if err != nil {
-		t.Fatalf("load: %v", err)
-	}
-	want := chunk.ScheduledBlockUpdate{Pos: cube.Pos{0, 2, 3}, Block: ridStone, Tick: 0}
-	if len(col.ScheduledBlocks) != 1 || col.ScheduledBlocks[0] != want {
-		t.Fatalf("scheduled blocks = %+v, want [%+v]", col.ScheduledBlocks, want)
-	}
+		_, err := db.LoadColumn(k.pos, k.dim)
+		if err == nil {
+			t.Fatal("load succeeded")
+		}
+		if !strings.Contains(err.Error(), "scheduled tick has no int32 x, y and z") {
+			t.Errorf("err = %v, want it to name the missing coordinates", err)
+		}
+	})
+
+	// PINNED BUG: the tick itself is still read with an unchecked-value assertion, so a time stored as
+	// anything but an int64 silently becomes 0 and the update fires on the first tick after the load.
+	t.Run("time of the wrong type", func(t *testing.T) {
+		db := newDB(t)
+		k := seedColumn(t, db)
+		storeTick(t, db, k, map[string]any{"x": int32(1), "y": int32(2), "z": int32(3), "time": int32(50)})
+
+		col, err := db.LoadColumn(k.pos, k.dim)
+		if err != nil {
+			t.Fatalf("load: %v", err)
+		}
+		want := chunk.ScheduledBlockUpdate{Pos: cube.Pos{1, 2, 3}, Block: ridStone, Tick: 0}
+		if len(col.ScheduledBlocks) != 1 || col.ScheduledBlocks[0] != want {
+			t.Fatalf("scheduled blocks = %+v, want [%+v]", col.ScheduledBlocks, want)
+		}
+	})
 }
 
 // TestLoadColumnVersionKeyOnly fixes the minimum a chunk needs to load: the version key alone yields an empty

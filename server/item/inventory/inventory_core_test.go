@@ -432,11 +432,10 @@ func TestCoreSlotFuncNilPanicsOnNextWrite(t *testing.T) {
 	}
 }
 
-func TestCoreSlotValidatorFuncNilPanicsAndKeepsLock(t *testing.T) {
+func TestCoreSlotValidatorFuncNilPanics(t *testing.T) {
 	// PINNED BUG: SlotValidatorFunc stores nil verbatim, so the next write panics
-	// inside setItem while inv.mu is held. SetItem does not unlock through a
-	// defer, so the mutex stays locked forever and every later call on this
-	// inventory deadlocks. Pinned as-is; decide in stage 1.
+	// inside setItem rather than reinstating the accept-everything validator the
+	// way New does. Pinned as-is; decide in stage 1.
 	inv := New(2, nil)
 	mustSet(t, inv, 0, diamonds(1))
 	inv.SlotValidatorFunc(nil)
@@ -449,16 +448,14 @@ func TestCoreSlotValidatorFuncNilPanicsAndKeepsLock(t *testing.T) {
 		t.Fatalf("SetItem after SlotValidatorFunc(nil): panicked with %#v, want a runtime.Error", r)
 	}
 
-	// TryLock rather than a real call: any method on inv would block forever.
-	if inv.mu.TryLock() {
-		inv.mu.Unlock()
-		t.Fatalf("mutex was released after the panic in the validator")
-	}
-	if inv.mu.TryRLock() {
-		inv.mu.RUnlock()
-		t.Fatalf("read lock was obtainable after the panic in the validator")
-	}
-	// inv is unusable from here on and is deliberately not touched again.
+	// The panic unwinds through the deferred unlock, so the inventory survives it
+	// and a caller that recovers can still read it and install a working
+	// validator.
+	assertSlot(t, inv, 0, diamonds(1))
+	assertSlot(t, inv, 1, item.Stack{})
+	inv.SlotValidatorFunc(func(item.Stack, int) bool { return true })
+	mustSet(t, inv, 1, sticks(3))
+	assertSlot(t, inv, 1, sticks(3))
 }
 
 func TestCoreSlotsReturnsACopy(t *testing.T) {

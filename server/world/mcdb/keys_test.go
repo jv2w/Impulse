@@ -347,79 +347,48 @@ func TestEntityIndexGoldenBytes(t *testing.T) {
 	}
 }
 
-// TestBlockPosFromNBT fixes how a block entity position is recovered from decoded NBT. Only int32 is accepted;
-// every other tag type and every absent key yields 0 on that axis.
-//
-// PINNED BUG: the three type assertions discard their ok result, so an axis stored as int64, int16, string or
-// a null tag is read as 0 instead of being reported. A block entity whose coordinates came from a third-party
-// tool that wrote int64 is silently relocated to (0,0,0) inside its chunk, overwriting whatever is there on
-// the next store, and the caller cannot tell "absent" from "genuinely zero". Left alone: returning an error
-// here changes the signature and the load path's behaviour on worlds that currently load.
+// TestBlockPosFromNBT fixes how a block entity position is recovered from decoded NBT. Only int32 is
+// accepted; any other tag type and any absent key make the whole position unusable. Reporting that is what
+// keeps a block entity written by a tool that stored int64 from being relocated to the chunk origin, where it
+// would overwrite whatever is there on the next store.
 func TestBlockPosFromNBT(t *testing.T) {
 	cases := []struct {
-		name string
-		data map[string]any
-		want cube.Pos
+		name   string
+		data   map[string]any
+		want   cube.Pos
+		wantOK bool
 	}{
 		{
-			name: "all int32",
+			name: "all int32", wantOK: true,
 			data: map[string]any{"x": int32(1), "y": int32(-2), "z": int32(3)},
 			want: cube.Pos{1, -2, 3},
 		},
 		{
-			name: "int32 extremes",
+			name: "int32 extremes", wantOK: true,
 			data: map[string]any{"x": int32(math.MinInt32), "y": int32(math.MaxInt32), "z": int32(0)},
 			want: cube.Pos{math.MinInt32, math.MaxInt32, 0},
 		},
 		{
-			name: "extra keys ignored, lookup is case sensitive",
+			name: "extra keys ignored, lookup is case sensitive", wantOK: true,
 			data: map[string]any{"x": int32(1), "y": int32(2), "z": int32(3), "id": "Chest", "X": int32(9)},
 			want: cube.Pos{1, 2, 3},
 		},
-		{
-			name: "nil map",
-			data: nil,
-			want: cube.Pos{0, 0, 0},
-		},
-		{
-			name: "empty map",
-			data: map[string]any{},
-			want: cube.Pos{0, 0, 0},
-		},
-		{
-			name: "missing y",
-			data: map[string]any{"x": int32(4), "z": int32(6)},
-			want: cube.Pos{4, 0, 6},
-		},
-		{
-			name: "int64 values",
-			data: map[string]any{"x": int64(1), "y": int64(2), "z": int64(3)},
-			want: cube.Pos{0, 0, 0},
-		},
-		{
-			name: "int16 values",
-			data: map[string]any{"x": int16(1), "y": int16(2), "z": int16(3)},
-			want: cube.Pos{0, 0, 0},
-		},
-		{
-			name: "string values",
-			data: map[string]any{"x": "1", "y": "2", "z": "3"},
-			want: cube.Pos{0, 0, 0},
-		},
-		{
-			name: "nil values",
-			data: map[string]any{"x": nil, "y": nil, "z": nil},
-			want: cube.Pos{0, 0, 0},
-		},
-		{
-			name: "mixed types",
-			data: map[string]any{"x": int32(7), "y": int64(8), "z": "9"},
-			want: cube.Pos{7, 0, 0},
-		},
+		{name: "nil map", data: nil},
+		{name: "empty map", data: map[string]any{}},
+		{name: "missing y", data: map[string]any{"x": int32(4), "z": int32(6)}},
+		{name: "int64 values", data: map[string]any{"x": int64(1), "y": int64(2), "z": int64(3)}},
+		{name: "int16 values", data: map[string]any{"x": int16(1), "y": int16(2), "z": int16(3)}},
+		{name: "string values", data: map[string]any{"x": "1", "y": "2", "z": "3"}},
+		{name: "nil values", data: map[string]any{"x": nil, "y": nil, "z": nil}},
+		{name: "mixed types", data: map[string]any{"x": int32(7), "y": int64(8), "z": "9"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := blockPosFromNBT(c.data); got != c.want {
+			got, ok := blockPosFromNBT(c.data)
+			if ok != c.wantOK {
+				t.Fatalf("blockPosFromNBT(%v) ok = %v, want %v", c.data, ok, c.wantOK)
+			}
+			if got != c.want {
 				t.Fatalf("blockPosFromNBT(%v) = %v, want %v", c.data, got, c.want)
 			}
 		})
