@@ -37,7 +37,9 @@ func (conf ItemBehaviourConfig) New() *ItemBehaviour {
 	if i.Count() > i.MaxCount() {
 		i = i.Grow(i.MaxCount() - i.Count())
 	}
-	i = item.ReadNBT(item.WriteNBT(i, true), nil)
+	// A round trip of a live stack: the item came out of the registry, so it
+	// cannot fail to resolve on the way back in.
+	i, _ = item.ReadNBT(item.WriteNBT(i, true), nil)
 
 	if conf.PickupDelay == 0 {
 		conf.PickupDelay = time.Second / 2

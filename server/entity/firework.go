@@ -48,7 +48,9 @@ func (fireworkType) BBox(world.Entity) cube.BBox { return cube.BBox{} }
 
 func (fireworkType) DecodeNBT(m map[string]any, data *world.EntityData) {
 	conf := fireworkConf
-	conf.Firework = item.MapNBT(m, "Item").Item().(item.Firework)
+	// DecodeNBT has no channel to report an item this build cannot resolve on.
+	it, _ := item.MapNBT(m, "Item")
+	conf.Firework = it.Item().(item.Firework)
 	conf.ExistenceDuration = conf.Firework.RandomisedDuration()
 
 	data.Data = conf.New()

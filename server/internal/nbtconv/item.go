@@ -9,7 +9,9 @@ import (
 func InvFromNBT(inv *inventory.Inventory, items []any) {
 	for _, itemData := range items {
 		data, _ := itemData.(map[string]any)
-		it := item.ReadNBT(data, nil)
+		// An item this build cannot resolve leaves its slot empty; InvFromNBT
+		// has no channel to report the loss on.
+		it, _ := item.ReadNBT(data, nil)
 		if it.Empty() {
 			continue
 		}

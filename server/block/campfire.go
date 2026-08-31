@@ -254,8 +254,11 @@ func (c Campfire) EncodeNBT() map[string]any {
 func (c Campfire) DecodeNBT(data map[string]any) any {
 	for i := 0; i < 4; i++ {
 		id := strconv.Itoa(i + 1)
+		// DecodeNBT has no channel to report an item this build cannot resolve
+		// on; the slot cooks nothing.
+		it, _ := item.MapNBT(data, "Item"+id)
 		c.Items[i] = CampfireItem{
-			Item: item.MapNBT(data, "Item"+id),
+			Item: it,
 			Time: time.Duration(nbtconv.Int32(data, "ItemTime"+id)) * time.Millisecond * 50,
 		}
 	}

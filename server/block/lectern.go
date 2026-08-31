@@ -144,7 +144,9 @@ func (l Lectern) EncodeNBT() map[string]any {
 // DecodeNBT ...
 func (l Lectern) DecodeNBT(m map[string]any) any {
 	l.Page = int(nbtconv.Int32(m, "page"))
-	l.Book = item.MapNBT(m, "book")
+	// DecodeNBT has no channel to report a book this build cannot resolve on;
+	// the lectern loads empty.
+	l.Book, _ = item.MapNBT(m, "book")
 	return l
 }
 

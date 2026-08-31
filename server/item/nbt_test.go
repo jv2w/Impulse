@@ -3,8 +3,10 @@ package item
 import (
 	"bytes"
 	"encoding/gob"
+	"errors"
 	"maps"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/jv2w/Impulse/server/world"
@@ -250,7 +252,7 @@ func TestNBTRoundTripDisk(t *testing.T) {
 		},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			got := ReadNBT(WriteNBT(c.s, true), nil)
+			got := readNBT(t, WriteNBT(c.s, true), nil)
 			assertStackRoundTripped(t, got, c.s)
 		})
 	}
@@ -272,7 +274,7 @@ func TestNBTRoundTripNetwork(t *testing.T) {
 			// The network format carries no item name or count, so the caller
 			// supplies the stack the tags are applied to.
 			base := NewStack(c.s.Item(), c.s.Count())
-			got := ReadNBT(WriteNBT(c.s, false), &base)
+			got := readNBT(t, WriteNBT(c.s, false), &base)
 			assertStackRoundTripped(t, got, c.s)
 		})
 	}
@@ -400,7 +402,7 @@ func TestReadDragonflyDataFromByteSlice(t *testing.T) {
 	for _, b := range tag["dragonflyData"].([]byte) {
 		asAny = append(asAny, b)
 	}
-	got := ReadNBT(map[string]any{
+	got := readNBT(t, map[string]any{
 		"Name":   "minecraft:stick",
 		"Damage": int16(0),
 		"Count":  byte(1),
@@ -426,7 +428,7 @@ func TestReadDragonflyDataDropsBadInput(t *testing.T) {
 		{"any slice of non-bytes", []any{"not a byte"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			got := ReadNBT(map[string]any{
+			got := readNBT(t, map[string]any{
 				"Name":   "minecraft:stick",
 				"Damage": int16(0),
 				"Count":  byte(1),
@@ -452,18 +454,23 @@ func TestWriteDragonflyDataDropsUnencodableValues(t *testing.T) {
 	}
 }
 
+// A name this build cannot resolve costs the entry everything stored beside it.
+// Nothing in the reader can recover that, so the one thing it owes the caller is
+// saying that it happened: an empty Stack alone is indistinguishable from an
+// empty slot.
 func TestReadItemStackUnknownItem(t *testing.T) {
-	// PINNED BUG: an unrecognised item name yields a zero Stack. The count, the
-	// enchantments and the user data in the same entry are dropped with it and
-	// no error reaches the caller, so a world saved by a build that knows an
-	// item silently loses it when loaded by one that does not. Pinned as-is;
-	// decide in stage 1.
-	got := ReadNBT(map[string]any{
+	got, err := ReadNBT(map[string]any{
 		"Name":   "minecraft:not_a_real_item",
 		"Damage": int16(0),
 		"Count":  byte(64),
 		"tag":    map[string]any{"display": map[string]any{"Name": "a name"}},
 	}, nil)
+	if !errors.Is(err, ErrUnknownItem) {
+		t.Fatalf("ReadNBT error = %v, want one wrapping ErrUnknownItem", err)
+	}
+	if !strings.Contains(err.Error(), "minecraft:not_a_real_item") {
+		t.Fatalf("ReadNBT error = %v, want it to name the item that was lost", err)
+	}
 	if !got.Empty() {
 		t.Fatalf("ReadNBT = %v, want an empty stack", got)
 	}
@@ -476,7 +483,7 @@ func TestReadItemStackUnknownItem(t *testing.T) {
 // defect in that item, not in the data on disk. The registered item is kept
 // without its own tags so that the count and the rest of the stack survive.
 func TestReadItemStackKeepsTheItemWhenDecodeNBTReturnsANonItem(t *testing.T) {
-	got := ReadNBT(map[string]any{"Name": "minecraft:dirt", "Damage": int16(0), "Count": byte(3)}, nil)
+	got := readNBT(t, map[string]any{"Name": "minecraft:dirt", "Damage": int16(0), "Count": byte(3)}, nil)
 	if _, ok := got.Item().(badDecodeItem); !ok {
 		t.Fatalf("Item() = %T, want badDecodeItem", got.Item())
 	}
@@ -490,24 +497,27 @@ func TestReadItemStackMissingFields(t *testing.T) {
 		name string
 		m    map[string]any
 	}{
+		// None of these carries a name, so they read as an empty slot rather
+		// than as an item that was lost: readNBT would fail on an error.
 		{"empty map", map[string]any{}},
 		{"no name", map[string]any{"Count": byte(1)}},
 		{"name of the wrong type", map[string]any{"Name": 5, "Count": byte(1)}},
+		{"empty name", map[string]any{"Name": "", "Count": byte(1)}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			if got := ReadNBT(c.m, nil); !got.Empty() {
+			if got := readNBT(t, c.m, nil); !got.Empty() {
 				t.Fatalf("ReadNBT = %v, want an empty stack", got)
 			}
 		})
 	}
 	t.Run("missing count yields a zero count", func(t *testing.T) {
-		got := ReadNBT(map[string]any{"Name": "minecraft:stick"}, nil)
+		got := readNBT(t, map[string]any{"Name": "minecraft:stick"}, nil)
 		if got.Count() != 0 || !got.Empty() {
 			t.Fatalf("ReadNBT = %v, want an empty stack", got)
 		}
 	})
 	t.Run("count of the wrong type yields a zero count", func(t *testing.T) {
-		got := ReadNBT(map[string]any{"Name": "minecraft:stick", "Count": int32(5)}, nil)
+		got := readNBT(t, map[string]any{"Name": "minecraft:stick", "Count": int32(5)}, nil)
 		if got.Count() != 0 {
 			t.Fatalf("Count() = %v, want 0", got.Count())
 		}
@@ -515,7 +525,7 @@ func TestReadItemStackMissingFields(t *testing.T) {
 	t.Run("metadata falls back to the meta zero item", func(t *testing.T) {
 		// ItemByName retries with a metadata of 0, so a stick with a stray
 		// metadata value still resolves.
-		got := ReadNBT(map[string]any{
+		got := readNBT(t, map[string]any{
 			"Name": "minecraft:stick", "Damage": int16(7), "Count": byte(1),
 		}, nil)
 		if _, ok := got.Item().(Stick); !ok {
@@ -550,12 +560,12 @@ func TestReadDamage(t *testing.T) {
 	read := func(disk bool, damage any) Stack {
 		s := NewStack(Sword{Tier: ToolTierWood}, 1) // 59 durability
 		if disk {
-			return ReadNBT(map[string]any{
+			return readNBT(t, map[string]any{
 				"Name": "minecraft:wooden_sword", "Damage": int16(0), "Count": byte(1),
 				"tag": map[string]any{"Damage": damage},
 			}, nil)
 		}
-		return ReadNBT(map[string]any{"Damage": damage}, &s)
+		return readNBT(t, map[string]any{"Damage": damage}, &s)
 	}
 	t.Run("disk reads an int16", func(t *testing.T) {
 		if got := read(true, int16(10)).Durability(); got != 49 {
@@ -592,7 +602,7 @@ func TestReadDamage(t *testing.T) {
 		}
 	})
 	t.Run("a stored damage on an item that is not durable is ignored", func(t *testing.T) {
-		got := ReadNBT(map[string]any{
+		got := readNBT(t, map[string]any{
 			"Name": "minecraft:stick", "Damage": int16(0), "Count": byte(1),
 			"tag": map[string]any{"Damage": int16(5)},
 		}, nil)
@@ -611,7 +621,7 @@ func TestReadDamage(t *testing.T) {
 
 func TestReadEnchantments(t *testing.T) {
 	read := func(ench any) Stack {
-		return ReadNBT(map[string]any{
+		return readNBT(t, map[string]any{
 			"Name": "minecraft:stick", "Damage": int16(0), "Count": byte(1),
 			"tag": map[string]any{"ench": ench},
 		}, nil)
@@ -689,7 +699,7 @@ func TestReadEnchantments(t *testing.T) {
 		if !reflect.DeepEqual(tag, want) {
 			t.Fatalf("tag = %#v, want %#v", tag, want)
 		}
-		if n := len(ReadNBT(WriteNBT(s, true), nil).Enchantments()); n != 0 {
+		if n := len(readNBT(t, WriteNBT(s, true), nil).Enchantments()); n != 0 {
 			t.Fatalf("len(Enchantments()) after a round trip = %v, want 0", n)
 		}
 	})
@@ -702,7 +712,7 @@ func TestReadEnchantments(t *testing.T) {
 
 func TestReadDisplay(t *testing.T) {
 	read := func(display any) Stack {
-		return ReadNBT(map[string]any{
+		return readNBT(t, map[string]any{
 			"Name": "minecraft:stick", "Damage": int16(0), "Count": byte(1),
 			"tag": map[string]any{"display": display},
 		}, nil)
@@ -757,7 +767,7 @@ func TestReadDisplay(t *testing.T) {
 
 func TestReadUnbreakable(t *testing.T) {
 	read := func(v any) Stack {
-		return ReadNBT(map[string]any{
+		return readNBT(t, map[string]any{
 			"Name": "minecraft:wooden_sword", "Damage": int16(0), "Count": byte(1),
 			"tag": map[string]any{"Unbreakable": v},
 		}, nil)
@@ -785,7 +795,7 @@ func TestReadUnbreakable(t *testing.T) {
 
 func TestReadAnvilCost(t *testing.T) {
 	read := func(item string, v any) Stack {
-		return ReadNBT(map[string]any{
+		return readNBT(t, map[string]any{
 			"Name": item, "Damage": int16(0), "Count": byte(1),
 			"tag": map[string]any{"RepairCost": v},
 		}, nil)
@@ -809,7 +819,10 @@ func TestReadAnvilCost(t *testing.T) {
 func TestMapNBT(t *testing.T) {
 	inner := WriteNBT(NewStack(Stick{}, 3), true)
 	t.Run("present", func(t *testing.T) {
-		got := MapNBT(map[string]any{"Item": inner}, "Item")
+		got, err := MapNBT(map[string]any{"Item": inner}, "Item")
+		if err != nil {
+			t.Fatalf("MapNBT: unexpected error %v", err)
+		}
 		if got.Count() != 3 {
 			t.Fatalf("Count() = %v, want 3", got.Count())
 		}
@@ -827,7 +840,13 @@ func TestMapNBT(t *testing.T) {
 		{"nil map", nil, "Item"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			if got := MapNBT(c.x, c.k); !got.Empty() {
+			// An entry that is missing or not a map is an absent item, not an
+			// unknown one, so no error is reported for it.
+			got, err := MapNBT(c.x, c.k)
+			if err != nil {
+				t.Fatalf("MapNBT: unexpected error %v", err)
+			}
+			if !got.Empty() {
 				t.Fatalf("MapNBT = %v, want an empty stack", got)
 			}
 		})
@@ -849,7 +868,7 @@ func TestReadNBTLeavesTheCallersStackAlone(t *testing.T) {
 	// The network path takes a pointer, so it has to be clear whether the caller
 	// keeps its stack. It does not: ReadNBT writes through the pointer.
 	s := NewStack(Stick{}, 1)
-	ReadNBT(map[string]any{"display": map[string]any{"Name": "n"}}, &s)
+	readNBT(t, map[string]any{"display": map[string]any{"Name": "n"}}, &s)
 	if got := s.CustomName(); got != "n" {
 		t.Fatalf("CustomName() = %q, want %q: ReadNBT no longer writes through its pointer", got, "n")
 	}
@@ -866,6 +885,17 @@ func TestWriteNBTDoesNotAliasTheStack(t *testing.T) {
 	if got := s.Lore()[0]; got != "original" {
 		t.Fatalf("Lore()[0] = %q, want %q: WriteNBT aliases the stack's lore", got, "original")
 	}
+}
+
+// readNBT is ReadNBT for the cases that only assert on the Stack: an
+// unexpected error fails the test rather than being dropped.
+func readNBT(t *testing.T, data map[string]any, s *Stack) Stack {
+	t.Helper()
+	got, err := ReadNBT(data, s)
+	if err != nil {
+		t.Fatalf("ReadNBT: unexpected error %v", err)
+	}
+	return got
 }
 
 func diskTag(t *testing.T, s Stack) map[string]any {

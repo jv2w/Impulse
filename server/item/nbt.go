@@ -3,6 +3,8 @@ package item
 import (
 	"bytes"
 	"encoding/gob"
+	"errors"
+	"fmt"
 	"math"
 	"sort"
 
@@ -41,10 +43,23 @@ func WriteNBT(s Stack, disk bool) map[string]any {
 	return data
 }
 
+// ErrUnknownItem is returned by ReadNBT and MapNBT for an entry that names an
+// item this build has no registration for. The Stack returned alongside it is
+// empty, so the count, the enchantments and the user data stored beside the
+// name are lost with it.
+var ErrUnknownItem = errors.New("unknown item")
+
 // ReadNBT decodes the data of an item into an item stack. A nil s selects the
 // disk format, in which the item's name and count are read from data itself;
 // otherwise the tags are applied to the stack passed.
-func ReadNBT(data map[string]any, s *Stack) Stack {
+//
+// The error returned is non-nil only when the entry names an item that cannot
+// be resolved, in which case it wraps ErrUnknownItem and the Stack is empty. An
+// entry with no item name at all is not an error: it reads as an empty Stack,
+// which is what an empty slot looks like on disk. Individual tags that cannot
+// be decoded are dropped without an error so that the rest of the stack still
+// loads.
+func ReadNBT(data map[string]any, s *Stack) (Stack, error) {
 	disk, tag := s == nil, data
 	if disk {
 		t, ok := data["tag"].(map[string]any)
@@ -53,7 +68,10 @@ func ReadNBT(data map[string]any, s *Stack) Stack {
 		}
 		tag = t
 
-		a := readItemStack(data, tag)
+		a, err := readItemStack(data, tag)
+		if err != nil {
+			return Stack{}, err
+		}
 		s = &a
 	}
 
@@ -63,16 +81,19 @@ func ReadNBT(data map[string]any, s *Stack) Stack {
 	readDragonflyData(tag, s)
 	readEnchantments(tag, s)
 	readUnbreakable(tag, s)
-	return *s
+	return *s, nil
 }
 
 // MapNBT converts an item's name, count, damage (and properties when it is a
-// block) in a map obtained by decoding NBT at key k to a Stack.
-func MapNBT(x map[string]any, k string) Stack {
+// block) in a map obtained by decoding NBT at key k to a Stack. A missing entry
+// at k, or one that is not a map, yields an empty Stack and a nil error.
+//
+// The error returned is the one ReadNBT would return for the entry.
+func MapNBT(x map[string]any, k string) (Stack, error) {
 	if m, ok := x[k].(map[string]any); ok {
 		return ReadNBT(m, nil)
 	}
-	return Stack{}
+	return Stack{}, nil
 }
 
 // writeItemStack writes the name, metadata value, count and NBT of an item to a map ready for NBT encoding.
@@ -204,17 +225,22 @@ func writeUnbreakable(m map[string]any, s Stack) {
 	}
 }
 
-// readItemStack reads a Stack from the NBT in the map passed.
-func readItemStack(m, t map[string]any) Stack {
+// readItemStack reads a Stack from the NBT in the map passed. It fails with
+// ErrUnknownItem when the entry carries a name that resolves to nothing.
+func readItemStack(m, t map[string]any) (Stack, error) {
 	var it world.Item
 	if blockItem, ok := nbtBlock(m, "Block").(world.Item); ok {
 		it = blockItem
 	}
-	if v, ok := world.ItemByName(nbtString(m, "Name"), nbtInt16(m, "Damage")); ok {
+	name := nbtString(m, "Name")
+	if v, ok := world.ItemByName(name, nbtInt16(m, "Damage")); ok {
 		it = v
 	}
 	if it == nil {
-		return Stack{}
+		if name == "" {
+			return Stack{}, nil
+		}
+		return Stack{}, fmt.Errorf("%w %q", ErrUnknownItem, name)
 	}
 	if n, ok := it.(world.NBTer); ok {
 		// An item whose DecodeNBT hands back something that is not a world.Item
@@ -224,7 +250,7 @@ func readItemStack(m, t map[string]any) Stack {
 			it = decoded
 		}
 	}
-	return NewStack(it, int(nbtUint8(m, "Count")))
+	return NewStack(it, int(nbtUint8(m, "Count"))), nil
 }
 
 // readDamage reads the damage value stored in the NBT with the Damage tag and saves it to the Stack passed.

@@ -115,7 +115,9 @@ func (j Jukebox) EncodeNBT() map[string]any {
 
 // DecodeNBT ...
 func (j Jukebox) DecodeNBT(data map[string]any) any {
-	s := item.MapNBT(data, "RecordItem")
+	// DecodeNBT has no channel to report a disc this build cannot resolve on;
+	// the jukebox loads empty.
+	s, _ := item.MapNBT(data, "RecordItem")
 	if _, ok := s.Item().(item.MusicDisc); ok {
 		j.Item = s
 	}

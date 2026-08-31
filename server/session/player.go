@@ -1041,7 +1041,10 @@ func stackToItem(br world.BlockRegistry, it protocol.ItemStack) item.Stack {
 		t = nbter.DecodeNBT(it.NBTData).(world.Item)
 	}
 	s := item.NewStack(t, int(it.Count))
-	return item.ReadNBT(it.NBTData, &s)
+	// The network path applies the tags to a stack that is already resolved, so
+	// there is no item name for ReadNBT to fail on.
+	s, _ = item.ReadNBT(it.NBTData, &s)
+	return s
 }
 
 // instanceFromItem converts an item.Stack to its network ItemInstance representation.

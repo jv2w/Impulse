@@ -180,7 +180,9 @@ func (p DecoratedPot) EncodeNBT() map[string]any {
 
 // DecodeNBT ...
 func (p DecoratedPot) DecodeNBT(data map[string]any) any {
-	p.Item = item.MapNBT(data, "item")
+	// DecodeNBT has no channel to report an item this build cannot resolve on;
+	// the pot loads empty.
+	p.Item, _ = item.MapNBT(data, "item")
 	p.Decorations = [4]PotDecoration{}
 	if sherds := nbtconv.Slice(data, "sherds"); sherds != nil {
 		for i, name := range sherds {

@@ -50,7 +50,9 @@ func (itemType) BBox(world.Entity) cube.BBox {
 
 func (itemType) DecodeNBT(m map[string]any, data *world.EntityData) {
 	conf := itemConf
-	conf.Item = item.MapNBT(m, "Item")
+	// DecodeNBT has no channel to report an item this build cannot resolve on;
+	// the entity carries an empty stack.
+	conf.Item, _ = item.MapNBT(m, "Item")
 	conf.PickupDelay = time.Duration(nbtconv.Int64(m, "PickupDelay")) * (time.Second / 20)
 
 	data.Data = conf.New()

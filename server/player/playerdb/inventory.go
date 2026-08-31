@@ -90,5 +90,8 @@ func decodeItem(data []byte) item.Stack {
 	if err != nil {
 		return item.Stack{}
 	}
-	return item.ReadNBT(itemNBT, nil)
+	// decodeItem already reports a slot it cannot read as an empty stack; an
+	// item name this build does not know is the same outcome.
+	s, _ := item.ReadNBT(itemNBT, nil)
+	return s
 }

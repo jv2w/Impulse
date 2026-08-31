@@ -118,7 +118,9 @@ func (i ItemFrame) EncodeBlock() (name string, properties map[string]any) {
 func (i ItemFrame) DecodeNBT(data map[string]any) any {
 	i.DropChance = float64(nbtconv.Float32(data, "ItemDropChance"))
 	i.Rotations = int(nbtconv.Uint8(data, "ItemRotation"))
-	i.Item = item.MapNBT(data, "Item")
+	// DecodeNBT has no channel to report an item this build cannot resolve on;
+	// the frame loads empty.
+	i.Item, _ = item.MapNBT(data, "Item")
 	return i
 }
 

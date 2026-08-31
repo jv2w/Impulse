@@ -225,7 +225,9 @@ func (Crossbow) EncodeItem() (name string, meta int16) {
 
 // DecodeNBT ...
 func (c Crossbow) DecodeNBT(data map[string]any) any {
-	c.Item = MapNBT(data, "chargedItem")
+	// DecodeNBT has nowhere to report a charged item this build cannot resolve;
+	// the crossbow loads uncharged.
+	c.Item, _ = MapNBT(data, "chargedItem")
 	return c
 }
 
