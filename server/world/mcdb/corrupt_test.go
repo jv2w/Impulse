@@ -291,11 +291,9 @@ func TestLoadColumnSubChunkIndexByte(t *testing.T) {
 		}
 	})
 
-	// PINNED BUG: DiskDecode assigns straight into c.sub[index] with the translated index and never checks
-	// it against len(c.sub). NetworkDecodeBuffer does check (decode.go, "invalid sub-chunk index"), so this
-	// is an asymmetry, not a design choice: a single damaged byte in a world save panics the goroutine
-	// running the load instead of returning an error. Frozen here; the fix belongs in the chunk package.
-	t.Run("out of range index panics", func(t *testing.T) {
+	// A single damaged byte in a world save must not take down the goroutine running the load, so the disk
+	// path validates the translated index exactly as NetworkDecodeBuffer does.
+	t.Run("out of range index is an error", func(t *testing.T) {
 		db := newDB(t)
 		k := seedColumn(t, db)
 		key := k.Sum(keySubChunkData, 0)
@@ -307,12 +305,15 @@ func TestLoadColumnSubChunkIndexByte(t *testing.T) {
 		broken[2] = 200
 		putRaw(t, db, key, broken)
 
-		v := recovered(func() { _, _ = db.LoadColumn(k.pos, k.dim) })
-		if v == nil {
-			t.Fatal("LoadColumn returned normally; the sub chunk index is now validated on the disk path")
+		var err error
+		if v := recovered(func() { _, err = db.LoadColumn(k.pos, k.dim) }); v != nil {
+			t.Fatalf("LoadColumn panicked with %v, want an error", v)
 		}
-		if !strings.Contains(errString(v), "index out of range") {
-			t.Errorf("panicked with %v, want an index-out-of-range error", v)
+		if err == nil {
+			t.Fatal("load succeeded")
+		}
+		if !strings.Contains(err.Error(), "invalid sub-chunk index 204") {
+			t.Errorf("err = %v, want it to contain \"invalid sub-chunk index 204\"", err)
 		}
 	})
 }

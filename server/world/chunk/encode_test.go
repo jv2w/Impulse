@@ -325,6 +325,47 @@ func TestDecodeNetworkErrors(t *testing.T) {
 	}
 }
 
+func TestDecodeDiskSubChunkIndexErrors(t *testing.T) {
+	// DiskDecode reads world files, so every one of these inputs is a byte a damaged save can hold. The
+	// index and count checks must match the ones NetworkDecodeBuffer applies.
+	empty := make([][]byte, 25)
+	empty[24] = []byte{SubChunkVersion, 0, 0}
+
+	// A payload long enough that uint8(i) wraps back onto a valid index: without a count check the sub
+	// chunk at 256 would silently overwrite sub chunk 0 instead of being rejected.
+	wrapping := make([][]byte, 257)
+	wrapping[256] = []byte{SubChunkVersion, 0, 0}
+
+	cases := []struct {
+		name    string
+		data    SerialisedData
+		wantSub string
+	}{
+		// The v9 header's third byte is an absolute Y: int8(200) = -56 translates to index -56 - (-4) = 204.
+		{
+			name:    "translated index out of range",
+			data:    SerialisedData{SubChunks: [][]byte{{SubChunkVersion, 0, 200}}},
+			wantSub: "invalid sub-chunk index 204",
+		},
+		{name: "more sub chunks than the range holds", data: SerialisedData{SubChunks: empty}, wantSub: "invalid sub-chunk count 25"},
+		{name: "sub chunk count wrapping uint8", data: SerialisedData{SubChunks: wrapping}, wantSub: "invalid sub-chunk count 257"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, err := DiskDecode(newTestRegistry(), c.data, overworldRange)
+			if err == nil {
+				t.Fatalf("DiskDecode = %v, nil, want error", got)
+			}
+			if got != nil {
+				t.Errorf("DiskDecode returned a non-nil chunk alongside the error")
+			}
+			if !strings.Contains(err.Error(), c.wantSub) {
+				t.Errorf("error = %q, want it to contain %q", err.Error(), c.wantSub)
+			}
+		})
+	}
+}
+
 func TestDecodeNetworkCountBelowSubChunkCount(t *testing.T) {
 	// A count lower than the number of sub chunks is legal: the remaining sub chunks stay empty, but the
 	// biome section is still read for every sub chunk in the range, so the payload must carry all 24.

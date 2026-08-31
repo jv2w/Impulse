@@ -77,15 +77,27 @@ func DiskDecode(br BlockRegistry, data SerialisedData, r cube.Range) (*Chunk, er
 	if err != nil {
 		return nil, err
 	}
+	// More sub chunks than the range holds cannot be placed, and past 256 the uint8 index below wraps onto
+	// a valid one, so reject the whole payload rather than writing to the wrong sub chunk.
+	if len(data.SubChunks) > len(c.sub) {
+		return nil, fmt.Errorf("invalid sub-chunk count %d: chunk range has %d sub-chunks", len(data.SubChunks), len(c.sub))
+	}
 	for i, sub := range data.SubChunks {
 		if len(sub) == 0 {
 			// No data for this sub chunk.
 			continue
 		}
 		index := uint8(i)
-		if c.sub[index], err = decodeSubChunk(bytes.NewBuffer(sub), c, &index, DiskEncoding); err != nil {
+		s, err := decodeSubChunk(bytes.NewBuffer(sub), c, &index, DiskEncoding)
+		if err != nil {
 			return nil, err
 		}
+		// Version 9 sub-chunks replace index with an absolute Y from the payload.
+		// Validate that translated index before using it to access the chunk.
+		if int(index) >= len(c.sub) {
+			return nil, fmt.Errorf("invalid sub-chunk index %d: chunk range has %d sub-chunks", index, len(c.sub))
+		}
+		c.sub[index] = s
 	}
 	return c, nil
 }
