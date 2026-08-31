@@ -384,6 +384,15 @@ func (s Stack) WithItem(t world.Item) Stack {
 // both stacks together don't exceed the max count.
 // If the two stacks are not comparable, AddStack will return both the original stack and the stack passed.
 func (s Stack) AddStack(s2 Stack) (a, b Stack) {
+	if s.item == nil || s2.item == nil {
+		// Comparable reports true whenever either side is empty, so without
+		// this the count would move between a stack that has no item behind it
+		// and one that does: into it the items are destroyed, out of it they
+		// are created from nothing. The item type is checked rather than
+		// Empty because inventory.AddItem fills an empty slot by adding to a
+		// zero-count stack that does carry its item type.
+		return s, s2
+	}
 	if s.Count() >= s.MaxCount() {
 		// No more items could be added to the original stack.
 		return s, s2

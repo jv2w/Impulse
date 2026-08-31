@@ -198,13 +198,10 @@ func TestStackAddStack(t *testing.T) {
 		{name: "incomparable", a: stick(1), b: NewStack(Diamond{}, 1), wantA: 1, wantB: 1},
 		{name: "second empty", a: stick(1), b: Stack{}, wantA: 1, wantB: 0},
 		{
-			// PINNED BUG: Comparable reports true when either side is empty, so
-			// an empty Stack absorbs items from a real one. The count moves but
-			// the item type does not, and Empty still reports true because the
-			// item is nil: the items are destroyed. Pinned as-is; decide in
-			// stage 1.
-			name: "first empty destroys items", a: Stack{}, b: stick(5),
-			wantA: 5, wantB: 0, wantAItemEmpty: true,
+			// A Stack with no item type has nothing to hold b's items, so both
+			// come back untouched.
+			name: "first has no item type", a: Stack{}, b: stick(5),
+			wantA: 0, wantB: 5, wantAItemEmpty: true,
 		},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -222,6 +219,44 @@ func TestStackAddStack(t *testing.T) {
 				t.Fatalf("AddStack mutated its receiver")
 			}
 		})
+	}
+}
+
+// A count on a Stack with no item type is a count with nothing behind it.
+// Comparable waves such a stack through against anything, so AddStack has to
+// reject it in both directions: moving the count in destroys the items, moving
+// it out creates items from nothing.
+func TestStackAddStackRejectsStacksWithoutAnItemType(t *testing.T) {
+	t.Run("a stack with no item type absorbs nothing", func(t *testing.T) {
+		a, b := (Stack{}).AddStack(NewStack(Stick{}, 5))
+		if got := a.Count(); got != 0 {
+			t.Fatalf("a.Count() = %v, want 0: items moved into a stack that cannot hold them", got)
+		}
+		if got := b.Count(); got != 5 {
+			t.Fatalf("b.Count() = %v, want 5: the items were destroyed", got)
+		}
+	})
+	t.Run("a stack with no item type yields nothing", func(t *testing.T) {
+		a, b := NewStack(Stick{}, 1).AddStack((Stack{}).Grow(5))
+		if got := a.Count(); got != 1 {
+			t.Fatalf("a.Count() = %v, want 1: %v items were created from nothing", got, got-1)
+		}
+		if got := b.Count(); got != 5 {
+			t.Fatalf("b.Count() = %v, want 5", got)
+		}
+	})
+}
+
+// inventory.AddItem fills an empty slot with it.Grow(-math.MaxInt32).AddStack(it):
+// a zero-count Stack that still carries its item type. Empty reports true for
+// that stack, so the rejection above has to key on the item type, not on Empty.
+func TestStackAddStackFillsAZeroCountStackOfTheSameType(t *testing.T) {
+	a, b := NewStack(Stick{}, 5).Grow(-5).AddStack(NewStack(Stick{}, 5))
+	if got := a.Count(); got != 5 {
+		t.Fatalf("a.Count() = %v, want 5", got)
+	}
+	if got := b.Count(); got != 0 {
+		t.Fatalf("b.Count() = %v, want 0", got)
 	}
 }
 
