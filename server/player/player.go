@@ -1733,8 +1733,9 @@ func (p *Player) handleUseContext(ctx *item.UseContext) {
 			if err := p.offHand.RemoveItem(it); err == nil {
 				continue
 			}
-
-			it = it.Grow(-offHand.Count())
+			// RemoveItem is all or nothing: a failure leaves the off-hand
+			// untouched, so the full stack still has to come out of the
+			// inventory.
 		}
 
 		_ = p.Inventory().RemoveItem(it)
