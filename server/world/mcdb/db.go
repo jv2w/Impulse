@@ -72,11 +72,14 @@ func (db *DB) LoadPlayerSpawnPosition(id uuid.UUID) (pos cube.Pos, exists bool, 
 	if !exists || err != nil {
 		return cube.Pos{}, exists, err
 	}
-	x, y, z := serverData["SpawnX"], serverData["SpawnY"], serverData["SpawnZ"]
-	if x == nil || y == nil || z == nil {
+	// A missing field reads as a nil any, so the assertions cover absence as well as a wrong NBT type.
+	x, xOK := serverData["SpawnX"].(int32)
+	y, yOK := serverData["SpawnY"].(int32)
+	z, zOK := serverData["SpawnZ"].(int32)
+	if !xOK || !yOK || !zOK {
 		return cube.Pos{}, true, fmt.Errorf("error reading spawn fields from server data for player %v", id)
 	}
-	return cube.Pos{int(x.(int32)), int(y.(int32)), int(z.(int32))}, true, nil
+	return cube.Pos{int(x), int(y), int(z)}, true, nil
 }
 
 // loadPlayerData loads the data stored in a LevelDB database for a specific UUID.

@@ -3,7 +3,6 @@ package mcdb
 import (
 	"bytes"
 	"errors"
-	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -292,11 +291,9 @@ func TestSavePlayerSpawnPositionWritesVanillaKeys(t *testing.T) {
 	}
 }
 
-// TestLoadPlayerSpawnPositionCorrupt pins what each hostile on-disk state produces. Two rows panic; the rest
-// return an error and report exists as true.
-//
-// PINNED BUG: LoadPlayerSpawnPosition asserts x.(int32) on data read from disk without the comma-ok form, so
-// a spawn field stored as any other NBT type takes down the calling goroutine instead of returning an error.
+// TestLoadPlayerSpawnPositionCorrupt pins what each hostile on-disk state produces. Every row returns an
+// error and reports exists as true; none of them panics, including the spawn fields stored under a type the
+// position cannot be built from.
 //
 // PINNED BUG: none of these errors carries a sentinel. loadPlayerData and LoadPlayerSpawnPosition build them
 // with fmt.Errorf and a plain string, so a caller that wants to tell "this record is garbage, reset it" from
@@ -315,7 +312,6 @@ func TestLoadPlayerSpawnPositionCorrupt(t *testing.T) {
 	cases := []struct {
 		name      string
 		setup     func(*testing.T, *DB)
-		wantPanic bool
 		wantErrIs error
 	}{
 		{
@@ -359,14 +355,12 @@ func TestLoadPlayerSpawnPositionCorrupt(t *testing.T) {
 			setup: saveThenCorruptServerData(map[string]any{
 				"SpawnX": int64(1), "SpawnY": int32(2), "SpawnZ": int32(3),
 			}),
-			wantPanic: true,
 		},
 		{
 			name: "SpawnX is a string",
 			setup: saveThenCorruptServerData(map[string]any{
 				"SpawnX": "1", "SpawnY": int32(2), "SpawnZ": int32(3),
 			}),
-			wantPanic: true,
 		},
 	}
 	for _, c := range cases {
@@ -379,23 +373,6 @@ func TestLoadPlayerSpawnPositionCorrupt(t *testing.T) {
 			var err error
 			p := recovered(func() { pos, exists, err = db.LoadPlayerSpawnPosition(playerA) })
 
-			if c.wantPanic {
-				if p == nil {
-					t.Fatalf("no panic; LoadPlayerSpawnPosition returned pos %v, exists %v, err %v", pos, exists, err)
-				}
-				e, ok := p.(error)
-				if !ok {
-					t.Fatalf("panic value = %v (%T), want an error", p, p)
-				}
-				var assertion *runtime.TypeAssertionError
-				if !errors.As(e, &assertion) {
-					t.Fatalf("panic value = %v (%T), want *runtime.TypeAssertionError", p, p)
-				}
-				if !strings.Contains(e.Error(), "int32") {
-					t.Errorf("panic message = %q, want it to name int32", e.Error())
-				}
-				return
-			}
 			if p != nil {
 				t.Fatalf("panicked with %v", p)
 			}
