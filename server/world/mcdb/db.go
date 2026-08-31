@@ -138,7 +138,13 @@ func (db *DB) SavePlayerSpawnPosition(id uuid.UUID, pos cube.Pos) error {
 // LoadColumn reads a world.Column from the DB at a position and dimension in
 // the DB. If no column at that position exists, errors.Is(err,
 // leveldb.ErrNotFound) equals true.
+//
+// dim must be registered through world.RegisterDimension. An unregistered
+// dimension encodes as the Overworld's key and is refused.
 func (db *DB) LoadColumn(pos world.ChunkPos, dim world.Dimension) (*chunk.Column, error) {
+	if _, ok := world.DimensionID(dim); !ok {
+		return nil, fmt.Errorf("load column %v: unregistered dimension %v", pos, dim)
+	}
 	k := dbKey{pos: pos, dim: dim}
 	col, err := db.column(k)
 	if err != nil {
@@ -348,7 +354,14 @@ func (db *DB) scheduledUpdates(k dbKey) ([]chunk.ScheduledBlockUpdate, int64, er
 
 // StoreColumn stores a world.Column at a position and dimension in the DB. An
 // error is returned if storing was unsuccessful.
+//
+// dim must be registered through world.RegisterDimension. An unregistered
+// dimension encodes as the Overworld's key and would overwrite the Overworld
+// column at pos, so it is refused and nothing is written.
 func (db *DB) StoreColumn(pos world.ChunkPos, dim world.Dimension, col *chunk.Column) error {
+	if _, ok := world.DimensionID(dim); !ok {
+		return fmt.Errorf("store column %v: unregistered dimension %v", pos, dim)
+	}
 	k := dbKey{pos: pos, dim: dim}
 	if err := db.storeColumn(k, col); err != nil {
 		return fmt.Errorf("store column %v (%v): %w", pos, dim, err)
