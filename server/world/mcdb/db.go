@@ -248,6 +248,11 @@ func (db *DB) entities(k dbKey) ([]chunk.Entity, error) {
 		// Key not found, try old method of loading entities.
 		return db.entitiesOld(k)
 	}
+	// ids[i : i+8] is bounds-checked against capacity, so a value that is not a whole number of IDs would be
+	// walked past its end and turned into entities that were never stored.
+	if len(ids)%8 != 0 {
+		return nil, fmt.Errorf("chunk entity index has %v bytes, want a multiple of 8", len(ids))
+	}
 	entities := make([]chunk.Entity, 0, len(ids)/8)
 	for i := 0; i < len(ids); i += 8 {
 		id := int64(binary.LittleEndian.Uint64(ids[i : i+8]))
@@ -355,7 +360,9 @@ func (db *DB) storeColumn(k dbKey, col *chunk.Column) error {
 	db.storeBiomes(batch, k, data.Biomes)
 	db.storeSubChunks(batch, k, data.SubChunks, col.Chunk.Range())
 	db.storeFinalisation(batch, k, finalisationPopulated)
-	db.storeEntities(batch, k, col.Entities)
+	if err := db.storeEntities(batch, k, col.Entities); err != nil {
+		return fmt.Errorf("store entities: %w", err)
+	}
 	db.storeBlockEntities(batch, k, col.BlockEntities)
 	db.storeScheduledUpdates(batch, k, col.Tick, col.ScheduledBlocks)
 
@@ -384,7 +391,10 @@ func (db *DB) storeFinalisation(batch *leveldb.Batch, k dbKey, finalisation uint
 	batch.Put(k.Sum(keyFinalisation), p)
 }
 
-func (db *DB) storeEntities(batch *leveldb.Batch, k dbKey, entities []chunk.Entity) {
+// storeEntities writes the entities passed and the chunk's index of them into batch, and queues the deletion
+// of the records the chunk no longer references. It returns an error if the index already on disk is damaged,
+// in which case batch is left incomplete and must not be written.
+func (db *DB) storeEntities(batch *leveldb.Batch, k dbKey, entities []chunk.Entity) error {
 	idsKey := append([]byte(keyEntityIdentifiers), index(k.pos, k.dim)...)
 
 	// load the ids of the previous entities
@@ -394,6 +404,11 @@ func (db *DB) storeEntities(batch *leveldb.Batch, k dbKey, entities []chunk.Enti
 		db.conf.Log.Error("store entities: read chunk entity IDs: " + err.Error())
 	}
 	if err == nil {
+		// Uint64 reads digpPrev[i:] by length rather than capacity, so a value that is not a whole number
+		// of IDs panics here instead of merely reading past the end as the load path does.
+		if len(digpPrev)%8 != 0 {
+			return fmt.Errorf("chunk entity index has %v bytes, want a multiple of 8", len(digpPrev))
+		}
 		for i := 0; i < len(digpPrev); i += 8 {
 			previousIDs = append(previousIDs, int64(binary.LittleEndian.Uint64(digpPrev[i:])))
 		}
@@ -430,6 +445,7 @@ func (db *DB) storeEntities(batch *leveldb.Batch, k dbKey, entities []chunk.Enti
 
 	// Remove old entity data for this chunk.
 	batch.Delete(k.Sum(keyEntitiesOld))
+	return nil
 }
 
 func entityIndex(id int64) []byte {

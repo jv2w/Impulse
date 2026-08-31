@@ -318,15 +318,11 @@ func TestLoadColumnSubChunkIndexByte(t *testing.T) {
 	})
 }
 
-// TestLoadColumnCorruptEntityIndexReadsPastTheValue is a PINNED BUG. entities() walks the digp value in
-// 8-byte steps with `ids[i : i+8]` and never checks that its length is a multiple of 8. A slice expression is
-// bounds-checked against capacity, not length, so on a truncated index key the loader reads whatever the
-// allocator left after the value and fabricates an entity ID from it. Nothing is reported: the chunk comes
-// back with no entities and a nil error, and the next store deletes the records it could not find.
-//
-// The read is only silent while the returned buffer has spare capacity. A value whose capacity equals its
-// length turns the same expression into a panic.
-func TestLoadColumnCorruptEntityIndexReadsPastTheValue(t *testing.T) {
+// TestLoadColumnTruncatedEntityIndexIsReported covers a digp value whose length is not a multiple of 8.
+// `ids[i : i+8]` is bounds-checked against capacity rather than length, so walking such a value reads
+// whatever the allocator left after it and fabricates entity IDs out of it. The length must be checked
+// before the walk, and the damage reported rather than turned into missing entities.
+func TestLoadColumnTruncatedEntityIndexIsReported(t *testing.T) {
 	db := newDB(t)
 	k := seedColumn(t, db)
 
@@ -346,34 +342,41 @@ func TestLoadColumnCorruptEntityIndexReadsPastTheValue(t *testing.T) {
 	}
 	putRaw(t, db, idsKey, full[:5])
 
-	got, err := db.LoadColumn(k.pos, k.dim)
-	if err != nil {
-		t.Fatalf("load: %v; a truncated digp is now reported", err)
+	_, err := db.LoadColumn(k.pos, k.dim)
+	if err == nil {
+		t.Fatal("load succeeded")
 	}
-	if len(got.Entities) != 0 {
-		t.Fatalf("entities = %+v, want none", got.Entities)
+	if !strings.Contains(err.Error(), "chunk entity index has 5 bytes") {
+		t.Errorf("err = %v, want it to contain \"chunk entity index has 5 bytes\"", err)
 	}
 	if _, ok := getRaw(t, db, entityIndex(id)); !ok {
-		t.Fatal("the entity record disappeared before the store")
-	}
-	// Writing the chunk back is not possible either: storeEntities re-reads the same value and indexes it
-	// by length rather than capacity. See TestStoreColumnCorruptEntityIndexPanics.
-	if v := recovered(func() { _ = db.StoreColumn(k.pos, k.dim, got) }); v == nil {
-		t.Fatal("StoreColumn returned normally; the truncated digp no longer blocks saving the chunk")
+		t.Error("the entity record was removed by the failed load")
 	}
 }
 
-// TestStoreColumnCorruptEntityIndexPanics is a PINNED BUG of the same family on the write side.
-// storeEntities reads the previous digp value and feeds `digpPrev[i:]` to binary.LittleEndian.Uint64, which
-// panics on a tail shorter than 8 bytes. A single damaged index key makes the chunk impossible to save.
-func TestStoreColumnCorruptEntityIndexPanics(t *testing.T) {
+// TestStoreColumnTruncatedEntityIndexIsReported is the write side of the same value. storeEntities feeds
+// `digpPrev[i:]` to binary.LittleEndian.Uint64, which is indexed by length and panics on a short tail. The
+// store must report the damaged index instead, and must not write a partial column over it.
+func TestStoreColumnTruncatedEntityIndexIsReported(t *testing.T) {
 	db := newDB(t)
 	k := seedColumn(t, db)
-	putRaw(t, db, append([]byte(keyEntityIdentifiers), index(k.pos, k.dim)...), make([]byte, 4))
+	idsKey := append([]byte(keyEntityIdentifiers), index(k.pos, k.dim)...)
+	putRaw(t, db, idsKey, make([]byte, 4))
 
-	v := recovered(func() { _ = db.StoreColumn(k.pos, k.dim, emptyColumn(k.dim)) })
-	if v == nil {
-		t.Fatal("StoreColumn returned normally; the digp length is now validated")
+	var err error
+	if v := recovered(func() { err = db.StoreColumn(k.pos, k.dim, emptyColumn(k.dim)) }); v != nil {
+		t.Fatalf("StoreColumn panicked with %v, want an error", v)
+	}
+	if err == nil {
+		t.Fatal("store succeeded")
+	}
+	if !strings.Contains(err.Error(), "chunk entity index has 4 bytes") {
+		t.Errorf("err = %v, want it to contain \"chunk entity index has 4 bytes\"", err)
+	}
+	// The batch is written in one go at the end of storeColumn, so a rejected index leaves the column on
+	// disk exactly as it was.
+	if got, ok := getRaw(t, db, idsKey); !ok || len(got) != 4 {
+		t.Errorf("digp value = %v, %v, want the untouched 4 bytes", got, ok)
 	}
 }
 
