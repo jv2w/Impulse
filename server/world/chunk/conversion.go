@@ -3,6 +3,8 @@ package chunk
 import (
 	"bytes"
 	_ "embed"
+	"maps"
+
 	"github.com/sandertv/gophertunnel/minecraft/nbt"
 )
 
@@ -19,13 +21,17 @@ var (
 	legacyMappings = make(map[legacyBlockEntry]blockEntry)
 )
 
-// upgradeLegacyEntry upgrades a legacy block entry to a new one.
+// upgradeLegacyEntry upgrades a legacy block entry to a new one. The State of the returned entry is a fresh
+// map owned by the caller, who may mutate it freely: callers hand it to blockupgrader.Upgrade, which rewrites
+// it in place, and legacyMappings must stay exactly as init built it so that concurrent lookups only ever read
+// it. The values are NBT scalars, so a shallow copy is enough.
 func upgradeLegacyEntry(name string, meta int16) (blockEntry, bool) {
 	entry, ok := legacyMappings[legacyBlockEntry{Name: name, Meta: meta}]
 	if !ok {
 		// Also try cases where the meta should be disregarded.
 		entry, ok = legacyMappings[legacyBlockEntry{Name: name}]
 	}
+	entry.State = maps.Clone(entry.State)
 	return entry, ok
 }
 

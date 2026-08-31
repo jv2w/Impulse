@@ -2,6 +2,7 @@ package chunk
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 )
 
@@ -40,8 +41,7 @@ func TestUpgradeLegacyEntry(t *testing.T) {
 		{name: "minecraft:wool", meta: 0, wantName: "minecraft:white_wool", wantHave: map[string]string{}},
 		{name: "minecraft:wool", meta: 1, wantName: "minecraft:orange_wool", wantHave: map[string]string{}},
 		{name: "minecraft:wool", meta: 4, wantName: "minecraft:yellow_wool", wantHave: map[string]string{}},
-		// A boolean-ish property. minecraft:dirt is deliberately not used here: see
-		// TestUpgradeLegacyEntryReturnsTheSharedStateMap, which permanently mutates that entry.
+		// A boolean-ish property.
 		{name: "minecraft:bedrock", meta: 1, wantName: "minecraft:bedrock", wantHave: map[string]string{"infiniburn_bit": "1"}},
 	}
 	for _, c := range cases {
@@ -114,40 +114,56 @@ func TestUpgradeLegacyEntryNotFound(t *testing.T) {
 	}
 }
 
-func TestUpgradeLegacyEntryReturnsTheSharedStateMap(t *testing.T) {
-	// BUG, pinned as-is: upgradeLegacyEntry hands back the blockEntry stored in the package level
-	// legacyMappings map, and blockEntry.State is a reference to the map inside it. The caller therefore
-	// gets a live handle on the shared mapping table rather than a copy.
-	//
-	// This is not theoretical. BlockPaletteEncoding.DecodeBlockState feeds that very map to
-	// blockupgrader.Upgrade, which mutates it in place: the first time a legacy minecraft:dirt block is
-	// decoded, dirt_type is stripped from the shared entry and every later decode of that legacy block
-	// upgrades differently. Decoding one chunk permanently corrupts the mapping table for the process, and
-	// nothing serialises access to it either, so concurrent decodes race on it.
+func TestUpgradeLegacyEntryCopiesTheStateMap(t *testing.T) {
+	// blockEntry.State is a map, so returning the stored entry by value still hands the caller the mapping
+	// table's own map. BlockPaletteEncoding.DecodeBlockState passes it straight to blockupgrader.Upgrade,
+	// which mutates it in place, so a shared map means one decode permanently rewrites the table.
 	const key = "impulse_test_sentinel"
 	entry, ok := upgradeLegacyEntry("minecraft:log", 0)
 	if !ok {
 		t.Fatalf("upgradeLegacyEntry(minecraft:log, 0): not found")
 	}
 	entry.State[key] = "written through the returned entry"
-	shared := legacyMappings[legacyBlockEntry{Name: "minecraft:log", Meta: 0}].State
-	if shared[key] == nil {
-		t.Errorf("the returned State is a copy; want it to alias the shared mapping table entry")
+	if shared := legacyMappings[legacyBlockEntry{Name: "minecraft:log", Meta: 0}].State; shared[key] != nil {
+		t.Errorf("legacyMappings[log/0].State = %v, want the write to have landed in a copy", shared)
 	}
-	// Undo the sentinel so the rest of the suite sees the table it expects.
-	delete(entry.State, key)
 
-	// The consequence: decoding a legacy minecraft:dirt block strips dirt_type from the shared table. The
-	// assertion is written to hold on a table that was already stripped by an earlier run of this test, so
-	// that -count=N stays deterministic.
+	// The concrete symptom: decoding a legacy minecraft:dirt block used to strip dirt_type from the shared
+	// table, after which the same block decoded as plain dirt instead of coarse dirt.
 	bpe := BlockPaletteEncoding{Blocks: newTestRegistry()}
 	if _, err := bpe.DecodeBlockState(map[string]any{"name": "minecraft:dirt", "val": int16(1), "version": int32(0)}); err == nil {
 		t.Fatalf("DecodeBlockState(minecraft:dirt) = nil error, want one: the test registry holds no minecraft:* block")
 	}
-	after := legacyMappings[legacyBlockEntry{Name: "minecraft:dirt", Meta: 1}].State
-	if _, still := after["dirt_type"]; still {
-		t.Errorf("legacyMappings[dirt/1].State = %v, want dirt_type removed by the upgrader", after)
+	after, ok := upgradeLegacyEntry("minecraft:dirt", 1)
+	if !ok {
+		t.Fatalf("upgradeLegacyEntry(minecraft:dirt, 1): not found")
 	}
+	conversionAssertProps(t, after.State, map[string]string{"dirt_type": "coarse"})
+}
+
+func TestUpgradeLegacyEntryConcurrentDecode(t *testing.T) {
+	// legacyMappings is filled in init and never locked, so every later access has to be a read. Decoding
+	// runs on several goroutines in production; under -race this fails if any of them writes to the table.
+	bpe := BlockPaletteEncoding{Blocks: newTestRegistry()}
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 50; j++ {
+				// The test registry holds no minecraft:* block, so this always fails at the final lookup.
+				// The legacy upgrade it runs first is what matters here.
+				_, _ = bpe.DecodeBlockState(map[string]any{"name": "minecraft:dirt", "val": int16(1), "version": int32(0)})
+			}
+		}()
+	}
+	wg.Wait()
+
+	after, ok := upgradeLegacyEntry("minecraft:dirt", 1)
+	if !ok {
+		t.Fatalf("upgradeLegacyEntry(minecraft:dirt, 1): not found")
+	}
+	conversionAssertProps(t, after.State, map[string]string{"dirt_type": "coarse"})
 }
 
 func TestUpgradeLegacyEntryIsStable(t *testing.T) {
