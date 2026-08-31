@@ -462,16 +462,17 @@ func TestReadItemStackUnknownItem(t *testing.T) {
 	}
 }
 
-// PINNED BUG: readItemStack asserts the result of DecodeNBT back to a
-// world.Item without a comma-ok, so an item type whose DecodeNBT returns
-// anything else panics the reader mid-load. Pinned as-is; decide in stage 1.
-func TestReadItemStackPanicsWhenDecodeNBTReturnsANonItem(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Fatal("readItemStack did not panic on a DecodeNBT returning a non-item")
-		}
-	}()
-	ReadNBT(map[string]any{"Name": "minecraft:dirt", "Damage": int16(0), "Count": byte(1)}, nil)
+// An item type whose DecodeNBT returns something that is not a world.Item is a
+// defect in that item, not in the data on disk. The registered item is kept
+// without its own tags so that the count and the rest of the stack survive.
+func TestReadItemStackKeepsTheItemWhenDecodeNBTReturnsANonItem(t *testing.T) {
+	got := ReadNBT(map[string]any{"Name": "minecraft:dirt", "Damage": int16(0), "Count": byte(3)}, nil)
+	if _, ok := got.Item().(badDecodeItem); !ok {
+		t.Fatalf("Item() = %T, want badDecodeItem", got.Item())
+	}
+	if got.Count() != 3 {
+		t.Fatalf("Count() = %v, want 3", got.Count())
+	}
 }
 
 func TestReadItemStackMissingFields(t *testing.T) {
@@ -720,16 +721,13 @@ func TestReadDisplay(t *testing.T) {
 			}
 		})
 	}
-	// PINNED BUG: the []any branch asserts each line to a string without a
-	// comma-ok, so a lore list holding anything else panics the reader. Pinned
-	// as-is; decide in stage 1.
-	t.Run("a non string lore line panics", func(t *testing.T) {
-		defer func() {
-			if recover() == nil {
-				t.Fatal("readDisplay did not panic on a non-string lore line")
-			}
-		}()
-		read(map[string]any{"Lore": []any{"a", 5}})
+	// A lore list is a display detail: a line of the wrong type is dropped and
+	// the lines around it are kept, rather than the whole read failing.
+	t.Run("a non string lore line is skipped", func(t *testing.T) {
+		got := read(map[string]any{"Lore": []any{"a", 5, "b"}})
+		if want := []string{"a", "b"}; !reflect.DeepEqual(got.Lore(), want) {
+			t.Fatalf("Lore() = %#v, want %#v", got.Lore(), want)
+		}
 	})
 }
 
@@ -812,16 +810,15 @@ func TestMapNBT(t *testing.T) {
 	}
 }
 
-// PINNED BUG: writeDamage asserts an existing Damage tag to an int16 without a
-// comma-ok. Any item whose EncodeNBT writes Damage at another width panics the
-// writer before the stack is ever saved. Pinned as-is; decide in stage 1.
-func TestWriteDamagePanicsOnAWideDamageTag(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Fatal("writeDamage did not panic on an int32 Damage tag")
-		}
-	}()
-	WriteNBT(NewStack(badDamageItem{}, 1), true)
+// An item's own EncodeNBT owns the Damage tag it writes, at whatever width.
+// writeDamage only fills the tag in when it is absent or a zero int16, so a tag
+// of another type is left exactly as the item wrote it.
+func TestWriteDamageKeepsAWideDamageTag(t *testing.T) {
+	got := diskTag(t, NewStack(badDamageItem{}, 1))
+	want := map[string]any{"Damage": int32(1)}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("tag = %#v, want %#v", got, want)
+	}
 }
 
 func TestReadNBTLeavesTheCallersStackAlone(t *testing.T) {

@@ -162,15 +162,22 @@ func writeDisplay(m map[string]any, s Stack) {
 // writeDamage writes the damage to a Stack (either an int16 for disk or int32 for network) to a map for NBT
 // encoding.
 func writeDamage(m map[string]any, s Stack, disk bool) {
-	if v, ok := m["Damage"]; !ok || v.(int16) == 0 {
-		if _, ok := s.Item().(Durable); ok {
-			if disk {
-				m["Damage"] = int16(s.MaxDurability() - s.Durability())
-			} else {
-				m["Damage"] = int32(s.MaxDurability() - s.Durability())
-			}
-		}
+	v, present := m["Damage"]
+	d, int16Damage := v.(int16)
+	// An item's own EncodeNBT may already have written a Damage tag, at any
+	// width. Only an absent tag or a zero int16 is filled in with the stack's
+	// durability; whatever else the item wrote is left as it is.
+	if present && (!int16Damage || d != 0) {
+		return
 	}
+	if _, ok := s.Item().(Durable); !ok {
+		return
+	}
+	if disk {
+		m["Damage"] = int16(s.MaxDurability() - s.Durability())
+		return
+	}
+	m["Damage"] = int32(s.MaxDurability() - s.Durability())
 }
 
 // writeAnvilCost ...
@@ -200,7 +207,12 @@ func readItemStack(m, t map[string]any) Stack {
 		return Stack{}
 	}
 	if n, ok := it.(world.NBTer); ok {
-		it = n.DecodeNBT(t).(world.Item)
+		// An item whose DecodeNBT hands back something that is not a world.Item
+		// is a defect in that item, not in the data. The registered item is kept
+		// without its own tags so the count and the rest of the stack survive.
+		if decoded, ok := n.DecodeNBT(t).(world.Item); ok {
+			it = decoded
+		}
 	}
 	return NewStack(it, int(nbtUint8(m, "Count")))
 }
@@ -251,7 +263,12 @@ func readDisplay(m map[string]any, s *Stack) {
 		} else if lore, ok := display["Lore"].([]any); ok {
 			loreLines := make([]string, 0, len(lore))
 			for _, l := range lore {
-				loreLines = append(loreLines, l.(string))
+				// A line of another type is dropped: the lore around it is
+				// still readable, and a display detail is not worth failing
+				// the whole item over.
+				if line, ok := l.(string); ok {
+					loreLines = append(loreLines, line)
+				}
 			}
 			*s = s.WithLore(loreLines...)
 		}
