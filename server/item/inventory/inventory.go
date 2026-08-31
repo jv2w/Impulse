@@ -413,8 +413,11 @@ func runSlotFuncs(fs []func()) {
 	}
 }
 
-// setItem sets an item to a specific slot and overwrites the existing item. It calls the function which is
-// called for every item change and does so without locking the inventory.
+// setItem sets an item to a specific slot and overwrites the existing item. It does not lock the inventory:
+// the caller must hold the write lock. The callback returned announces the change and must be run with the
+// lock released. The SlotFunc is captured here rather than read from inv.f inside the callback, so that a
+// concurrent SlotFunc or Close is not an unsynchronised access and the change is announced to the function
+// that was installed when it happened.
 func (inv *Inventory) setItem(slot int, it item.Stack) func() {
 	if !inv.validator(it, slot) {
 		return func() {}
@@ -422,10 +425,10 @@ func (inv *Inventory) setItem(slot int, it item.Stack) func() {
 	if it.Count() > it.MaxCount() {
 		it = it.Grow(it.MaxCount() - it.Count())
 	}
-	before := inv.slots[slot]
+	before, f := inv.slots[slot], inv.f
 	inv.slots[slot] = it
 	return func() {
-		inv.f(slot, before, it)
+		f(slot, before, it)
 	}
 }
 

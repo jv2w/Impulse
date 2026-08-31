@@ -847,15 +847,11 @@ func TestConcurrentValidatorSwapping(t *testing.T) {
 	}
 }
 
-// TestConcurrentSlotFuncSwapping pins that replacing the SlotFunc is safe as
-// long as no write is in flight. SlotFunc is swapped here while readers hammer
-// the inventory, then writes are driven against whichever function ended up
-// installed.
-//
-// PINNED BUG: SlotFunc and Close assign inv.f under the write lock, but the
-// closure setItem returns reads inv.f after the lock has been released. Swapping
-// the SlotFunc concurrently with a write is therefore a genuine data race on
-// that field, which is why the writers below are kept out of the swapping phase.
+// TestConcurrentSlotFuncSwapping pins that replacing the SlotFunc is safe while
+// writes are in flight. setItem captures the installed SlotFunc under the same
+// write lock that guards the slot it writes, so the callback it hands back is
+// bound to the function that was installed at the moment of the write and never
+// reads inv.f with the lock released.
 func TestConcurrentSlotFuncSwapping(t *testing.T) {
 	rec1, rec2 := &recorder{}, &recorder{}
 	inv := New(concSlots, rec1.fn)
@@ -888,6 +884,25 @@ func TestConcurrentSlotFuncSwapping(t *testing.T) {
 		}()
 	}
 
+	// Writers run through the whole swapping phase: a SlotFunc swap racing a
+	// slot change is the interleaving this test exists for.
+	var writeWG sync.WaitGroup
+	for w := range concGoroutines {
+		writeWG.Add(1)
+		go func() {
+			defer writeWG.Done()
+			base := w * concSlotsEach
+			for i := range 100 {
+				for s := base; s < base+concSlotsEach; s++ {
+					if err := inv.SetItem(s, diamonds(1+(i+s)%64)); err != nil {
+						errs.addf("SetItem(%v): unexpected error %v", s, err)
+						return
+					}
+				}
+			}
+		}()
+	}
+
 	var swapWG sync.WaitGroup
 	for g := range 4 {
 		swapWG.Add(1)
@@ -903,9 +918,16 @@ func TestConcurrentSlotFuncSwapping(t *testing.T) {
 		}()
 	}
 	swapWG.Wait()
+	writeWG.Wait()
 	close(done)
 	wg.Wait()
 	errs.report(t)
+
+	// Every write announced itself exactly once, to whichever recorder was
+	// installed when it happened.
+	if got, want := rec1.count()+rec2.count(), concGoroutines*100*concSlotsEach; got != want {
+		t.Fatalf("SlotFunc invocations across both recorders: got %v, want %v", got, want)
+	}
 
 	// Whichever function was installed last, the inventory still writes and
 	// reads back consistently, and exactly one of the two recorders sees it.
@@ -1111,17 +1133,11 @@ func TestConcurrentArmour(t *testing.T) {
 	assertSlots(t, a.Inventory(), helmet(), chestplate(), leggings(), boots())
 }
 
-// TestConcurrentClose pins what Close does to a busy inventory.
-//
-// PINNED BUG: Close assigns inv.f under the write lock, but the closure setItem
-// returns reads inv.f after the lock has been released, so Close running
-// alongside any call that actually changes a slot is an unsynchronised
-// read/write on that field. This was confirmed with -race and reproduces every
-// run; it is the same defect as the one noted on TestConcurrentSlotFuncSwapping.
-// The writers below therefore finish before the closers start, and the calls
-// kept running against Close are the ones that take a lock without ever
-// reaching setItem: a read-locking Slots, a write-locking ContainsItemFunc, a
-// RemoveItemFunc that matches nothing and an out-of-range SetItem.
+// TestConcurrentClose pins what Close does to a busy inventory. Close replaces
+// inv.f under the write lock and setItem captures inv.f under that same lock, so
+// closing an inventory while its slots are being written is synchronised: a
+// write either announces itself to the SlotFunc or to the no-op Close installed,
+// never to a half-published function.
 func TestConcurrentClose(t *testing.T) {
 	rec := &recorder{}
 	inv := New(concSlots, rec.fn)
@@ -1148,8 +1164,6 @@ func TestConcurrentClose(t *testing.T) {
 			}
 		}()
 	}
-	wg.Wait()
-	errs.report(t)
 
 	var closeWG, busyWG sync.WaitGroup
 	done := make(chan struct{})
@@ -1167,10 +1181,10 @@ func TestConcurrentClose(t *testing.T) {
 					errs.addf("len(Slots()): got %v, want %v", len(slots), concSlots)
 					return
 				}
-				if !inv.ContainsItem(diamonds(1)) {
-					errs.addf("ContainsItem(diamonds(1)): got false, want true")
-					return
-				}
+				// The result is not asserted: the writers are still filling the
+				// inventory. This is here to keep ContainsItemFunc, which takes
+				// the write lock, running against Close.
+				inv.ContainsItem(diamonds(1))
 				// No slot holds sticks, so this scans under the write lock and
 				// leaves every slot alone.
 				if err := inv.RemoveItemFunc(1, sticks(1).Comparable); err == nil {
@@ -1197,6 +1211,7 @@ func TestConcurrentClose(t *testing.T) {
 		}()
 	}
 
+	wg.Wait()
 	closeWG.Wait()
 	close(done)
 	busyWG.Wait()
