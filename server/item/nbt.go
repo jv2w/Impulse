@@ -101,13 +101,18 @@ func writeBlock(m map[string]any, b world.Block) {
 
 // writeDragonflyData writes additional data associated with a Stack to a map for NBT encoding.
 func writeDragonflyData(m map[string]any, s Stack) {
-	if v := s.Values(); len(v) != 0 {
-		buf := new(bytes.Buffer)
-		if err := gob.NewEncoder(buf).Encode(mapToSlice(v)); err != nil {
-			panic("error encoding item user data: " + err.Error())
-		}
-		m["dragonflyData"] = buf.Bytes()
+	v := s.Values()
+	if len(v) == 0 {
+		return
 	}
+	buf := new(bytes.Buffer)
+	if err := gob.NewEncoder(buf).Encode(mapToSlice(v)); err != nil {
+		// A value Stack.WithValue cannot encode is a mistake in whatever stored
+		// it. The tag is dropped so the rest of the stack still saves: a panic
+		// here would kill the goroutine writing the world over that mistake.
+		return
+	}
+	m["dragonflyData"] = buf.Bytes()
 }
 
 // mapToSlice converts a map to a slice of the type mapValue and orders the slice by the keys in the map to ensure a
@@ -292,23 +297,36 @@ func readDisplay(m map[string]any, s *Stack) {
 // readDragonflyData reads data written to the dragonflyData field in the NBT of an item and adds it to the Stack
 // passed.
 func readDragonflyData(m map[string]any, s *Stack) {
-	if customData, ok := m["dragonflyData"]; ok {
-		d, ok := customData.([]byte)
+	customData, ok := m["dragonflyData"]
+	if !ok {
+		return
+	}
+	d, ok := customData.([]byte)
+	if !ok {
+		itf, ok := customData.([]any)
 		if !ok {
-			if itf, ok := customData.([]any); ok {
-				for _, v := range itf {
-					b, _ := v.(byte)
-					d = append(d, b)
-				}
+			return
+		}
+		d = make([]byte, 0, len(itf))
+		for _, v := range itf {
+			b, ok := v.(byte)
+			if !ok {
+				// One entry that is not a byte makes the rest of the stream
+				// meaningless, so there is nothing left to salvage.
+				return
 			}
+			d = append(d, b)
 		}
-		var values []mapValue
-		if err := gob.NewDecoder(bytes.NewBuffer(d)).Decode(&values); err != nil {
-			panic("error decoding item user data: " + err.Error())
-		}
-		for _, val := range values {
-			*s = s.WithValue(val.K, val.V)
-		}
+	}
+	var values []mapValue
+	if err := gob.NewDecoder(bytes.NewBuffer(d)).Decode(&values); err != nil {
+		// Corrupt user data costs this item its values and nothing more. The
+		// stack around it is intact, and the rest of the inventory still has to
+		// be read: a panic here would take the whole load down with one item.
+		return
+	}
+	for _, val := range values {
+		*s = s.WithValue(val.K, val.V)
 	}
 }
 

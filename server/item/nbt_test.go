@@ -411,11 +411,10 @@ func TestReadDragonflyDataFromByteSlice(t *testing.T) {
 	}
 }
 
-// PINNED BUG: readDragonflyData panics on anything it cannot decode. A single
-// item whose dragonflyData is truncated, corrupt, or of an unexpected NBT type
-// takes down the goroutine that is loading the inventory, and nothing above it
-// recovers. This violates CLAUDE.md 2.2. Pinned as-is; decide in stage 1.
-func TestReadDragonflyDataPanicsOnBadInput(t *testing.T) {
+// User data that cannot be decoded costs the item its values and nothing else.
+// Panicking would take the goroutine loading the inventory down over one bad
+// item, which CLAUDE.md 2.2 rules out.
+func TestReadDragonflyDataDropsBadInput(t *testing.T) {
 	for _, c := range []struct {
 		name string
 		val  any
@@ -427,18 +426,29 @@ func TestReadDragonflyDataPanicsOnBadInput(t *testing.T) {
 		{"any slice of non-bytes", []any{"not a byte"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			defer func() {
-				if recover() == nil {
-					t.Fatal("readDragonflyData did not panic; it now reports the failure as a value")
-				}
-			}()
-			ReadNBT(map[string]any{
+			got := ReadNBT(map[string]any{
 				"Name":   "minecraft:stick",
 				"Damage": int16(0),
 				"Count":  byte(1),
 				"tag":    map[string]any{"dragonflyData": c.val},
 			}, nil)
+			if !got.Equal(NewStack(Stick{}, 1)) {
+				t.Fatalf("ReadNBT = %v, want a plain stick", got)
+			}
+			if len(got.Values()) != 0 {
+				t.Fatalf("Values() = %v, want none", got.Values())
+			}
 		})
+	}
+}
+
+// A value stored through Stack.WithValue that gob cannot encode is a mistake in
+// whatever stored it. The tag is dropped so the rest of the stack still saves;
+// panicking would kill the goroutine writing the world.
+func TestWriteDragonflyDataDropsUnencodableValues(t *testing.T) {
+	got := WriteNBT(NewStack(Stick{}, 1).WithValue("k", make(chan int)), true)
+	if _, ok := got["tag"]; ok {
+		t.Fatalf("WriteNBT wrote a tag for a value gob cannot encode: %#v", got)
 	}
 }
 
