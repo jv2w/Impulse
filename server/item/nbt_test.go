@@ -567,16 +567,29 @@ func TestReadDamage(t *testing.T) {
 			t.Fatalf("Durability() = %v, want 59: the network path now reads an int16", got)
 		}
 	})
-	// PINNED BUG: readDamage goes through Stack.Damage, which returns the broken
-	// item once the durability reaches zero. A stored damage at or above the
-	// item's maximum therefore loads as an empty stack: the item is deleted on
-	// read rather than clamped. Pinned as-is; decide in stage 1.
-	t.Run("damage at the maximum deletes the item", func(t *testing.T) {
-		if got := read(true, int16(59)); !got.Empty() {
-			t.Fatalf("ReadNBT = %v, want an empty stack", got)
+	// A load restores the damage that was written. Feeding it back through
+	// Stack.Damage swaps a fully worn item for its broken form, which deletes
+	// the item on read rather than clamping it.
+	t.Run("damage at or above the maximum is clamped, not deleted", func(t *testing.T) {
+		for _, stored := range []int16{59, 1000} {
+			got := read(true, stored)
+			if got.Empty() {
+				t.Fatalf("ReadNBT with a stored damage of %v = an empty stack", stored)
+			}
+			if d := got.Durability(); d != 0 {
+				t.Fatalf("Durability() with a stored damage of %v = %v, want 0", stored, d)
+			}
 		}
-		if got := read(true, int16(1000)); !got.Empty() {
-			t.Fatalf("ReadNBT = %v, want an empty stack", got)
+	})
+	t.Run("a stored damage on an item that is not durable is ignored", func(t *testing.T) {
+		got := ReadNBT(map[string]any{
+			"Name": "minecraft:stick", "Damage": int16(0), "Count": byte(1),
+			"tag": map[string]any{"Damage": int16(5)},
+		}, nil)
+		// Equal compares the damage field, which Durability cannot report for
+		// an item that does not implement Durable.
+		if !got.Equal(NewStack(Stick{}, 1)) {
+			t.Fatalf("ReadNBT = %v, want a plain stick", got)
 		}
 	})
 	t.Run("negative damage is clamped to full durability", func(t *testing.T) {

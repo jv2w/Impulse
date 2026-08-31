@@ -224,11 +224,20 @@ func readItemStack(m, t map[string]any) Stack {
 
 // readDamage reads the damage value stored in the NBT with the Damage tag and saves it to the Stack passed.
 func readDamage(m map[string]any, s *Stack, disk bool) {
-	if disk {
-		*s = s.Damage(int(nbtInt16(m, "Damage")))
+	maxDamage := s.MaxDurability()
+	if maxDamage == -1 {
+		// Not a Durable item, so there is no damage to restore.
 		return
 	}
-	*s = s.Damage(int(nbtInt32(m, "Damage")))
+	d := int(nbtInt32(m, "Damage"))
+	if disk {
+		d = int(nbtInt16(m, "Damage"))
+	}
+	// The stored value is restored rather than replayed through Stack.Damage,
+	// which hands back the broken item once the durability reaches zero: a
+	// fully worn tool would be deleted on load instead of loaded worn out.
+	// Values outside the range a writer could produce are clamped into it.
+	s.damage = min(max(d, 0), maxDamage)
 }
 
 // readAnvilCost ...
