@@ -380,11 +380,11 @@ func TestStoreColumnTruncatedEntityIndexIsReported(t *testing.T) {
 	}
 }
 
-// TestLoadColumnDanglingEntityReferenceDropsEveryEntity is a PINNED BUG with a data-loss path attached. When
-// the digp index names an entity whose actorprefix record is gone, entities() returns leveldb.ErrNotFound.
-// column() treats that as "this chunk has no entities" and drops the entities it had already decoded. A
-// subsequent store then deletes their records for good.
-func TestLoadColumnDanglingEntityReferenceDropsEveryEntity(t *testing.T) {
+// TestLoadColumnDanglingEntityReferenceKeepsTheRest covers a digp index naming an entity whose actorprefix
+// record is gone. Returning leveldb.ErrNotFound for the whole chunk made column() read it as "no entities
+// here" and discard the ones it had already decoded, and the next store then deleted their records for good.
+// A missing record costs that one entity and nothing else.
+func TestLoadColumnDanglingEntityReferenceKeepsTheRest(t *testing.T) {
 	db := newDB(t)
 	k := seedColumn(t, db)
 
@@ -403,19 +403,19 @@ func TestLoadColumnDanglingEntityReferenceDropsEveryEntity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
-	if len(got.Entities) != 0 {
-		t.Fatalf("entities = %+v, want none; the surviving entity is no longer dropped", got.Entities)
+	if len(got.Entities) != 1 {
+		t.Fatalf("entities = %+v, want only entity 1", got.Entities)
 	}
-	if _, ok := getRaw(t, db, entityIndex(1)); !ok {
-		t.Fatal("entity 1 disappeared before the store")
+	if got.Entities[0].ID != 1 {
+		t.Fatalf("id = %v, want 1", got.Entities[0].ID)
 	}
 
-	// The load/store cycle a world does on unload now destroys the survivor.
+	// The load/store cycle a world does on unload must leave the survivor alone.
 	if err := db.StoreColumn(k.pos, k.dim, got); err != nil {
 		t.Fatalf("store: %v", err)
 	}
-	if _, ok := getRaw(t, db, entityIndex(1)); ok {
-		t.Fatal("entity 1 survived the store; the data-loss path is closed")
+	if _, ok := getRaw(t, db, entityIndex(1)); !ok {
+		t.Fatal("entity 1 was deleted by the store")
 	}
 }
 

@@ -257,7 +257,12 @@ func (db *DB) entities(k dbKey) ([]chunk.Entity, error) {
 	for i := 0; i < len(ids); i += 8 {
 		id := int64(binary.LittleEndian.Uint64(ids[i : i+8]))
 		data, err := db.ldb.Get(entityIndex(id), nil)
-		if err != nil {
+		if errors.Is(err, leveldb.ErrNotFound) {
+			// Only this reference is broken. Failing the whole chunk would drop the entities that did
+			// survive, and the next store would delete their records too.
+			db.conf.Log.Error("read entity: record is missing, dropping the reference to it", "ID", id)
+			continue
+		} else if err != nil {
 			db.conf.Log.Error("read entity: "+err.Error(), "ID", id)
 			return nil, err
 		}
