@@ -5,9 +5,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/player/chat"
 	"github.com/go-gl/mathgl/mgl64"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/player/chat"
 )
 
 // Tx is the owner transaction handle passed to world callbacks. It is the

@@ -1,13 +1,13 @@
 package block
 
 import (
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/block/model"
-	"github.com/df-mc/dragonfly/server/internal/nbtconv"
-	"github.com/df-mc/dragonfly/server/item"
-	"github.com/df-mc/dragonfly/server/player/chat"
-	"github.com/df-mc/dragonfly/server/world"
 	"github.com/go-gl/mathgl/mgl64"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/block/model"
+	"github.com/jv2w/Impulse/server/internal/nbtconv"
+	"github.com/jv2w/Impulse/server/item"
+	"github.com/jv2w/Impulse/server/player/chat"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // Bed is a dyeable utility block that allows a player in the Overworld to sleep through the night and reset

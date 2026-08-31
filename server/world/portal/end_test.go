@@ -3,11 +3,11 @@ package portal_test
 import (
 	"testing"
 
-	"github.com/df-mc/dragonfly/server/block"
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/item"
-	"github.com/df-mc/dragonfly/server/world"
-	"github.com/df-mc/dragonfly/server/world/portal"
+	"github.com/jv2w/Impulse/server/block"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/item"
+	"github.com/jv2w/Impulse/server/world"
+	"github.com/jv2w/Impulse/server/world/portal"
 )
 
 // ringFrame is one (position, facing) pair on an end portal ring.

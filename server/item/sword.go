@@ -3,7 +3,7 @@ package item
 import (
 	"time"
 
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // Sword is a tool generally used to attack enemies. In addition, it may be used to mine any block slightly

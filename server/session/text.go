@@ -3,8 +3,8 @@ package session
 import (
 	"time"
 
-	"github.com/df-mc/dragonfly/server/player/chat"
-	"github.com/df-mc/dragonfly/server/player/scoreboard"
+	"github.com/jv2w/Impulse/server/player/chat"
+	"github.com/jv2w/Impulse/server/player/scoreboard"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 	"golang.org/x/text/language"

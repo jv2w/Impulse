@@ -1,11 +1,11 @@
 package item
 
 import (
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/world"
-	"github.com/df-mc/dragonfly/server/world/portal"
-	"github.com/df-mc/dragonfly/server/world/sound"
 	"github.com/go-gl/mathgl/mgl64"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/world"
+	"github.com/jv2w/Impulse/server/world/portal"
+	"github.com/jv2w/Impulse/server/world/sound"
 	"math/rand/v2"
 	"time"
 )

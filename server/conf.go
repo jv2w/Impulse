@@ -9,17 +9,17 @@ import (
 	"time"
 	_ "unsafe"
 
-	"github.com/df-mc/dragonfly/server/block"
-	"github.com/df-mc/dragonfly/server/entity"
-	"github.com/df-mc/dragonfly/server/internal/packbuilder"
-	"github.com/df-mc/dragonfly/server/player"
-	"github.com/df-mc/dragonfly/server/player/chat"
-	"github.com/df-mc/dragonfly/server/player/playerdb"
-	"github.com/df-mc/dragonfly/server/world"
-	"github.com/df-mc/dragonfly/server/world/biome"
-	"github.com/df-mc/dragonfly/server/world/generator"
-	"github.com/df-mc/dragonfly/server/world/mcdb"
 	"github.com/google/uuid"
+	"github.com/jv2w/Impulse/server/block"
+	"github.com/jv2w/Impulse/server/entity"
+	"github.com/jv2w/Impulse/server/internal/packbuilder"
+	"github.com/jv2w/Impulse/server/player"
+	"github.com/jv2w/Impulse/server/player/chat"
+	"github.com/jv2w/Impulse/server/player/playerdb"
+	"github.com/jv2w/Impulse/server/world"
+	"github.com/jv2w/Impulse/server/world/biome"
+	"github.com/jv2w/Impulse/server/world/generator"
+	"github.com/jv2w/Impulse/server/world/mcdb"
 	"github.com/sandertv/gophertunnel/minecraft"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 	"github.com/sandertv/gophertunnel/minecraft/resource"
@@ -365,10 +365,10 @@ func DefaultConfig() UserConfig {
 
 // noinspection ALL
 //
-//go:linkname creative_registerCreativeItems github.com/df-mc/dragonfly/server/item/creative.registerCreativeItems
+//go:linkname creative_registerCreativeItems github.com/jv2w/Impulse/server/item/creative.registerCreativeItems
 func creative_registerCreativeItems()
 
 // noinspection ALL
 //
-//go:linkname recipe_registerVanilla github.com/df-mc/dragonfly/server/item/recipe.registerVanilla
+//go:linkname recipe_registerVanilla github.com/jv2w/Impulse/server/item/recipe.registerVanilla
 func recipe_registerVanilla()

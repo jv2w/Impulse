@@ -1,6 +1,6 @@
 package item
 
-import "github.com/df-mc/dragonfly/server/world"
+import "github.com/jv2w/Impulse/server/world"
 
 // Salmon is a food item obtained from salmons. It can be cooked in a furnace, smoker, or campfire.
 type Salmon struct {

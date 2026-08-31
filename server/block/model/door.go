@@ -1,8 +1,8 @@
 package model
 
 import (
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // Door is a model used for doors. It has no solid faces and a bounding box that changes depending on

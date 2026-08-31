@@ -3,8 +3,8 @@ package recipe
 import (
 	"math"
 
-	"github.com/df-mc/dragonfly/server/item"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/item"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // Item represents an item that can be used as either the input or output of a recipe. It does not

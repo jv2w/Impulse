@@ -1,9 +1,9 @@
 package entity
 
 import (
-	"github.com/df-mc/dragonfly/server/item"
-	"github.com/df-mc/dragonfly/server/item/enchantment"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/item"
+	"github.com/jv2w/Impulse/server/item/enchantment"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 type (

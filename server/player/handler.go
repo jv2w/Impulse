@@ -4,13 +4,13 @@ import (
 	"net"
 	"time"
 
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/cmd"
-	"github.com/df-mc/dragonfly/server/item"
-	"github.com/df-mc/dragonfly/server/player/skin"
-	"github.com/df-mc/dragonfly/server/session"
-	"github.com/df-mc/dragonfly/server/world"
 	"github.com/go-gl/mathgl/mgl64"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/cmd"
+	"github.com/jv2w/Impulse/server/item"
+	"github.com/jv2w/Impulse/server/player/skin"
+	"github.com/jv2w/Impulse/server/session"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // Handler handles events that are called by a player. Implementations of Handler may be used to listen to

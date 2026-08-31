@@ -1,6 +1,6 @@
 package block
 
-import "github.com/df-mc/dragonfly/server/item"
+import "github.com/jv2w/Impulse/server/item"
 
 type (
 	// Stone is a block found underground in the world or on mountains.

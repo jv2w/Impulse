@@ -4,15 +4,15 @@ import (
 	"math"
 	"time"
 
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/entity"
-	"github.com/df-mc/dragonfly/server/entity/effect"
-	"github.com/df-mc/dragonfly/server/internal/nbtconv"
-	"github.com/df-mc/dragonfly/server/item"
-	"github.com/df-mc/dragonfly/server/item/potion"
-	"github.com/df-mc/dragonfly/server/world"
 	"github.com/go-gl/mathgl/mgl64"
 	"github.com/google/uuid"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/entity"
+	"github.com/jv2w/Impulse/server/entity/effect"
+	"github.com/jv2w/Impulse/server/internal/nbtconv"
+	"github.com/jv2w/Impulse/server/item"
+	"github.com/jv2w/Impulse/server/item/potion"
+	"github.com/jv2w/Impulse/server/world"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 )
 

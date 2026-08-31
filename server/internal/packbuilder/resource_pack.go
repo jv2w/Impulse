@@ -4,7 +4,7 @@ import (
 	_ "embed"
 	"os"
 
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/world"
 	"github.com/sandertv/gophertunnel/minecraft/resource"
 	"golang.org/x/mod/sumdb/dirhash"
 )

@@ -1,7 +1,7 @@
 package block
 
 import (
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // encodeStairsBlock encodes the provided block in to an identifier and meta value that can be used to encode the stairs.

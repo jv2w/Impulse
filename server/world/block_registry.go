@@ -10,7 +10,7 @@ import (
 	"sync"
 
 	"github.com/brentp/intintmap"
-	"github.com/df-mc/dragonfly/server/world/chunk"
+	"github.com/jv2w/Impulse/server/world/chunk"
 	"github.com/segmentio/fasthash/fnv1"
 )
 

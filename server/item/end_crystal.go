@@ -1,9 +1,9 @@
 package item
 
 import (
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/world"
 	"github.com/go-gl/mathgl/mgl64"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // EndCrystal is an item that can be placed on obsidian or bedrock to spawn an End crystal entity.

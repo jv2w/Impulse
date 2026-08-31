@@ -1,7 +1,7 @@
 package block
 
 import (
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // Prismarine is a type of stone that appears underwater in ruins and ocean monuments.

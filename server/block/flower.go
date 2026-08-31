@@ -4,11 +4,11 @@ import (
 	"math/rand/v2"
 	"time"
 
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/entity/effect"
-	"github.com/df-mc/dragonfly/server/item"
-	"github.com/df-mc/dragonfly/server/world"
 	"github.com/go-gl/mathgl/mgl64"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/entity/effect"
+	"github.com/jv2w/Impulse/server/item"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // Flower is a non-solid plant that occur in a variety of shapes and colours. They are primarily used for decoration

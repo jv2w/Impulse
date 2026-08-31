@@ -3,10 +3,10 @@ package world
 import (
 	"time"
 
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/world/chunk"
 	"github.com/go-gl/mathgl/mgl64"
 	"github.com/google/uuid"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/world/chunk"
 )
 
 // Viewer is a viewer in the world. It can view changes that are made in the world, such as the addition of

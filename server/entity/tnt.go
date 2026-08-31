@@ -5,11 +5,11 @@ import (
 	"math/rand/v2"
 	"time"
 
-	"github.com/df-mc/dragonfly/server/block"
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/internal/nbtconv"
-	"github.com/df-mc/dragonfly/server/world"
 	"github.com/go-gl/mathgl/mgl64"
+	"github.com/jv2w/Impulse/server/block"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/internal/nbtconv"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // NewTNT creates a new primed TNT entity.

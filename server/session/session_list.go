@@ -4,10 +4,10 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/df-mc/dragonfly/server/internal/sliceutil"
-	"github.com/df-mc/dragonfly/server/player/skin"
-	"github.com/df-mc/dragonfly/server/world"
 	"github.com/google/uuid"
+	"github.com/jv2w/Impulse/server/internal/sliceutil"
+	"github.com/jv2w/Impulse/server/player/skin"
+	"github.com/jv2w/Impulse/server/world"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 )

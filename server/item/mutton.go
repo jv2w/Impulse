@@ -1,6 +1,6 @@
 package item
 
-import "github.com/df-mc/dragonfly/server/world"
+import "github.com/jv2w/Impulse/server/world"
 
 // Mutton is a food item obtained from sheep. It can be cooked in a furnace, smoker, or campfire.
 type Mutton struct {

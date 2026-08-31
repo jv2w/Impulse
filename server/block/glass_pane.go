@@ -1,8 +1,8 @@
 package block
 
 import (
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // GlassPane is a transparent block that can be used as a more efficient alternative to glass blocks.

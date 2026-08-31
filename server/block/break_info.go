@@ -6,11 +6,11 @@ import (
 	"slices"
 	"time"
 
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/item"
-	"github.com/df-mc/dragonfly/server/item/enchantment"
-	"github.com/df-mc/dragonfly/server/world"
-	"github.com/df-mc/dragonfly/server/world/particle"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/item"
+	"github.com/jv2w/Impulse/server/item/enchantment"
+	"github.com/jv2w/Impulse/server/world"
+	"github.com/jv2w/Impulse/server/world/particle"
 )
 
 // Breakable represents a block that may be broken by a player in survival mode. Blocks not include are blocks

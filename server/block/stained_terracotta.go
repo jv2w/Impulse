@@ -1,8 +1,8 @@
 package block
 
 import (
-	"github.com/df-mc/dragonfly/server/item"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/item"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // StainedTerracotta is a block formed from clay, with a hardness and blast resistance comparable to stone. In contrast

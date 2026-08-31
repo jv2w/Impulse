@@ -6,10 +6,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/df-mc/dragonfly/server/world"
-	"github.com/df-mc/dragonfly/server/world/mcdb/leveldat"
 	"github.com/df-mc/goleveldb/leveldb"
 	"github.com/df-mc/goleveldb/leveldb/opt"
+	"github.com/jv2w/Impulse/server/world"
+	"github.com/jv2w/Impulse/server/world/mcdb/leveldat"
 )
 
 // Config holds the optional parameters of a DB.

@@ -1,6 +1,6 @@
 package item
 
-import "github.com/df-mc/dragonfly/server/world"
+import "github.com/jv2w/Impulse/server/world"
 
 // ArmourTrim is a decorative addition to an armour piece. It consists of a
 // template that specifies the pattern and a material that specifies the colour.

@@ -1,9 +1,9 @@
 package entity
 
 import (
-	"github.com/df-mc/dragonfly/server/entity/effect"
-	"github.com/df-mc/dragonfly/server/world"
 	"github.com/go-gl/mathgl/mgl64"
+	"github.com/jv2w/Impulse/server/entity/effect"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // Living represents an entity that is alive and that has health. It is able to take damage and will die upon

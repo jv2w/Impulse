@@ -7,14 +7,14 @@ import (
 	"slices"
 	"time"
 
-	"github.com/df-mc/dragonfly/server/block"
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/block/cube/trace"
-	"github.com/df-mc/dragonfly/server/entity/effect"
-	"github.com/df-mc/dragonfly/server/item"
-	"github.com/df-mc/dragonfly/server/item/potion"
-	"github.com/df-mc/dragonfly/server/world"
 	"github.com/go-gl/mathgl/mgl64"
+	"github.com/jv2w/Impulse/server/block"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/block/cube/trace"
+	"github.com/jv2w/Impulse/server/entity/effect"
+	"github.com/jv2w/Impulse/server/item"
+	"github.com/jv2w/Impulse/server/item/potion"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // ProjectileBehaviourConfig allows the configuration of projectiles. Calling

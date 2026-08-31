@@ -1,8 +1,8 @@
 package block
 
 import (
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // IronBars are blocks that serve a similar purpose to glass panes, but made of iron instead of glass.

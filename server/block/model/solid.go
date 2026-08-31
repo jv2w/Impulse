@@ -1,8 +1,8 @@
 package model
 
 import (
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // Solid is the model of a fully solid block. Blocks with this model, such as stone or wooden planks, have a

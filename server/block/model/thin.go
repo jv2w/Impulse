@@ -1,8 +1,8 @@
 package model
 
 import (
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // Thin is a model for thin, partial blocks such as a glass pane or an iron bar. It changes its bounding box depending

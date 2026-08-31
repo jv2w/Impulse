@@ -5,10 +5,10 @@ import (
 	"image/color"
 	"time"
 
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/entity/effect"
-	"github.com/df-mc/dragonfly/server/world"
 	"github.com/go-gl/mathgl/mgl64"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/entity/effect"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // MaxCounter represents an item that has a specific max count. By default, each item will be expected to have

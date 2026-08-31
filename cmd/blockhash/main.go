@@ -91,7 +91,7 @@ func (b *hashBuilder) writePackage(w io.Writer) {
 	if _, err := fmt.Fprintf(w, packageFormat, b.pkg.Name); err != nil {
 		log.Fatalln(err)
 	}
-	if _, err := fmt.Fprintf(w, "import \"github.com/df-mc/dragonfly/server/world\"\n\n"); err != nil {
+	if _, err := fmt.Fprintf(w, "import \"github.com/jv2w/Impulse/server/world\"\n\n"); err != nil {
 		log.Fatalln(err)
 	}
 }

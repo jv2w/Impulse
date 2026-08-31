@@ -1,6 +1,6 @@
 package block
 
-import "github.com/df-mc/dragonfly/server/item"
+import "github.com/jv2w/Impulse/server/item"
 
 // DeepslateTiles are a tiled variant of deepslate and can spawn in ancient cities.
 type DeepslateTiles struct {

@@ -4,9 +4,9 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/df-mc/dragonfly/server/world"
-	"github.com/df-mc/dragonfly/server/world/chunk"
 	"github.com/df-mc/goleveldb/leveldb/iterator"
+	"github.com/jv2w/Impulse/server/world"
+	"github.com/jv2w/Impulse/server/world/chunk"
 )
 
 // ColumnIterator iterates over a DB's position/column pairs in key order.

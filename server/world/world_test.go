@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/df-mc/dragonfly/server/block/cube"
 	"github.com/go-gl/mathgl/mgl64"
+	"github.com/jv2w/Impulse/server/block/cube"
 )
 
 // TestSynchronousWorldDo verifies that Do on a synchronous World runs the task

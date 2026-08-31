@@ -4,9 +4,9 @@ import (
 	"math/rand/v2"
 	"time"
 
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/world"
-	"github.com/df-mc/dragonfly/server/world/sound"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/world"
+	"github.com/jv2w/Impulse/server/world/sound"
 )
 
 // Lava is a light-emitting fluid block that causes fire damage.

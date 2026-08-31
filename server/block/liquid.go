@@ -4,8 +4,8 @@ import (
 	"math"
 	"sync"
 
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // LiquidRemovable represents a block that may be removed by a liquid flowing into it. When this happens, the

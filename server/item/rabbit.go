@@ -1,6 +1,6 @@
 package item
 
-import "github.com/df-mc/dragonfly/server/world"
+import "github.com/jv2w/Impulse/server/world"
 
 // Rabbit is a food item obtained from rabbits. It can be cooked in a furnace, smoker, or campfire.
 type Rabbit struct {

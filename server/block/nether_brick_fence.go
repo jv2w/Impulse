@@ -1,9 +1,9 @@
 package block
 
 import (
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/block/model"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/block/model"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // NetherBrickFence is the nether brick variant of the fence block.

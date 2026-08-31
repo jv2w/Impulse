@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	"github.com/df-mc/dragonfly/server"
-	"github.com/df-mc/dragonfly/server/player/chat"
+	"github.com/jv2w/Impulse/server"
+	"github.com/jv2w/Impulse/server/player/chat"
 	"github.com/pelletier/go-toml"
 	"log/slog"
 	"os"

@@ -1,8 +1,8 @@
 package model
 
 import (
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // Empty is a model that is completely empty. It has no collision boxes or solid faces.

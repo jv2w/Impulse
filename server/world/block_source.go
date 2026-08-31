@@ -1,6 +1,6 @@
 package world
 
-import "github.com/df-mc/dragonfly/server/block/cube"
+import "github.com/jv2w/Impulse/server/block/cube"
 
 // BlockSource represents a source for obtaining blocks.
 type BlockSource interface {

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"math"
 
-	"github.com/df-mc/dragonfly/server/block/cube"
+	"github.com/jv2w/Impulse/server/block/cube"
 )
 
 // lightArea represents a square area of N*N chunks. It is used for light calculation specifically.

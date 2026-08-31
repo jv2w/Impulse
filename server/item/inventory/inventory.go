@@ -3,7 +3,7 @@ package inventory
 import (
 	"errors"
 	"fmt"
-	"github.com/df-mc/dragonfly/server/item"
+	"github.com/jv2w/Impulse/server/item"
 	"math"
 	"slices"
 	"strings"

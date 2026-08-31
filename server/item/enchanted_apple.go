@@ -1,8 +1,8 @@
 package item
 
 import (
-	"github.com/df-mc/dragonfly/server/entity/effect"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/entity/effect"
+	"github.com/jv2w/Impulse/server/world"
 	"time"
 )
 

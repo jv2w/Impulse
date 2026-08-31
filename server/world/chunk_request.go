@@ -3,7 +3,7 @@ package world
 import (
 	"sync"
 
-	"github.com/df-mc/dragonfly/server/world/chunk"
+	"github.com/jv2w/Impulse/server/world/chunk"
 )
 
 // chunkRequest tracks a chunk that is being loaded or generated in the

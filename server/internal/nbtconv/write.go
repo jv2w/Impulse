@@ -1,8 +1,8 @@
 package nbtconv
 
 import (
-	"github.com/df-mc/dragonfly/server/world"
-	"github.com/df-mc/dragonfly/server/world/chunk"
+	"github.com/jv2w/Impulse/server/world"
+	"github.com/jv2w/Impulse/server/world/chunk"
 )
 
 // WriteBlock encodes a world.Block into a map that can be encoded using NBT.

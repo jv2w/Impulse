@@ -1,6 +1,6 @@
 package block
 
-import "github.com/df-mc/dragonfly/server/item"
+import "github.com/jv2w/Impulse/server/item"
 
 // CoalOre is a common ore.
 type CoalOre struct {

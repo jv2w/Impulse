@@ -1,6 +1,6 @@
 package chunk
 
-import "github.com/df-mc/dragonfly/server/block/cube"
+import "github.com/jv2w/Impulse/server/block/cube"
 
 // insertBlockLightNodes iterates over the chunk and looks for blocks that have a light level of at least 1.
 // If one is found, a node is added for it to the node queue.

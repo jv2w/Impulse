@@ -6,7 +6,7 @@ import (
 	"io"
 	"log/slog"
 
-	"github.com/df-mc/dragonfly/server/session"
+	"github.com/jv2w/Impulse/server/session"
 	"github.com/sandertv/gophertunnel/minecraft"
 )
 

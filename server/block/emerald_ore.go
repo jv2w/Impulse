@@ -1,7 +1,7 @@
 package block
 
 import (
-	"github.com/df-mc/dragonfly/server/item"
+	"github.com/jv2w/Impulse/server/item"
 )
 
 // EmeraldOre is an ore generating exclusively under mountain biomes.

@@ -1,7 +1,7 @@
 package item
 
 import (
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // Apple is a food item that can be eaten by the player.

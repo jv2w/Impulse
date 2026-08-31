@@ -1,9 +1,9 @@
 package entity
 
 import (
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/internal/nbtconv"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/internal/nbtconv"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // NewEndCrystal creates a new End crystal entity.

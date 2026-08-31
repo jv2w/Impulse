@@ -2,8 +2,8 @@ package player
 
 import (
 	"errors"
-	"github.com/df-mc/dragonfly/server/world"
 	"github.com/google/uuid"
+	"github.com/jv2w/Impulse/server/world"
 	"io"
 )
 

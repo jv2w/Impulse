@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/df-mc/dragonfly/server/block/cube"
+	"github.com/jv2w/Impulse/server/block/cube"
 )
 
 // NetworkDecode decodes the network serialised data passed into a Chunk if successful. If not, the chunk

@@ -3,10 +3,10 @@ package world
 import (
 	"sync"
 
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/world/chunk"
 	"github.com/df-mc/goleveldb/leveldb"
 	"github.com/google/uuid"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/world/chunk"
 	"io"
 )
 

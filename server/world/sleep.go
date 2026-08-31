@@ -1,9 +1,9 @@
 package world
 
 import (
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/player/chat"
 	"github.com/google/uuid"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/player/chat"
 )
 
 // Sleeper represents an entity that can sleep.

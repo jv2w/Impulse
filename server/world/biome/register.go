@@ -3,7 +3,7 @@ package biome
 import (
 	_ "unsafe"
 
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // init registers all biomes that can be used in a world.World.
@@ -102,5 +102,5 @@ func init() {
 
 // noinspection ALL
 //
-//go:linkname world_finaliseBiomeRegistry github.com/df-mc/dragonfly/server/world.finaliseBiomeRegistry
+//go:linkname world_finaliseBiomeRegistry github.com/jv2w/Impulse/server/world.finaliseBiomeRegistry
 func world_finaliseBiomeRegistry()

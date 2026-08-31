@@ -3,7 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"github.com/df-mc/dragonfly/server/player/chat"
+	"github.com/jv2w/Impulse/server/player/chat"
 	"golang.org/x/text/language"
 )
 

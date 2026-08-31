@@ -11,24 +11,24 @@ import (
 	"time"
 	_ "unsafe" // Imported for compiler directives.
 
-	"github.com/df-mc/dragonfly/server/block"
-	"github.com/df-mc/dragonfly/server/entity"
-	"github.com/df-mc/dragonfly/server/entity/effect"
-	"github.com/df-mc/dragonfly/server/item"
-	"github.com/df-mc/dragonfly/server/item/creative"
-	"github.com/df-mc/dragonfly/server/item/inventory"
-	"github.com/df-mc/dragonfly/server/item/recipe"
-	"github.com/df-mc/dragonfly/server/player/debug"
-	"github.com/df-mc/dragonfly/server/player/dialogue"
-	"github.com/df-mc/dragonfly/server/player/form"
-	"github.com/df-mc/dragonfly/server/player/hud"
-	"github.com/df-mc/dragonfly/server/player/input"
-	"github.com/df-mc/dragonfly/server/player/skin"
-	"github.com/df-mc/dragonfly/server/world"
-	"github.com/df-mc/dragonfly/server/world/sound"
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/go-gl/mathgl/mgl64"
 	"github.com/google/uuid"
+	"github.com/jv2w/Impulse/server/block"
+	"github.com/jv2w/Impulse/server/entity"
+	"github.com/jv2w/Impulse/server/entity/effect"
+	"github.com/jv2w/Impulse/server/item"
+	"github.com/jv2w/Impulse/server/item/creative"
+	"github.com/jv2w/Impulse/server/item/inventory"
+	"github.com/jv2w/Impulse/server/item/recipe"
+	"github.com/jv2w/Impulse/server/player/debug"
+	"github.com/jv2w/Impulse/server/player/dialogue"
+	"github.com/jv2w/Impulse/server/player/form"
+	"github.com/jv2w/Impulse/server/player/hud"
+	"github.com/jv2w/Impulse/server/player/input"
+	"github.com/jv2w/Impulse/server/player/skin"
+	"github.com/jv2w/Impulse/server/world"
+	"github.com/jv2w/Impulse/server/world/sound"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 )
@@ -1335,5 +1335,5 @@ func gameTypeFromMode(mode world.GameMode) int32 {
 
 // noinspection ALL
 //
-//go:linkname item_id github.com/df-mc/dragonfly/server/item.id
+//go:linkname item_id github.com/jv2w/Impulse/server/item.id
 func item_id(s item.Stack) int32

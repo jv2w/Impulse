@@ -1,6 +1,6 @@
 package entity
 
-import "github.com/df-mc/dragonfly/server/world"
+import "github.com/jv2w/Impulse/server/world"
 
 // behaviourDamageable represents a Behaviour that may be hurt directly without
 // implementing Living.

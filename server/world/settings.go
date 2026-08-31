@@ -5,7 +5,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/df-mc/dragonfly/server/block/cube"
+	"github.com/jv2w/Impulse/server/block/cube"
 )
 
 // Settings holds the settings of a World. These are typically saved to a level.dat file. It is safe to pass the same

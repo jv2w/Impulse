@@ -1,8 +1,8 @@
 package enchantment
 
 import (
-	"github.com/df-mc/dragonfly/server/item"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/item"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // DepthStrider is a boot enchantment that increases underwater movement speed.

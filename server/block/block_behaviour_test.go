@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/df-mc/dragonfly/server/block"
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/entity"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/block"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/entity"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // TestTorchBreaksWithoutSupport verifies that a torch is broken by a neighbour

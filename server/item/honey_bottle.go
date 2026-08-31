@@ -3,8 +3,8 @@ package item
 import (
 	"time"
 
-	"github.com/df-mc/dragonfly/server/entity/effect"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/entity/effect"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // HoneyBottle is a food item obtained from full beehives or beenests using a glass bottle. Consuming it

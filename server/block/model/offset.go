@@ -3,9 +3,9 @@ package model
 import (
 	"math"
 
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/internal/mcrandom"
 	"github.com/go-gl/mathgl/mgl64"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/internal/mcrandom"
 )
 
 // randomOffset returns the deterministic horizontal offset vanilla applies to

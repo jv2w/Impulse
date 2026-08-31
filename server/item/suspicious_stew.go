@@ -1,7 +1,7 @@
 package item
 
 import (
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // SuspiciousStew is a food item that can give the player a status effect that depends on the flower used to craft it.

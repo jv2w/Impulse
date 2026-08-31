@@ -1,8 +1,8 @@
 package enchantment
 
 import (
-	"github.com/df-mc/dragonfly/server/item"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/item"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // Multishot is an enchantment for crossbows that allow them to shoot three arrows or firework rockets at the cost of one.

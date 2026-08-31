@@ -3,12 +3,12 @@ package block
 import (
 	"time"
 
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/internal/nbtconv"
-	"github.com/df-mc/dragonfly/server/item"
-	"github.com/df-mc/dragonfly/server/world"
-	"github.com/df-mc/dragonfly/server/world/particle"
-	"github.com/df-mc/dragonfly/server/world/sound"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/internal/nbtconv"
+	"github.com/jv2w/Impulse/server/item"
+	"github.com/jv2w/Impulse/server/world"
+	"github.com/jv2w/Impulse/server/world/particle"
+	"github.com/jv2w/Impulse/server/world/sound"
 )
 
 // Note is a musical block that emits sounds when powered with redstone.

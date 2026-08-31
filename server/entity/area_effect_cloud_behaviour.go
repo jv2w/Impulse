@@ -4,10 +4,10 @@ import (
 	"iter"
 	"time"
 
-	"github.com/df-mc/dragonfly/server/entity/effect"
-	"github.com/df-mc/dragonfly/server/item/potion"
-	"github.com/df-mc/dragonfly/server/world"
 	"github.com/go-gl/mathgl/mgl64"
+	"github.com/jv2w/Impulse/server/entity/effect"
+	"github.com/jv2w/Impulse/server/item/potion"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // AreaEffectCloudBehaviourConfig contains optional parameters for an area

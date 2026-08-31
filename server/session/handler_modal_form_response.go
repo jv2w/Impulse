@@ -2,8 +2,8 @@ package session
 
 import (
 	"fmt"
-	"github.com/df-mc/dragonfly/server/player/form"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/player/form"
+	"github.com/jv2w/Impulse/server/world"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 	"sync"
 	"sync/atomic"

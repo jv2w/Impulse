@@ -1,8 +1,8 @@
 package enchantment
 
 import (
-	"github.com/df-mc/dragonfly/server/item"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/item"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // Mending is an enchantment that repairs the item when experience orbs are

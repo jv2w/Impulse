@@ -1,6 +1,6 @@
 package block
 
-import "github.com/df-mc/dragonfly/server/item"
+import "github.com/jv2w/Impulse/server/item"
 
 // DeepslateBricks are a brick variant of deepslate and can spawn in ancient cities.
 type DeepslateBricks struct {

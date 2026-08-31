@@ -5,9 +5,9 @@ import (
 	"iter"
 	"slices"
 
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/world/chunk"
 	"github.com/df-mc/goleveldb/leveldb"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/world/chunk"
 )
 
 // blocksWithin implements Tx.BlocksWithin. It must only be called during a transaction.

@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"math/rand/v2"
 
-	"github.com/df-mc/dragonfly/server/block"
-	"github.com/df-mc/dragonfly/server/item"
-	"github.com/df-mc/dragonfly/server/world"
-	"github.com/df-mc/dragonfly/server/world/sound"
+	"github.com/jv2w/Impulse/server/block"
+	"github.com/jv2w/Impulse/server/item"
+	"github.com/jv2w/Impulse/server/world"
+	"github.com/jv2w/Impulse/server/world/sound"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 )
 

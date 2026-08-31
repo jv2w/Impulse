@@ -2,12 +2,12 @@ package session
 
 import (
 	"fmt"
-	"github.com/df-mc/dragonfly/server/block"
-	"github.com/df-mc/dragonfly/server/entity"
-	"github.com/df-mc/dragonfly/server/event"
-	"github.com/df-mc/dragonfly/server/item"
-	"github.com/df-mc/dragonfly/server/item/inventory"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/block"
+	"github.com/jv2w/Impulse/server/entity"
+	"github.com/jv2w/Impulse/server/event"
+	"github.com/jv2w/Impulse/server/item"
+	"github.com/jv2w/Impulse/server/item/inventory"
+	"github.com/jv2w/Impulse/server/world"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 	"math"

@@ -1,6 +1,6 @@
 package block
 
-import "github.com/df-mc/dragonfly/server/item"
+import "github.com/jv2w/Impulse/server/item"
 
 // Cobblestone is a common block, obtained from mining stone.
 type Cobblestone struct {

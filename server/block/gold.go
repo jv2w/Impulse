@@ -1,8 +1,8 @@
 package block
 
 import (
-	"github.com/df-mc/dragonfly/server/item"
-	"github.com/df-mc/dragonfly/server/world/sound"
+	"github.com/jv2w/Impulse/server/item"
+	"github.com/jv2w/Impulse/server/world/sound"
 )
 
 // Gold is a precious metal block crafted from 9 gold ingots.

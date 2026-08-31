@@ -1,8 +1,8 @@
 package recipe
 
 import (
-	"github.com/df-mc/dragonfly/server/item"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/item"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // DecoratedPotRecipe is a dynamic recipe for crafting decorated pots. The output depends on which

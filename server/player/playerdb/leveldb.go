@@ -2,11 +2,11 @@ package playerdb
 
 import (
 	"encoding/json"
-	"github.com/df-mc/dragonfly/server/player"
-	"github.com/df-mc/dragonfly/server/world"
 	"github.com/df-mc/goleveldb/leveldb"
 	"github.com/df-mc/goleveldb/leveldb/opt"
 	"github.com/google/uuid"
+	"github.com/jv2w/Impulse/server/player"
+	"github.com/jv2w/Impulse/server/world"
 	"os"
 )
 

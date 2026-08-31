@@ -1,7 +1,7 @@
 package blockinternal
 
 import (
-	"github.com/df-mc/dragonfly/server/item/category"
+	"github.com/jv2w/Impulse/server/item/category"
 	"maps"
 	"slices"
 )

@@ -3,8 +3,8 @@ package world
 import (
 	"sync"
 
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/world/chunk"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/world/chunk"
 )
 
 // Generator handles the generating of newly created chunks. Worlds have one generator which is used to

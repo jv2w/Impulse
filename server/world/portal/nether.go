@@ -4,9 +4,9 @@ import (
 	"math"
 	"math/rand/v2"
 
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/block/model"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/block/model"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // Nether contains information about a nether portal structure. Values returned from this package are tied to the

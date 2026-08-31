@@ -3,8 +3,8 @@ package model
 import (
 	"math"
 
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // Composter is a model used by composter blocks. It is solid on all sides apart from the top, and the height of the

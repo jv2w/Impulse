@@ -1,9 +1,9 @@
 package recipe
 
 import (
-	"github.com/df-mc/dragonfly/server/internal/sliceutil"
-	"github.com/df-mc/dragonfly/server/item"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/internal/sliceutil"
+	"github.com/jv2w/Impulse/server/item"
+	"github.com/jv2w/Impulse/server/world"
 	"slices"
 	"sort"
 	"strings"

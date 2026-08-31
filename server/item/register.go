@@ -1,9 +1,9 @@
 package item
 
 import (
-	"github.com/df-mc/dragonfly/server/item/potion"
-	"github.com/df-mc/dragonfly/server/world"
-	"github.com/df-mc/dragonfly/server/world/sound"
+	"github.com/jv2w/Impulse/server/item/potion"
+	"github.com/jv2w/Impulse/server/world"
+	"github.com/jv2w/Impulse/server/world/sound"
 )
 
 // noinspection SpellCheckingInspection

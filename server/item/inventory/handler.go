@@ -1,8 +1,8 @@
 package inventory
 
 import (
-	"github.com/df-mc/dragonfly/server/event"
-	"github.com/df-mc/dragonfly/server/item"
+	"github.com/jv2w/Impulse/server/event"
+	"github.com/jv2w/Impulse/server/item"
 )
 
 type Holder interface{}

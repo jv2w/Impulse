@@ -1,6 +1,6 @@
 package session
 
-import "github.com/df-mc/dragonfly/server/world"
+import "github.com/jv2w/Impulse/server/world"
 
 // ViewLayer returns the session's ViewLayer. The layer may be used to override how entities are viewed
 // by this session, such as with a different name tag or visibility state.

@@ -4,7 +4,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // PassiveBehaviourConfig holds optional parameters for a PassiveBehaviour.

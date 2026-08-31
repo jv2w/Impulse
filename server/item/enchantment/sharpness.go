@@ -1,8 +1,8 @@
 package enchantment
 
 import (
-	"github.com/df-mc/dragonfly/server/item"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/item"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // Sharpness is an enchantment applied to a sword or axe that increases melee

@@ -1,9 +1,9 @@
 package item
 
 import (
-	"github.com/df-mc/dragonfly/server/item/potion"
-	"github.com/df-mc/dragonfly/server/world"
-	"github.com/df-mc/dragonfly/server/world/sound"
+	"github.com/jv2w/Impulse/server/item/potion"
+	"github.com/jv2w/Impulse/server/world"
+	"github.com/jv2w/Impulse/server/world/sound"
 )
 
 // LingeringPotion is a variant of a splash potion that can be thrown to leave clouds with status effects that linger on

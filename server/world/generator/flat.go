@@ -1,9 +1,9 @@
 package generator
 
 import (
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/world"
-	"github.com/df-mc/dragonfly/server/world/chunk"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/world"
+	"github.com/jv2w/Impulse/server/world/chunk"
 )
 
 // Flat is the flat generator of World. It generates flat worlds (like those in vanilla) with no other

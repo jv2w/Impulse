@@ -3,7 +3,7 @@ package world
 import (
 	"testing"
 
-	"github.com/df-mc/dragonfly/server/block/cube"
+	"github.com/jv2w/Impulse/server/block/cube"
 )
 
 var redstoneDirtyTickBenchmarkPower int

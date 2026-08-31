@@ -1,4 +1,4 @@
-module github.com/df-mc/dragonfly
+module github.com/jv2w/Impulse
 
 go 1.26.0
 

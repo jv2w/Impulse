@@ -3,10 +3,10 @@ package block_test
 import (
 	"testing"
 
-	"github.com/df-mc/dragonfly/server/block"
-	"github.com/df-mc/dragonfly/server/item"
-	"github.com/df-mc/dragonfly/server/item/enchantment"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/block"
+	"github.com/jv2w/Impulse/server/item"
+	"github.com/jv2w/Impulse/server/item/enchantment"
+	"github.com/jv2w/Impulse/server/world"
 )
 
 // TestBreakDuration verifies the Bedrock Edition breaking calculation against the reference values

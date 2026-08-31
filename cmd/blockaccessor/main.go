@@ -82,9 +82,9 @@ var fileTemplate = template.Must(template.New("accessor").Parse(`// Code generat
 package {{.PkgName}}
 
 import (
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/item"
-	"github.com/df-mc/dragonfly/server/world"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/item"
+	"github.com/jv2w/Impulse/server/world"
 )
 {{range .Specs}}
 // {{.IfaceDoc}}

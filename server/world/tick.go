@@ -6,8 +6,8 @@ import (
 	"slices"
 	"time"
 
-	"github.com/df-mc/dragonfly/server/block/cube"
-	"github.com/df-mc/dragonfly/server/internal/sliceutil"
+	"github.com/jv2w/Impulse/server/block/cube"
+	"github.com/jv2w/Impulse/server/internal/sliceutil"
 )
 
 // ticker implements World ticking methods.

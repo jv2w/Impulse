@@ -3,8 +3,8 @@ package block
 import (
 	"fmt"
 
-	"github.com/df-mc/dragonfly/server/internal/nbtconv"
-	"github.com/df-mc/dragonfly/server/item"
+	"github.com/jv2w/Impulse/server/internal/nbtconv"
+	"github.com/jv2w/Impulse/server/item"
 )
 
 // BannerPatternLayer is a wrapper over BannerPatternType with a colour property.

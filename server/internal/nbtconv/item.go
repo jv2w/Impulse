@@ -1,8 +1,8 @@
 package nbtconv
 
 import (
-	"github.com/df-mc/dragonfly/server/item"
-	"github.com/df-mc/dragonfly/server/item/inventory"
+	"github.com/jv2w/Impulse/server/item"
+	"github.com/jv2w/Impulse/server/item/inventory"
 )
 
 // InvFromNBT decodes the data of an NBT slice into the inventory passed.
