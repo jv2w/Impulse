@@ -525,12 +525,10 @@ func encodeDedupBiomes(c *Chunk, a, b int) {
 	c.biomes[a], c.biomes[b] = build(), build()
 }
 
-func TestRoundTripDiskBiomeDedupAliasesStorages(t *testing.T) {
+func TestRoundTripDiskBiomeDedupCopiesStorages(t *testing.T) {
 	// encodePalettedStorage collapses a biome storage equal to its predecessor into the single byte
-	// 0x7f<<1|network, and the decoder resolves that flag by assigning the *same pointer* as the previous
-	// sub chunk. Decoded chunks therefore share biome storages between sub chunks, and mutating one sub
-	// chunk's biomes silently mutates the others. This is an aliasing hazard, pinned here as current
-	// behaviour rather than fixed.
+	// 0x7f<<1|network. Restoring that flag must give the sub chunk its own storage: sharing the previous
+	// pointer makes one sub chunk's SetBiome silently rewrite the others.
 	c := newTestChunk()
 	encodeDedupBiomes(c, 0, 1)
 
@@ -544,8 +542,8 @@ func TestRoundTripDiskBiomeDedupAliasesStorages(t *testing.T) {
 	assertNoError(t, err, "DiskDecode")
 	encodeAssertSameBlocks(t, c, got, 0)
 
-	if got.biomes[0] != got.biomes[1] {
-		t.Fatalf("decoded biome storages 0 and 1 are distinct pointers, want the same one")
+	if got.biomes[0] == got.biomes[1] {
+		t.Fatalf("decoded biome storages 0 and 1 are the same pointer, want distinct ones")
 	}
 	// Cell (0, 1, 0) of a storage sits at bit 1 of the first uint32, which is set in 0xaaaaaaaa, so it
 	// holds palette entry 1, the value 6. y == -63 is that cell in sub chunk 0, y == -47 in sub chunk 1.
@@ -553,13 +551,19 @@ func TestRoundTripDiskBiomeDedupAliasesStorages(t *testing.T) {
 		t.Fatalf("Biome(0, -47, 0) = %d, want 6", before)
 	}
 	got.SetBiome(0, -63, 0, 5)
-	if after := got.Biome(0, -47, 0); after != 5 {
-		t.Errorf("Biome(0, -47, 0) = %d after writing only to sub chunk 0, want 5: the aliasing is the point of this test", after)
+	if after := got.Biome(0, -47, 0); after != 6 {
+		t.Errorf("Biome(0, -47, 0) = %d after writing only to sub chunk 0, want it left at 6", after)
+	}
+	// The palettes must be independent too, not just the indices: SetBiome to a value the palette does not
+	// hold appends to it.
+	got.SetBiome(0, -63, 0, 40)
+	if after := got.Biome(0, -47, 0); after != 6 {
+		t.Errorf("Biome(0, -47, 0) = %d after a palette-growing write to sub chunk 0, want it left at 6", after)
 	}
 }
 
-func TestRoundTripNetworkBiomeDedupAliasesStorages(t *testing.T) {
-	// The network path shares the aliasing with the disk path; only the flag byte differs (0x7f<<1|1).
+func TestRoundTripNetworkBiomeDedupCopiesStorages(t *testing.T) {
+	// The network path restores the same flag as the disk path; only the byte differs (0x7f<<1|1).
 	c := newTestChunk()
 	encodeDedupBiomes(c, 3, 4)
 
@@ -569,10 +573,19 @@ func TestRoundTripNetworkBiomeDedupAliasesStorages(t *testing.T) {
 	}
 	got, err := NetworkDecode(newTestRegistry(), encodeNetworkPayload(data), len(data.SubChunks), overworldRange)
 	assertNoError(t, err, "NetworkDecode")
-	if got.biomes[3] != got.biomes[4] {
-		t.Fatalf("decoded biome storages 3 and 4 are distinct pointers, want the same one")
+	if got.biomes[3] == got.biomes[4] {
+		t.Fatalf("decoded biome storages 3 and 4 are the same pointer, want distinct ones")
 	}
 	encodeAssertSameBlocks(t, c, got, 0)
+
+	// Sub chunk 3 covers y -16..-1, sub chunk 4 y 0..15; cell (0, 1, 0) holds the value 6 in both.
+	if before := got.Biome(0, 1, 0); before != 6 {
+		t.Fatalf("Biome(0, 1, 0) = %d, want 6", before)
+	}
+	got.SetBiome(0, -15, 0, 5)
+	if after := got.Biome(0, 1, 0); after != 6 {
+		t.Errorf("Biome(0, 1, 0) = %d after writing only to sub chunk 3, want it left at 6", after)
+	}
 }
 
 func TestDecodeFirstBiomeStoragePointingToPrevious(t *testing.T) {

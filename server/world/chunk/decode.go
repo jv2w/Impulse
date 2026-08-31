@@ -55,7 +55,9 @@ func NetworkDecodeBuffer(br BlockRegistry, buf *bytes.Buffer, count int, r cube.
 				// This should never happen and there is no way to handle this.
 				return nil, fmt.Errorf("first biome storage pointed to previous one")
 			}
-			b = last
+			// A copy, not the pointer: sub chunks that happened to encode identically must still have
+			// independent biomes afterwards.
+			b = last.Clone()
 		} else {
 			last = b
 		}
@@ -150,8 +152,9 @@ func decodeBiomes(buf *bytes.Buffer, c *Chunk, e Encoding) error {
 			}
 			if b == nil {
 				// This means this paletted storage had the flag pointing to the previous one. It basically means we should
-				// inherit whatever palette we decoded last.
-				b = last
+				// inherit whatever palette we decoded last. A copy, not the pointer: sub chunks that happened to
+				// encode identically must still have independent biomes afterwards.
+				b = last.Clone()
 			} else {
 				last = b
 			}
