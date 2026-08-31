@@ -427,7 +427,7 @@ func TestLightSpreadSkyLightAcrossChunkBorder(t *testing.T) {
 	}
 }
 
-// TestLightSpreadTopSubChunkIsSkipped is a QUIRK. iterEdges runs cy over [r[0]>>4, r[1]>>4), and for the
+// TestLightSpreadTopSubChunkIsSkipped is a PINNED BUG. iterEdges runs cy over [r[0]>>4, r[1]>>4), and for the
 // overworld range that is -4..18, while sub chunk indices reach 19 (y 304..319). The topmost sub chunk is
 // therefore never considered for spreading. It is invisible for skylight, which is 15 up there anyway, but a
 // block light source in the top sub chunk does not cross a chunk border at all. Frozen as current behaviour.
@@ -502,7 +502,7 @@ func TestLightAreaPanics(t *testing.T) {
 	})
 }
 
-// TestLightFillMultiChunkUsesOnlyChunkZeroHeightmap is a QUIRK, and the most important one in this file.
+// TestLightFillMultiChunkUsesOnlyChunkZeroHeightmap is a PINNED BUG, and the most important one in this file.
 // iterHeightmap reads the height map, the highest and lowest Y and the 16x16 column loop exclusively from
 // a.c[0]. On a multi-chunk area, Fill therefore inserts skylight nodes only for chunk 0's columns: every other
 // chunk keeps whatever initialiseLightSlices left behind, which is zero skylight for every sub chunk at or
@@ -511,8 +511,9 @@ func TestLightAreaPanics(t *testing.T) {
 // Block light does not share the defect: insertBlockLightNodes goes through iterSubChunks, which visits all
 // chunks in the area.
 //
-// The production code only ever calls Fill with a single chunk, so this is latent. It is frozen here as
-// current behaviour, not as a vanilla-correctness claim.
+// The production code only ever calls Fill with a single chunk, so this is latent. It stops being latent the
+// moment the execution model batches chunks into one Fill: every chunk but the first comes out unlit. Frozen
+// here as current behaviour, not as a vanilla-correctness claim.
 func TestLightFillMultiChunkUsesOnlyChunkZeroHeightmap(t *testing.T) {
 	c := lightNewArea(2)
 	// Chunk 0 stays empty. Chunk 1 gets a floor and a lamp, so its content differs from chunk 0's.
