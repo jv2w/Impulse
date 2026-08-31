@@ -278,15 +278,15 @@ func (inv *Inventory) RemoveItem(it item.Stack) error {
 	return inv.RemoveItemFunc(it.Count(), it.Comparable)
 }
 
-// RemoveItemFunc removes up to n items from the Inventory. It will visit all slots in the inventory and empties them
+// RemoveItemFunc removes n items from the Inventory. It will visit all slots in the inventory and empties them
 // until n items have been removed from the inventory, assuming the comparable function returns true for the slots
 // visited. No items will be deducted from slots if the comparable function returns false.
-// If less than n items were removed, an error is returned. If n is not positive, ErrCountOutOfRange is returned
-// and no slot is touched.
+// The removal is all or nothing: if the slots visited hold fewer than n items in total, an error is returned and
+// the inventory is left untouched. If n is not positive, ErrCountOutOfRange is returned and no slot is touched.
 func (inv *Inventory) RemoveItemFunc(n int, comparable func(stack item.Stack) bool) error {
 	if n <= 0 {
-		// A non-positive n reaches slotIt.Grow(-n) below, which grows the stack instead of shrinking it, so a
-		// negative count duplicates items rather than removing them.
+		// A non-positive n reaches the Grow below with a positive argument, growing the stack it was meant to
+		// shrink: a negative count duplicates items rather than removing them.
 		return ErrCountOutOfRange
 	}
 	fs, err := inv.lockedRemoveItemFunc(n, comparable)
@@ -294,37 +294,48 @@ func (inv *Inventory) RemoveItemFunc(n int, comparable func(stack item.Stack) bo
 	return err
 }
 
+// removal is one slot write planned by lockedRemoveItemFunc, held back until the whole removal is known to be
+// satisfiable.
+type removal struct {
+	slot int
+	it   item.Stack
+}
+
 // lockedRemoveItemFunc performs the writes of RemoveItemFunc under the write lock and returns the callbacks
-// announcing them, to be run by the caller with the lock released.
+// announcing them, to be run by the caller with the lock released. It plans the removal over the whole
+// inventory before writing anything, because a caller told the removal failed must find its items where it
+// left them.
 func (inv *Inventory) lockedRemoveItemFunc(n int, comparable func(stack item.Stack) bool) ([]func(), error) {
 	inv.mu.Lock()
 	defer inv.mu.Unlock()
 
 	inv.check()
 
-	var fs []func()
+	var plan []removal
+	remaining := n
 	for slot, slotIt := range inv.slots {
 		if slotIt.Empty() || !comparable(slotIt) {
 			continue
 		}
-		c := slotIt.Count() - n
-
-		var f func()
-		if c <= 0 {
-			f = inv.setItem(slot, item.Stack{})
-		} else {
-			f = inv.setItem(slot, slotIt.Grow(-n))
+		if remaining < slotIt.Count() {
+			plan = append(plan, removal{slot: slot, it: slotIt.Grow(-remaining)})
+			remaining = 0
+			break
 		}
-		if f != nil {
-			fs = append(fs, f)
-		}
-
-		if n -= slotIt.Count(); n <= 0 {
+		plan = append(plan, removal{slot: slot, it: item.Stack{}})
+		if remaining -= slotIt.Count(); remaining == 0 {
 			break
 		}
 	}
-	if n > 0 {
-		return fs, fmt.Errorf("could not remove all items from the inventory")
+	if remaining > 0 {
+		return nil, fmt.Errorf("could not remove all items from the inventory")
+	}
+
+	fs := make([]func(), 0, len(plan))
+	for _, r := range plan {
+		if f := inv.setItem(r.slot, r.it); f != nil {
+			fs = append(fs, f)
+		}
 	}
 	return fs, nil
 }

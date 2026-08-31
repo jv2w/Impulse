@@ -330,12 +330,11 @@ func TestMutRemoveItemMatchesComparableItemsOnly(t *testing.T) {
 
 func TestMutRemoveItemFuncAccounting(t *testing.T) {
 	for _, c := range []struct {
-		name    string
-		held    []item.Stack
-		n       int
-		want    []item.Stack
-		wantErr bool
-		order   []int
+		name  string
+		held  []item.Stack
+		n     int
+		want  []item.Stack
+		order []int
 	}{
 		{
 			name:  "fewer than the slot holds",
@@ -372,34 +371,12 @@ func TestMutRemoveItemFuncAccounting(t *testing.T) {
 			want:  []item.Stack{item.Stack{}, item.Stack{}},
 			order: []int{1, 0},
 		},
-		{
-			// PINNED BUG: a failed removal is not rolled back. Every slot
-			// visited before the shortfall was detected has already been
-			// emptied, so the caller gets an error while the items are gone.
-			// Pinned as-is; decide in stage 1.
-			name:    "more than the inventory holds",
-			held:    []item.Stack{diamonds(5), diamonds(3)},
-			n:       20,
-			want:    []item.Stack{item.Stack{}, item.Stack{}},
-			wantErr: true,
-			order:   []int{1, 0},
-		},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			inv, r := mutRecording(t, len(c.held), c.held...)
 
-			err := inv.RemoveItemFunc(c.n, mutComparable(diamonds(1)))
-			if (err != nil) != c.wantErr {
-				t.Fatalf("RemoveItemFunc(%v): got error %v, want error: %v", c.n, err, c.wantErr)
-			}
-			if c.wantErr {
-				// As with AddItem, no sentinel exists for this failure.
-				if got, want := err.Error(), "could not remove all items from the inventory"; got != want {
-					t.Fatalf("RemoveItemFunc error: got %q, want %q", got, want)
-				}
-				if u := errors.Unwrap(err); u != nil {
-					t.Fatalf("RemoveItemFunc error wraps %v, want no wrapped cause", u)
-				}
+			if err := inv.RemoveItemFunc(c.n, mutComparable(diamonds(1))); err != nil {
+				t.Fatalf("RemoveItemFunc(%v): got error %v, want nil", c.n, err)
 			}
 			assertSlots(t, inv, c.want...)
 			mutAssertSlotOrder(t, r, c.order...)
@@ -407,18 +384,42 @@ func TestMutRemoveItemFuncAccounting(t *testing.T) {
 	}
 }
 
-func TestMutRemoveItemFuncSkipsRejectedSlots(t *testing.T) {
-	// A slot the comparable function rejects is neither emptied nor counted
-	// towards n, so the removal fails even though the inventory holds enough
-	// items in total.
-	inv, r := mutRecording(t, 2, sticks(10), diamonds(2))
+func TestMutRemoveItemFuncShortfallRemovesNothing(t *testing.T) {
+	// A removal that cannot be satisfied in full leaves the inventory exactly as
+	// it was. A caller that reacts to the error by retrying, or by taking the
+	// items from somewhere else, must not find them already gone.
+	for _, c := range []struct {
+		name string
+		held []item.Stack
+		n    int
+	}{
+		{name: "short across two slots", held: []item.Stack{diamonds(5), diamonds(3)}, n: 20},
+		// A slot the comparable function rejects is neither emptied nor counted
+		// towards n, so the removal fails even though the inventory holds enough
+		// items in total.
+		{name: "short because a slot does not match", held: []item.Stack{sticks(10), diamonds(2)}, n: 5},
+		{name: "max int", held: []item.Stack{diamonds(5), sticks(2), diamonds(7)}, n: math.MaxInt},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			inv, r := mutRecording(t, len(c.held), c.held...)
 
-	err := inv.RemoveItemFunc(5, mutComparable(diamonds(1)))
-	if err == nil {
-		t.Fatalf("RemoveItemFunc(5): got nil error, want an error")
+			err := inv.RemoveItemFunc(c.n, mutComparable(diamonds(1)))
+			if err == nil {
+				t.Fatalf("RemoveItemFunc(%v): got nil error, want an error", c.n)
+			}
+			// As with AddItem, no sentinel exists for this failure.
+			if got, want := err.Error(), "could not remove all items from the inventory"; got != want {
+				t.Fatalf("RemoveItemFunc error: got %q, want %q", got, want)
+			}
+			if u := errors.Unwrap(err); u != nil {
+				t.Fatalf("RemoveItemFunc error wraps %v, want no wrapped cause", u)
+			}
+			assertSlots(t, inv, c.held...)
+			if got := r.count(); got != 0 {
+				t.Fatalf("got %v SlotFunc calls, want 0", got)
+			}
+		})
 	}
-	assertSlots(t, inv, sticks(10), item.Stack{})
-	mutAssertCalls(t, r, slotCall{slot: 1, before: diamonds(2), after: item.Stack{}})
 }
 
 func TestMutRemoveItemFuncRejectsNonPositiveCount(t *testing.T) {
@@ -447,21 +448,6 @@ func TestMutRemoveItemFuncRejectsNonPositiveCount(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestMutRemoveItemFuncExtremeCount(t *testing.T) {
-	// math.MaxInt cannot be satisfied, so every matching slot is emptied and an
-	// error is returned. math.MinInt is covered by the non-positive count test:
-	// it never reaches the loop, so the overflow that used to turn it back into
-	// a large positive count is unreachable.
-	inv, r := mutRecording(t, 3, diamonds(5), sticks(2), diamonds(7))
-
-	err := inv.RemoveItemFunc(math.MaxInt, mutComparable(diamonds(1)))
-	if err == nil {
-		t.Fatalf("RemoveItemFunc(%v): got nil error, want an error", math.MaxInt)
-	}
-	assertSlots(t, inv, item.Stack{}, sticks(2), item.Stack{})
-	mutAssertSlotOrder(t, r, 2, 0)
 }
 
 func TestMutRemoveItemFuncRejectingValidatorReportsFalseSuccess(t *testing.T) {
