@@ -582,15 +582,12 @@ func TestCoreCloneDropsTheValidator(t *testing.T) {
 	assertSlot(t, clone, 0, diamonds(1))
 }
 
-func TestCoreCloneIsShallowForLore(t *testing.T) {
-	// PINNED BUG: Clone copies the slot slice with slices.Clone, which copies
-	// item.Stack values. A Stack holds its lore, custom data and enchantments by
-	// reference, so the original and the clone share them: mutating the lore
-	// backing array through one is visible through the other. Pinned as-is;
-	// decide in stage 1.
+// Clone copies the slot slice with slices.Clone, which copies item.Stack
+// values. That is only a real copy as long as a Stack owns everything it holds,
+// so this covers the one field that used to be shared by reference.
+func TestCoreCloneDoesNotShareLore(t *testing.T) {
 	lore := []string{"first line", "second line"}
 	inv := New(1, nil)
-	// WithLore stores the caller's slice without copying it.
 	mustSet(t, inv, 0, diamonds(1).WithLore(lore...))
 	clone := inv.Clone(nil)
 
@@ -598,7 +595,6 @@ func TestCoreCloneIsShallowForLore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Item: unexpected error %v", err)
 	}
-	// Lore returns the Stack's internal slice, not a copy.
 	origLore := origStack.Lore()
 	if len(origLore) != 2 {
 		t.Fatalf("len(Lore()): got %v, want 2", len(origLore))
@@ -609,16 +605,11 @@ func TestCoreCloneIsShallowForLore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("clone Item: unexpected error %v", err)
 	}
-	if got := cloneStack.Lore()[0]; got != "mutated" {
-		t.Fatalf("clone lore after mutating the original: got %q, want %q", got, "mutated")
+	if got := cloneStack.Lore()[0]; got != "first line" {
+		t.Fatalf("clone lore after mutating the original: got %q, want %q", got, "first line")
 	}
-	// The caller's own slice is aliased too.
-	if lore[0] != "mutated" {
-		t.Fatalf("caller lore after mutating through the inventory: got %q, want %q", lore[0], "mutated")
-	}
-	// The two stacks still compare equal, so the aliasing is invisible to Equal.
-	if !origStack.Equal(cloneStack) {
-		t.Fatalf("original and clone stacks are no longer equal after the mutation")
+	if lore[0] != "first line" {
+		t.Fatalf("caller lore after mutating through the inventory: got %q, want %q", lore[0], "first line")
 	}
 }
 

@@ -220,17 +220,21 @@ func (s Stack) CustomName() string {
 // WithLore returns a copy of the Stack with the lore passed. Each string passed is put on a different line,
 // where the first string is at the top and the last at the bottom.
 // The lore may be cleared by passing no lines into the Stack.
+//
+// The lines are copied: the caller keeps sole ownership of the slice it passes.
 func (s Stack) WithLore(lines ...string) Stack {
-	s.lore = lines
+	s.lore = slices.Clone(lines)
 	return s
 }
 
 // Lore returns the lore set for the Stack. If no lore is present, the slice returned has a len of 0.
+//
+// The slice returned is a copy: writing to it does not change the Stack.
 func (s Stack) Lore() []string {
 	if s.Empty() {
 		return nil
 	}
-	return s.lore
+	return slices.Clone(s.lore)
 }
 
 // WithValue returns the current Stack with a value set at a specific key. This method may be used to

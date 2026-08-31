@@ -474,33 +474,33 @@ func TestStackWithLore(t *testing.T) {
 	}
 }
 
-// PINNED BUG: Stack presents itself as a value type, but WithLore stores the
-// variadic slice directly and Lore hands the same backing array back out. Two
-// stacks built from one slice therefore share lore, and a caller can rewrite a
-// stack's lore through the slice it got from Lore. Pinned as-is; decide in
-// stage 1. This is the aliasing item/inventory's shallow Clone inherits.
-func TestStackLoreSharesBackingArray(t *testing.T) {
-	t.Run("input slice is aliased", func(t *testing.T) {
+// Stack is a value type and clones the maps it holds on every write. The lore
+// slice has to be copied on the way in and on the way out for the same reason:
+// otherwise the caller keeps a handle on the stack's lore through the slice it
+// passed to WithLore or read back from Lore, and WithItem hands that same
+// handle to a second stack.
+func TestStackLoreIsCopiedInAndOut(t *testing.T) {
+	t.Run("the argument is copied", func(t *testing.T) {
 		lines := []string{"original"}
 		s := NewStack(Stick{}, 1).WithLore(lines...)
 		lines[0] = "rewritten"
-		if got, want := s.Lore()[0], "rewritten"; got != want {
-			t.Fatalf("Lore()[0] = %q, want %q: WithLore no longer aliases its argument", got, want)
+		if got, want := s.Lore()[0], "original"; got != want {
+			t.Fatalf("Lore()[0] = %q, want %q: WithLore aliases its argument", got, want)
 		}
 	})
-	t.Run("returned slice is aliased", func(t *testing.T) {
+	t.Run("the returned slice is a copy", func(t *testing.T) {
 		s := NewStack(Stick{}, 1).WithLore("original")
 		s.Lore()[0] = "rewritten"
-		if got, want := s.Lore()[0], "rewritten"; got != want {
-			t.Fatalf("Lore()[0] = %q, want %q: Lore no longer aliases the stack", got, want)
+		if got, want := s.Lore()[0], "original"; got != want {
+			t.Fatalf("Lore()[0] = %q, want %q: Lore aliases the stack", got, want)
 		}
 	})
-	t.Run("copies share lore", func(t *testing.T) {
+	t.Run("copies do not share lore", func(t *testing.T) {
 		a := NewStack(Stick{}, 1).WithLore("original")
 		b := a.WithItem(Diamond{})
 		a.Lore()[0] = "rewritten"
-		if got, want := b.Lore()[0], "rewritten"; got != want {
-			t.Fatalf("Lore()[0] = %q, want %q: WithItem no longer shares the lore slice", got, want)
+		if got, want := b.Lore()[0], "original"; got != want {
+			t.Fatalf("Lore()[0] = %q, want %q: WithItem shares the lore slice", got, want)
 		}
 	})
 }

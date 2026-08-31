@@ -834,16 +834,16 @@ func TestReadNBTLeavesTheCallersStackAlone(t *testing.T) {
 	}
 }
 
+// The map WriteNBT hands to an NBT encoder must not reach back into the stack:
+// an encoder that sorts or rewrites the Lore slice would otherwise edit an item
+// sitting in a live inventory.
 func TestWriteNBTDoesNotAliasTheStack(t *testing.T) {
 	s := NewStack(Stick{}, 1).WithLore("original")
 	tag := diskTag(t, s)
 	lore := tag["display"].(map[string]any)["Lore"].([]string)
 	lore[0] = "rewritten"
-	// PINNED BUG: writeDisplay stores the stack's own lore slice in the map it
-	// hands back, so an NBT encoder that reorders or edits the slice edits the
-	// live stack. Pinned as-is; decide in stage 1.
-	if got := s.Lore()[0]; got != "rewritten" {
-		t.Fatalf("Lore()[0] = %q: WriteNBT no longer aliases the stack's lore", got)
+	if got := s.Lore()[0]; got != "original" {
+		t.Fatalf("Lore()[0] = %q, want %q: WriteNBT aliases the stack's lore", got, "original")
 	}
 }
 
