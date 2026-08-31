@@ -284,32 +284,25 @@ func TestMutAddItemRejectingValidatorReportsFalseSuccess(t *testing.T) {
 	}
 }
 
-func TestMutRemoveItemEmptyStackRewritesFirstSlot(t *testing.T) {
-	// PINNED BUG: RemoveItem with an empty stack removes nothing but still
-	// rewrites the first non-empty slot and fires the SlotFunc for it.
-	// RemoveItem passes it.Comparable, which is unconditionally true for an
-	// empty receiver, and a count of 0, so the loop enters the first non-empty
-	// slot and calls setItem(slot, slotIt.Grow(0)) with an unchanged count.
-	// Pinned as-is; decide in stage 1.
-	inv, r := mutRecording(t, 3, item.Stack{}, diamonds(5), sticks(2))
+func TestMutRemoveItemEmptyStackIsRejected(t *testing.T) {
+	// An empty stack has a count of 0, so RemoveItem forwards a count that
+	// RemoveItemFunc rejects. No slot is visited, whether the inventory holds
+	// anything or not.
+	for name, held := range map[string][]item.Stack{
+		"holding items":   {item.Stack{}, diamonds(5), sticks(2)},
+		"empty inventory": {item.Stack{}, item.Stack{}, item.Stack{}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			inv, r := mutRecording(t, 3, held...)
 
-	if err := inv.RemoveItem(item.Stack{}); err != nil {
-		t.Fatalf("RemoveItem(empty): got error %v, want nil", err)
-	}
-	assertSlots(t, inv, item.Stack{}, diamonds(5), sticks(2))
-	mutAssertCalls(t, r, slotCall{slot: 1, before: diamonds(5), after: diamonds(5)})
-}
-
-func TestMutRemoveItemEmptyStackOnEmptyInventory(t *testing.T) {
-	// With no non-empty slot the loop body never runs, so n stays 0 and the
-	// error is nil: removing nothing from nothing succeeds.
-	inv, r := mutRecording(t, 3)
-
-	if err := inv.RemoveItem(item.Stack{}); err != nil {
-		t.Fatalf("RemoveItem(empty) on empty inventory: got error %v, want nil", err)
-	}
-	if got := r.count(); got != 0 {
-		t.Fatalf("got %v SlotFunc calls, want 0", got)
+			if err := inv.RemoveItem(item.Stack{}); !errors.Is(err, ErrCountOutOfRange) {
+				t.Fatalf("RemoveItem(empty): got error %v, want ErrCountOutOfRange", err)
+			}
+			assertSlots(t, inv, held...)
+			if got := r.count(); got != 0 {
+				t.Fatalf("got %v SlotFunc calls, want 0", got)
+			}
+		})
 	}
 }
 
@@ -417,69 +410,47 @@ func TestMutRemoveItemFuncSkipsRejectedSlots(t *testing.T) {
 	mutAssertCalls(t, r, slotCall{slot: 1, before: diamonds(2), after: item.Stack{}})
 }
 
-func TestMutRemoveItemFuncZeroCount(t *testing.T) {
-	// PINNED BUG: RemoveItemFunc with n == 0 rewrites the first matching slot
-	// with an identical stack and fires the SlotFunc for it, because the loop
-	// is entered before n is tested. Pinned as-is; decide in stage 1.
-	inv, r := mutRecording(t, 2, diamonds(5), diamonds(5))
-
-	if err := inv.RemoveItemFunc(0, mutComparable(diamonds(1))); err != nil {
-		t.Fatalf("RemoveItemFunc(0): got error %v, want nil", err)
-	}
-	assertSlots(t, inv, diamonds(5), diamonds(5))
-	mutAssertCalls(t, r, slotCall{slot: 0, before: diamonds(5), after: diamonds(5)})
-}
-
-func TestMutRemoveItemFuncNegativeCountGrowsStack(t *testing.T) {
-	// PINNED BUG: a negative n makes RemoveItemFunc ADD items. The count
-	// written is slotIt.Grow(-n), which grows for a negative n, and the result
-	// is only bounded by the max count clamp inside setItem. Pinned as-is;
-	// decide in stage 1.
+func TestMutRemoveItemFuncRejectsNonPositiveCount(t *testing.T) {
+	// A count of 0 or less has no meaning for a removal, and a negative count
+	// used to grow the stack it was supposed to shrink. Every such call is
+	// rejected before a single slot is touched.
 	for _, c := range []struct {
 		name string
 		n    int
-		want item.Stack
 	}{
-		{name: "grows by n", n: -5, want: diamonds(8)},
-		{name: "clamped at max count", n: -100, want: diamonds(64)},
+		{name: "zero", n: 0},
+		{name: "negative", n: -5},
+		{name: "large negative", n: -100},
+		{name: "min int", n: math.MinInt},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			inv, r := mutRecording(t, 2, diamonds(3), diamonds(3))
 
-			if err := inv.RemoveItemFunc(c.n, mutComparable(diamonds(1))); err != nil {
-				t.Fatalf("RemoveItemFunc(%v): got error %v, want nil", c.n, err)
+			err := inv.RemoveItemFunc(c.n, mutComparable(diamonds(1)))
+			if !errors.Is(err, ErrCountOutOfRange) {
+				t.Fatalf("RemoveItemFunc(%v): got error %v, want ErrCountOutOfRange", c.n, err)
 			}
-			// Only the first matching slot is visited: n is already <= 0 after
-			// the first subtraction, so the loop breaks.
-			assertSlots(t, inv, c.want, diamonds(3))
-			mutAssertCalls(t, r, slotCall{slot: 0, before: diamonds(3), after: c.want})
+			assertSlots(t, inv, diamonds(3), diamonds(3))
+			if got := r.count(); got != 0 {
+				t.Fatalf("got %v SlotFunc calls, want 0", got)
+			}
 		})
 	}
 }
 
-func TestMutRemoveItemFuncExtremeCounts(t *testing.T) {
+func TestMutRemoveItemFuncExtremeCount(t *testing.T) {
 	// math.MaxInt cannot be satisfied, so every matching slot is emptied and an
-	// error is returned. math.MinInt behaves the same way despite being
-	// negative: n -= slotIt.Count() overflows back to a large positive value on
-	// the first slot, so the loop keeps going and empties everything.
-	for _, c := range []struct {
-		name string
-		n    int
-	}{
-		{name: "max int", n: math.MaxInt},
-		{name: "min int", n: math.MinInt},
-	} {
-		t.Run(c.name, func(t *testing.T) {
-			inv, r := mutRecording(t, 3, diamonds(5), sticks(2), diamonds(7))
+	// error is returned. math.MinInt is covered by the non-positive count test:
+	// it never reaches the loop, so the overflow that used to turn it back into
+	// a large positive count is unreachable.
+	inv, r := mutRecording(t, 3, diamonds(5), sticks(2), diamonds(7))
 
-			err := inv.RemoveItemFunc(c.n, mutComparable(diamonds(1)))
-			if err == nil {
-				t.Fatalf("RemoveItemFunc(%v): got nil error, want an error", c.n)
-			}
-			assertSlots(t, inv, item.Stack{}, sticks(2), item.Stack{})
-			mutAssertSlotOrder(t, r, 2, 0)
-		})
+	err := inv.RemoveItemFunc(math.MaxInt, mutComparable(diamonds(1)))
+	if err == nil {
+		t.Fatalf("RemoveItemFunc(%v): got nil error, want an error", math.MaxInt)
 	}
+	assertSlots(t, inv, item.Stack{}, sticks(2), item.Stack{})
+	mutAssertSlotOrder(t, r, 2, 0)
 }
 
 func TestMutRemoveItemFuncRejectingValidatorReportsFalseSuccess(t *testing.T) {
