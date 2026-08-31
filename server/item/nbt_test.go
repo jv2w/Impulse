@@ -514,10 +514,11 @@ func TestReadItemStackMissingFields(t *testing.T) {
 	})
 }
 
-// PINNED BUG: the count is written through byte(), so any stack above 255 wraps
-// on save. Inventories cap stacks well below this, but Stack itself does not,
-// and nothing reports the loss. Pinned as-is; decide in stage 1.
-func TestWriteNBTCountWrapsAbove255(t *testing.T) {
+// The count is one byte in the save format, and Stack does not cap its own
+// count. Anything above what a byte holds is clamped: the excess is lost either
+// way, but clamping can only ever save fewer items than the stack had, while
+// wrapping turns a stack of 300 into one of 44.
+func TestWriteNBTCountIsClampedTo255(t *testing.T) {
 	for _, c := range []struct {
 		count int
 		want  byte
@@ -525,8 +526,8 @@ func TestWriteNBTCountWrapsAbove255(t *testing.T) {
 		{1, 1},
 		{64, 64},
 		{255, 255},
-		{256, 0},
-		{300, 44},
+		{256, 255},
+		{300, 255},
 	} {
 		got := WriteNBT(NewStack(Stick{}, c.count), true)
 		if got["Count"] != c.want {

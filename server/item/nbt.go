@@ -3,6 +3,7 @@ package item
 import (
 	"bytes"
 	"encoding/gob"
+	"math"
 	"sort"
 
 	"github.com/jv2w/Impulse/server/world"
@@ -82,7 +83,11 @@ func writeItemStack(m, t map[string]any, s Stack) {
 		writeBlock(v, b)
 		m["Block"] = v
 	}
-	m["Count"] = byte(s.Count())
+	// The count is a single byte in the format. Clamping loses the excess of an
+	// oversized stack, but a plain conversion wraps it: a stack of 300 would be
+	// written as 44, which is a larger loss and, for a count just above a
+	// multiple of 256, no loss the reader could ever notice.
+	m["Count"] = byte(min(s.Count(), math.MaxUint8))
 	if len(t) > 0 {
 		m["tag"] = t
 	}
