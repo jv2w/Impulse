@@ -3,7 +3,8 @@
 .zed/
 .vscode/
 
-# Dragonfly
+# Runtime artefacts
+/config.toml
 /world/
 /players/
 /resources/

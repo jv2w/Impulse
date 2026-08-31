@@ -142,7 +142,7 @@ func (conf Config) New() *Server {
 		conf.Log.Warn("config: no listeners set, no connections will be accepted")
 	}
 	if conf.Name == "" {
-		conf.Name = "Dragonfly Server"
+		conf.Name = "Impulse Server"
 	}
 	if conf.StatusProvider == nil {
 		conf.StatusProvider = statusProvider{name: conf.Name}
@@ -350,7 +350,7 @@ func loadGenerator(dim world.Dimension) world.Generator {
 func DefaultConfig() UserConfig {
 	c := UserConfig{}
 	c.Network.Address = ":19132"
-	c.Server.Name = "Dragonfly Server"
+	c.Server.Name = "Impulse Server"
 	c.Server.AuthEnabled = true
 	c.World.SaveData = true
 	c.World.Folder = "world"

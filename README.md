@@ -1,47 +1,40 @@
-<!--suppress ALL -->
-<img height="310" alt="image" src="https://user-images.githubusercontent.com/16114089/121805566-0cd81280-cc4c-11eb-9b7d-b5f8a6db4f8d.png" align="right">
+# Impulse
 
-# Dragonfly
+A Minecraft: Bedrock Edition server written in Go, derived from
+[dragonfly](https://github.com/df-mc/dragonfly).
 
-Dragonfly is a heavily asynchronous server software for Minecraft: Bedrock Edition written in Go. It was written with scalability
-and simplicity in mind and aims to make the process of setting up a server and modifying it easy. Unlike other
-Minecraft server software, Dragonfly is generally used as a library to extend.
+Impulse keeps dragonfly's observable behaviour and replaces its internals. The two goals are an
+execution model that is not bound to a single core, and a codebase that holds up as Go: failures
+returned as values rather than panics, small interfaces, no package-level mutable state, and
+documentation that says something.
 
-[![Discord Banner 2](https://discordapp.com/api/guilds/623638955262345216/widget.png?style=banner2)](https://discord.gg/U4kFWHhTNR)
+Impulse is deliberately not a feature-coverage project. Mobs, world generation and the unfinished
+vanilla systems inherited from dragonfly stay out of scope.
 
-## Getting started
-Running Dragonfly requires at least **Go 1.26**. After starting the server through one of the methods below,
-**ctrl+c** may be used to shut down the server. Also check out the [wiki](https://github.com/df-mc/dragonfly/wiki) for
-more detailed info.
+## Requirements
 
-#### Installation as library
+Go 1.26 or later.
+
+## Running
+
 ```shell
-go mod init github.com/user/module
-go get github.com/df-mc/dragonfly
+git clone https://github.com/jv2w/Impulse
+cd Impulse
+go run .
 ```
 
-![SetupLibrary](https://user-images.githubusercontent.com/16114089/121804512-0f843900-cc47-11eb-9320-d195393b5a1f.gif)
+The server writes a `config.toml` on first start and reads it on every start after that. Press
+ctrl+c to shut down.
 
-#### Installation of the latest commit
+## Using it as a library
+
 ```shell
-git clone https://github.com/df-mc/dragonfly
-cd dragonfly
-go run main.go
+go get github.com/jv2w/Impulse
 ```
 
-![SetupClone](https://user-images.githubusercontent.com/16114089/121804495-ff6c5980-cc46-11eb-8e31-df4d94782e5b.gif)
+Impulse does not preserve dragonfly's API. Code written against dragonfly needs porting.
 
-## Developer info
-[![Go Reference](https://pkg.go.dev/badge/github.com/df-mc/dragonfly/server.svg)](https://pkg.go.dev/github.com/df-mc/dragonfly/server)
+## Licence
 
-Dragonfly features a well-documented codebase with an easy-to-use API. Documentation may be found
-[here](https://pkg.go.dev/github.com/df-mc/dragonfly/server) and in the subpackages found by clicking *Directories*.
-
-Publishing your project on GitHub? Consider adding the **[#df-mc](https://github.com/topic/df-mc)** topic to your
-repository and opening a pull request at [df-wiki](https://github.com/df-mc/wiki) adding your project as a Community
-Project to improve its visibility.
-
-## Contributing
-Contributions are very welcome! Issues, pull requests and feature requests are highly appreciated. Opening a pull
-request? Consider joining our [Discord server](https://discord.gg/U4kFWHhTNR) to discuss your changes! Also have a read through the
-[CONTRIBUTING.md](https://github.com/df-mc/dragonfly/blob/master/.github/CONTRIBUTING.md) for more info.
+MIT. Impulse derives from dragonfly, also MIT; both copyright notices are kept in
+[LICENSE](LICENSE).
