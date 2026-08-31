@@ -373,7 +373,7 @@ func TestStackComparableEmptyIsWildcard(t *testing.T) {
 	}
 }
 
-// PINNED BUG: stack.go:424 spells the lore check as `for !slices.Equal(...)`
+// PINNED BUG: stack.go:437 spells the lore check as `for !slices.Equal(...)`
 // where an `if` was meant. The body returns unconditionally so the loop can
 // never run twice, but the construct is a trap for anyone editing it. Pinned
 // as-is; decide in stage 1.
