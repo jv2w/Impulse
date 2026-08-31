@@ -1,0 +1,9 @@
+# IDEs
+.idea/
+.zed/
+.vscode/
+
+# Dragonfly
+/world/
+/players/
+/resources/
