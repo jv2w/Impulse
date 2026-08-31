@@ -2,6 +2,7 @@ package chunk
 
 import (
 	"bytes"
+	"fmt"
 	"math/rand"
 	"strings"
 	"testing"
@@ -866,8 +867,8 @@ func TestDecodePalettedStorageErrors(t *testing.T) {
 		wantSub string
 	}{
 		{name: "empty buffer", data: nil, wantSub: "error reading block size"},
-		// A size byte of 0xfc >> 1 == 0x7e drives paletteSize past 32.
-		{name: "size too large", data: []byte{0x7e << 1}, wantSub: "size too large"},
+		// A size byte of 0xfc >> 1 == 0x7e is far past the largest size the format defines.
+		{name: "size too large", data: []byte{0x7e << 1}, wantSub: "invalid palette size"},
 		// 1 bit per index needs 128 uint32s, i.e. 512 bytes of indices.
 		{name: "truncated indices", data: append([]byte{1 << 1}, make([]byte, 511)...), wantSub: "not enough block data present: expected 512 bytes, got 511"},
 	}
@@ -879,6 +880,48 @@ func TestDecodePalettedStorageErrors(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), c.wantSub) {
 				t.Errorf("error = %q, want it to contain %q", err.Error(), c.wantSub)
+			}
+		})
+	}
+}
+
+func TestDecodePalettedStorageRejectsNonCanonicalSizes(t *testing.T) {
+	// Only the sizes listed in `sizes` have a defined bit layout. For the others, uint32s reports a count
+	// that paletteIndex and setPaletteIndex then read and write past: both index the storage through unsafe
+	// pointer arithmetic, so an overrun is neither a panic nor a race report, just silent heap corruption.
+	// The decoder is the only place an untrusted size byte can still be turned away.
+	//
+	// Each payload below is complete: a size byte, a full set of indices and a one entry palette. The size
+	// check is the only thing that can reject them. Nothing here reads from a decoded storage on purpose,
+	// since that read is the out of bounds access being prevented.
+	for _, size := range []paletteSize{7, 9, 10, 15, 17, 32} {
+		t.Run(fmt.Sprintf("size %d", size), func(t *testing.T) {
+			data := append([]byte{byte(size) << 1}, make([]byte, size.uint32s()*4)...)
+			data = append(data, 1, 0, 0, 0, 0, 0, 0, 0) // one palette entry, holding the value 0
+			if _, err := decodePalettedStorage(bytes.NewBuffer(data), DiskEncoding, BiomePaletteEncoding); err != nil {
+				if !strings.Contains(err.Error(), "invalid palette size") {
+					t.Errorf("error = %q, want it to mention the palette size", err.Error())
+				}
+				return
+			}
+			t.Fatalf("decodePalettedStorage err = nil, want the size to be rejected")
+		})
+	}
+}
+
+func TestDecodePalettedStorageAcceptsEveryCanonicalSize(t *testing.T) {
+	// The counterpart of the rejection above: every size the encoder can emit must still decode.
+	for _, size := range sizes {
+		t.Run(fmt.Sprintf("size %d", size), func(t *testing.T) {
+			data := append([]byte{byte(size) << 1}, make([]byte, size.uint32s()*4)...)
+			if size != 0 {
+				data = append(data, 1, 0, 0, 0)
+			}
+			data = append(data, 0, 0, 0, 0)
+			s, err := decodePalettedStorage(bytes.NewBuffer(data), DiskEncoding, BiomePaletteEncoding)
+			assertNoError(t, err, "decodePalettedStorage(size=%d)", size)
+			if got := s.At(0, 0, 0); got != 0 {
+				t.Errorf("At(0, 0, 0) = %d, want 0", got)
 			}
 		})
 	}

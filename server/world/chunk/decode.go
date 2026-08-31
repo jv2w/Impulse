@@ -174,8 +174,8 @@ func decodePalettedStorage(buf *bytes.Buffer, e Encoding, pe paletteEncoding) (*
 	}
 
 	size := paletteSize(blockSize)
-	if size > 32 {
-		return nil, fmt.Errorf("cannot read paletted storage (size=%v) %T: size too large", blockSize, pe)
+	if !size.valid() {
+		return nil, fmt.Errorf("cannot read paletted storage (size=%v) %T: invalid palette size", blockSize, pe)
 	}
 	uint32Count := size.uint32s()
 

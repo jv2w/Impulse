@@ -112,6 +112,12 @@ func (p paletteSize) padded() bool {
 	return p == 3 || p == 5 || p == 6
 }
 
+// valid reports whether p is one of the sizes the storage format defines. Any other size makes uint32s report
+// a count that paletteIndex and setPaletteIndex then index past, without a bounds check.
+func (p paletteSize) valid() bool {
+	return slices.Contains(sizes[:], p)
+}
+
 // paletteSizeFor finds a suitable paletteSize for the amount of values passed n.
 func paletteSizeFor(n int) paletteSize {
 	for _, size := range sizes {
