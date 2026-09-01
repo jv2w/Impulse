@@ -1021,6 +1021,46 @@ func stackFromItem(br world.BlockRegistry, it item.Stack) protocol.ItemStack {
 	}
 }
 
+// decodeItemNBT returns the item type passed with the NBT data of a network
+// item stack decoded into it. The item type is returned unchanged if it does
+// not read NBT, if the data is empty, or if decoding it fails.
+//
+// Decoding is allowed to fail in two ways. An item whose DecodeNBT hands back
+// something that is not a world.Item is a defect in that item, not in the data,
+// so the resolved item type is kept without its own tags and the count and the
+// rest of the stack survive. And DecodeNBT is allowed to panic: hundreds of
+// item and block types implement it, third-party items this package cannot see
+// implement it too, and many of them index the map they are given without
+// checking what is in it or reject a name they cannot resolve by panicking
+// (block.DecoratedPot does). The map here is the one the client put on the
+// wire, so without this recover a single crafted packet ends the goroutine
+// reading that client's packets. Fixing every implementation is not an option
+// while third parties write them, which is what makes this the boundary to
+// hold.
+//
+// The panic value is dropped rather than logged. Every call is driven by a
+// client packet, one of them on the PlayerAuthInput path that runs each tick,
+// so logging would hand any client a way to flood the log. A defect in a
+// first-party DecodeNBT still surfaces on the world save path, which does not
+// recover, and item.ReadNBT already drops tags it cannot decode on this same
+// path without reporting them.
+func decodeItemNBT(t world.Item, data map[string]any) (decoded world.Item) {
+	nbter, ok := t.(world.NBTer)
+	if !ok || len(data) == 0 {
+		return t
+	}
+	decoded = t
+	defer func() {
+		if recover() != nil {
+			decoded = t
+		}
+	}()
+	if d, ok := nbter.DecodeNBT(data).(world.Item); ok {
+		decoded = d
+	}
+	return decoded
+}
+
 // stackToItem converts a network ItemStack representation back to an item.Stack.
 func stackToItem(br world.BlockRegistry, it protocol.ItemStack) item.Stack {
 	t, ok := world.ItemByRuntimeID(it.NetworkID, int16(it.MetadataValue))
@@ -1036,10 +1076,7 @@ func stackToItem(br world.BlockRegistry, it protocol.ItemStack) item.Stack {
 			t = block.Air{}
 		}
 	}
-	//noinspection SpellCheckingInspection
-	if nbter, ok := t.(world.NBTer); ok && len(it.NBTData) != 0 {
-		t = nbter.DecodeNBT(it.NBTData).(world.Item)
-	}
+	t = decodeItemNBT(t, it.NBTData)
 	s := item.NewStack(t, int(it.Count))
 	// The network path applies the tags to a stack that is already resolved, so
 	// there is no item name for ReadNBT to fail on.
