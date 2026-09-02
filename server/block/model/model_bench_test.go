@@ -29,6 +29,32 @@ func BenchmarkWallBBox(b *testing.B) {
 	}
 }
 
+func BenchmarkFenceBBox(b *testing.B) {
+	pos := cube.Pos{0, 0, 0}
+	src := fakeSource{}
+	for _, f := range cube.HorizontalFaces() {
+		src[pos.Side(f)] = fakeBlock{model: Fence{Wood: true}}
+	}
+
+	b.ReportAllocs()
+	for range b.N {
+		benchBoxes = Fence{Wood: true}.BBox(pos, src)
+	}
+}
+
+func BenchmarkThinBBox(b *testing.B) {
+	pos := cube.Pos{0, 0, 0}
+	src := fakeSource{}
+	for _, f := range cube.HorizontalFaces() {
+		src[pos.Side(f)] = fakeBlock{model: Thin{}}
+	}
+
+	b.ReportAllocs()
+	for range b.N {
+		benchBoxes = Thin{}.BBox(pos, src)
+	}
+}
+
 func BenchmarkStairBBox(b *testing.B) {
 	src := fakeSource{}
 	m := Stair{Facing: cube.North}

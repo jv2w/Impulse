@@ -372,10 +372,11 @@ func (lt *ProjectileBehaviour) ignores(e *Ent) trace.EntityFilter {
 			for other := range seq {
 				g, ok := other.(interface{ GameMode() world.GameMode })
 				spectator := ok && !g.GameMode().HasCollision()
-				itself := e.H() == other.H()
+				h := other.H()
+				itself := e.H() == h
 				damageable := DamageableEntity(other)
-				owner := e.data.Age < time.Second/4 && lt.conf.Owner == other.H()
-				collidedEntity := slices.Contains(lt.collidedEntities, other.H())
+				owner := e.data.Age < time.Second/4 && lt.conf.Owner == h
+				collidedEntity := slices.Contains(lt.collidedEntities, h)
 				if spectator || itself || !damageable || owner || collidedEntity {
 					continue
 				}
