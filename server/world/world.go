@@ -367,9 +367,13 @@ func (tx *Tx) setBlock(pos cube.Pos, b Block, opts *SetOpts) {
 	c := tx.chunk(chunkPosFromBlockPos(pos))
 
 	rid := w.conf.Blocks.BlockRuntimeID(b)
+	// BlockRuntimeID has already rejected a registry that is not finalised, so
+	// the air ID can be resolved once here for every branch that needs it.
+	airRID := w.conf.Blocks.AirRuntimeID()
 	redstoneAfterRelevant := isRedstoneRelevant(b)
 	needOldBlock := !opts.DisableRedstoneUpdates || !redstoneAfterRelevant
-	needOldRID := needOldBlock || (rid != w.conf.Blocks.AirRuntimeID() && !opts.DisableLiquidDisplacement)
+	displacing := rid != airRID && !opts.DisableLiquidDisplacement
+	needOldRID := needOldBlock || displacing
 
 	var oldRID uint32
 	if needOldRID {
@@ -386,7 +390,7 @@ func (tx *Tx) setBlock(pos cube.Pos, b Block, opts *SetOpts) {
 	}
 
 	var before uint32
-	if rid != w.conf.Blocks.AirRuntimeID() && !opts.DisableLiquidDisplacement {
+	if displacing {
 		before = oldRID
 	}
 
@@ -403,7 +407,6 @@ func (tx *Tx) setBlock(pos cube.Pos, b Block, opts *SetOpts) {
 	if !opts.DisableLiquidDisplacement {
 		var secondLayer Block
 
-		airRID := w.conf.Blocks.AirRuntimeID()
 		if rid == airRID {
 			if li := c.Block(x, y, z, 1); li != airRID {
 				c.SetBlock(x, y, z, 0, li)
