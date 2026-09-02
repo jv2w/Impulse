@@ -154,7 +154,12 @@ func (t ticker) tickBlocksRandomly(tx *Tx, loaders []*Loader, tick int64) {
 			// No loaders in this chunk that are within the simulation distance, so proceed to the next.
 			continue
 		}
-		blockEntities = append(blockEntities, slices.Collect(maps.Keys(c.BlockEntities))...)
+		// Ranging the map straight into blockEntities keeps the same map
+		// iteration order a collected key slice would have produced, without the
+		// intermediate slice a chunk would otherwise cost every tick.
+		for blockEntity := range c.BlockEntities {
+			blockEntities = append(blockEntities, blockEntity)
+		}
 
 		cx, cz := int(pos[0]<<4), int(pos[1]<<4)
 
