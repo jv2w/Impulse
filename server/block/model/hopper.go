@@ -10,7 +10,8 @@ type Hopper struct{}
 
 // BBox returns a physics.BBox that spans a full block.
 func (h Hopper) BBox(cube.Pos, world.BlockSource) []cube.BBox {
-	bbox := []cube.BBox{full.ExtendTowards(cube.FaceUp, -0.375)}
+	bbox := make([]cube.BBox, 1, 1+len(cube.HorizontalFaces()))
+	bbox[0] = full.ExtendTowards(cube.FaceUp, -0.375)
 	for _, f := range cube.HorizontalFaces() {
 		bbox = append(bbox, full.ExtendTowards(f, -0.875))
 	}
