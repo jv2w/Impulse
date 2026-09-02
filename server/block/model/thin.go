@@ -59,8 +59,8 @@ func (t Thin) FaceSolid(_ cube.Pos, face cube.Face, _ world.BlockSource) bool {
 // checkConnection checks if the block at the given position and face has a connection to the current thin block.
 func (t Thin) checkConnection(pos cube.Pos, face cube.Face, s world.BlockSource) bool {
 	sidePos := pos.Side(face)
-	sideBlock := s.Block(sidePos)
-	_, isThin := sideBlock.Model().(Thin)
-	_, isWall := sideBlock.Model().(Wall)
-	return isThin || isWall || sideBlock.Model().FaceSolid(sidePos, face.Opposite(), s)
+	sideModel := s.Block(sidePos).Model()
+	_, isThin := sideModel.(Thin)
+	_, isWall := sideModel.(Wall)
+	return isThin || isWall || sideModel.FaceSolid(sidePos, face.Opposite(), s)
 }

@@ -2903,7 +2903,10 @@ func (p *Player) insideOfSolid() bool {
 	pos := cube.PosFromVec3(entity.EyePosition(p))
 	b, box := p.tx.Block(pos), p.handle.Type().BBox(p).Translate(p.Position())
 
-	_, solid := b.Model().(model.Solid)
+	// Model() derives the model from the block state alone, and nothing between
+	// the two reads writes the world, so one lookup answers both.
+	m := b.Model()
+	_, solid := m.(model.Solid)
 	if !solid {
 		// Not solid.
 		return false
@@ -2916,7 +2919,7 @@ func (p *Player) insideOfSolid() bool {
 	if immune, ok := b.(block.NonSuffocating); ok && immune.PreventsSuffocation() {
 		return false
 	}
-	for _, blockBox := range b.Model().BBox(pos, p.tx) {
+	for _, blockBox := range m.BBox(pos, p.tx) {
 		if blockBox.Translate(pos.Vec3()).IntersectsWith(box) {
 			return true
 		}
