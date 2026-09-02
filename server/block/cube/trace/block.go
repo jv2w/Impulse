@@ -47,9 +47,12 @@ func BlockIntercept(pos cube.Pos, src world.BlockSource, b world.Block, start, e
 		return
 	}
 
+	// hit is held as the concrete BBoxResult rather than a Result: boxing it into
+	// the interface heap-allocates it on every candidate that improves the hit.
 	var (
-		hit  Result
-		dist = math.MaxFloat64
+		hit   BBoxResult
+		found bool
+		dist  = math.MaxFloat64
 	)
 
 	for _, bb := range bbs {
@@ -60,12 +63,12 @@ func BlockIntercept(pos cube.Pos, src world.BlockSource, b world.Block, start, e
 
 		nextDist := next.Position().Sub(start).LenSqr()
 		if nextDist < dist {
-			hit = next
+			hit, found = next, true
 			dist = nextDist
 		}
 	}
 
-	if hit == nil {
+	if !found {
 		return result, false
 	}
 

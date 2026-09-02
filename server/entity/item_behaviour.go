@@ -134,14 +134,19 @@ func (i *ItemBehaviour) checkNearby(e *Ent, tx *world.Tx) {
 	grown := bbox.GrowVec3(mgl64.Vec3{1, 0.5, 1}).Translate(pos)
 
 	for other := range tx.EntitiesWithin(bbox.Translate(pos).Grow(2)) {
-		if e.H() == other.H() || !other.H().Type().BBox(other).Translate(other.Position()).IntersectsWith(grown) {
+		h := other.H()
+		if e.H() == h {
+			continue
+		}
+		t := h.Type()
+		if !t.BBox(other).Translate(other.Position()).IntersectsWith(grown) {
 			continue
 		}
 		if collector, ok := other.(Collector); ok {
 			// A collector was within range to pick up the entity.
 			i.collect(e, collector, tx)
 			return
-		} else if other.H().Type() == ItemType {
+		} else if t == ItemType {
 			// Another item entity was in range to merge with.
 			if i.merge(e, other.(*Ent), tx) {
 				return
