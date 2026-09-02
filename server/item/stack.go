@@ -435,8 +435,11 @@ func (s Stack) Comparable(s2 Stack) bool {
 		return true
 	}
 
-	name, meta := s.Item().EncodeItem()
-	name2, meta2 := s2.Item().EncodeItem()
+	// Item runs Empty, which reaches EncodeItem, and several implementations
+	// build their name by concatenation. Past the guard above neither stack is
+	// empty, so Item is exactly the field it returns.
+	name, meta := s.item.EncodeItem()
+	name2, meta2 := s2.item.EncodeItem()
 	if name != name2 || meta != meta2 || s.anvilCost != s2.anvilCost || s.customName != s2.customName {
 		return false
 	}
@@ -454,8 +457,8 @@ func (s Stack) Comparable(s2 Stack) bool {
 	if !reflect.DeepEqual(s.data, s2.data) {
 		return false
 	}
-	if nbt, ok := s.Item().(world.NBTer); ok {
-		nbt2, ok := s2.Item().(world.NBTer)
+	if nbt, ok := s.item.(world.NBTer); ok {
+		nbt2, ok := s2.item.(world.NBTer)
 		return ok && reflect.DeepEqual(nbt.EncodeNBT(), nbt2.EncodeNBT())
 	}
 	return true

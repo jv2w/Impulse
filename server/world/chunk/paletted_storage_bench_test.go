@@ -12,6 +12,26 @@ var benchStorageSizes = []paletteSize{1, 4, 8, 16}
 // storageBenchSink keeps the read benchmarks from having their result discarded.
 var storageBenchSink uint16
 
+// atBenchSink is the equivalent for the benchmarks that read through the palette.
+var atBenchSink uint32
+
+// BenchmarkPalettedStorageAt walks all 4096 positions through At, the read path Chunk.Block, the encoders and
+// the light code go through. Unlike the paletteIndex benchmarks it also dereferences the Palette.
+func BenchmarkPalettedStorageAt(b *testing.B) {
+	for _, size := range benchStorageSizes {
+		b.Run(fmt.Sprintf("bits%d", size), func(b *testing.B) {
+			storage, sink := storageOfSize(size), uint32(0)
+			for b.Loop() {
+				for linear := 0; linear < 4096; linear++ {
+					x, y, z := storageCoords(linear)
+					sink ^= storage.At(x, y, z)
+				}
+			}
+			atBenchSink = sink
+		})
+	}
+}
+
 func BenchmarkPalettedStoragePaletteIndex(b *testing.B) {
 	for _, size := range benchStorageSizes {
 		b.Run(fmt.Sprintf("bits%d", size), func(b *testing.B) {
