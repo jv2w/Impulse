@@ -74,3 +74,46 @@ func BenchmarkTickBlocksRandomlyBlockEntities(b *testing.B) {
 		b.StopTimer()
 	})
 }
+
+// BenchmarkTickBlocksRandomlyBlocks measures the random block half of
+// tickBlocksRandomly over loaded chunks whose sub chunks are entirely tickable,
+// so every draw selects a position and the scan visits every sub chunk.
+func BenchmarkTickBlocksRandomlyBlocks(b *testing.B) {
+	const chunks = 16
+
+	log := &tickRandomLog{}
+	registry := tickRandomRegistry(log)
+	registry.RegisterBlockState(BlockState{Name: "test:tick_random_silent", Properties: map[string]any{}})
+	registry.RegisterBlock(tickRandomSilent{})
+	w := Config{
+		Synchronous:     true,
+		Blocks:          registry,
+		RandSource:      rand.NewPCG(0x52414e44, 0x5449434b),
+		RandomTickSpeed: 3,
+	}.New()
+	defer w.Close()
+
+	runWorld(w, func(tx *Tx) {
+		for c := range chunks {
+			tickRandomFillSub(tx, ChunkPos{int32(c), 0}, tickRandomSilent{})
+		}
+
+		b.ReportAllocs()
+		b.ResetTimer()
+		for tick := range b.N {
+			ticker{}.tickBlocksRandomly(tx, nil, int64(tick))
+		}
+		b.StopTimer()
+	})
+}
+
+// tickRandomSilent is a RandomTicker that records nothing, so a benchmark over
+// the random block pass measures the pass rather than its callbacks.
+type tickRandomSilent struct{}
+
+func (tickRandomSilent) RandomTick(cube.Pos, *Tx, *rand.Rand) {}
+func (tickRandomSilent) EncodeBlock() (string, map[string]any) {
+	return "test:tick_random_silent", nil
+}
+func (tickRandomSilent) Hash() (uint64, uint64) { return 1 << 60, 0 }
+func (tickRandomSilent) Model() BlockModel      { return tickRandomModel{} }

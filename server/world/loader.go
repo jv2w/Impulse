@@ -19,6 +19,10 @@ type Loader struct {
 	mu        sync.RWMutex
 	pos       ChunkPos
 	loadQueue []ChunkPos
+	// loadRings buckets load candidates by their distance to the centre while
+	// populateLoadQueue runs. It is kept between calls so that rebuilding the
+	// queue on a chunk crossing costs no allocation after the first one.
+	loadRings [][]ChunkPos
 	loaded    map[ChunkPos]*Column
 	pending   map[ChunkPos]struct{}
 
@@ -230,11 +234,21 @@ func (l *Loader) queueLoad(pos ChunkPos) {
 // which chunks around the position the loader is now in should be loaded. Chunks are ordered to be loaded
 // from the middle outwards.
 func (l *Loader) populateLoadQueue() {
-	// We'll first load the chunk positions to load in a map indexed by the distance to the centre (basically,
+	// We'll first load the chunk positions to load in a buffer indexed by the distance to the centre (basically,
 	// what precedence it should have), and put them in the loadQueue in that order.
-	queue := map[int32][]ChunkPos{}
-
 	r := int32(l.r)
+	// A client may request a negative radius, which leaves every loop below
+	// empty and must not size a buffer.
+	rings := max(int(r)+1, 0)
+	if cap(l.loadRings) < rings {
+		l.loadRings = make([][]ChunkPos, rings)
+	} else {
+		l.loadRings = l.loadRings[:rings]
+	}
+	for i := range l.loadRings {
+		l.loadRings[i] = l.loadRings[i][:0]
+	}
+
 	for x := -r; x <= r; x++ {
 		for z := -r; z <= r; z++ {
 			pos := ChunkPos{x + l.pos[0], z + l.pos[1]}
@@ -251,12 +265,12 @@ func (l *Loader) populateLoadQueue() {
 				// The chunk is already queued to be loaded.
 				continue
 			}
-			queue[dist] = append(queue[dist], pos)
+			l.loadRings[dist] = append(l.loadRings[dist], pos)
 		}
 	}
 
 	l.loadQueue = l.loadQueue[:0]
-	for i := int32(0); i <= r; i++ {
-		l.loadQueue = append(l.loadQueue, queue[i]...)
+	for _, ring := range l.loadRings {
+		l.loadQueue = append(l.loadQueue, ring...)
 	}
 }
