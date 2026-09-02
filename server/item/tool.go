@@ -83,6 +83,20 @@ func ToolTiers() []ToolTier {
 	return []ToolTier{ToolTierWood, ToolTierGold, ToolTierStone, ToolTierCopper, ToolTierIron, ToolTierDiamond, ToolTierNetherite}
 }
 
+// toolNames maps the name of every ToolTier to the encoded item name it forms
+// together with the suffix passed. Stack.Empty reaches EncodeItem on nearly
+// every method of Stack, so a tool that builds its name by concatenating the
+// tier in allocated a string on each of those calls. A tier that is not in the
+// table falls back to that concatenation, so a custom one still encodes.
+func toolNames(suffix string) map[string]string {
+	tiers := ToolTiers()
+	names := make(map[string]string, len(tiers))
+	for _, t := range tiers {
+		names[t.Name] = "minecraft:" + t.Name + suffix
+	}
+	return names
+}
+
 // ToolType ...
 func (n ToolNone) ToolType() ToolType { return TypeNone }
 

@@ -108,7 +108,10 @@ func encodePalettedStorage(buf *bytes.Buffer, storage, previous *PalettedStorage
 
 	for i, v := range storage.indices {
 		// Explicitly don't use the binary package to greatly improve performance of writing the uint32s.
-		b[i*4+1], b[i*4+2], b[i*4+3], b[i*4+4] = byte(v), byte(v>>8), byte(v>>16), byte(v>>24)
+		// Writing through a window of exactly four bytes costs one bounds check where indexing b four
+		// times costs four of them.
+		w := b[i*4+1 : i*4+5 : i*4+5]
+		w[0], w[1], w[2], w[3] = byte(v), byte(v>>8), byte(v>>16), byte(v>>24)
 	}
 	_, _ = buf.Write(b)
 

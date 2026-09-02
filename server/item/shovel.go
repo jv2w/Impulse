@@ -110,7 +110,13 @@ func (s Shovel) RepairableBy(i Stack) bool {
 	return toolTierRepairable(s.Tier)(i)
 }
 
+// shovelNames holds the encoded name of every vanilla shovel tier.
+var shovelNames = toolNames("_shovel")
+
 // EncodeItem ...
 func (s Shovel) EncodeItem() (name string, meta int16) {
+	if n, ok := shovelNames[s.Tier.Name]; ok {
+		return n, 0
+	}
 	return "minecraft:" + s.Tier.Name + "_shovel", 0
 }

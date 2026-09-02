@@ -107,7 +107,13 @@ func (a Axe) EnchantmentValue() int {
 	return a.Tier.EnchantmentValue
 }
 
+// axeNames holds the encoded name of every vanilla axe tier.
+var axeNames = toolNames("_axe")
+
 // EncodeItem ...
 func (a Axe) EncodeItem() (name string, meta int16) {
+	if n, ok := axeNames[a.Tier.Name]; ok {
+		return n, 0
+	}
 	return "minecraft:" + a.Tier.Name + "_axe", 0
 }

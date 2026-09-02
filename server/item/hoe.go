@@ -109,7 +109,13 @@ func (h Hoe) RepairableBy(i Stack) bool {
 	return toolTierRepairable(h.Tier)(i)
 }
 
+// hoeNames holds the encoded name of every vanilla hoe tier.
+var hoeNames = toolNames("_hoe")
+
 // EncodeItem ...
 func (h Hoe) EncodeItem() (name string, meta int16) {
+	if n, ok := hoeNames[h.Tier.Name]; ok {
+		return n, 0
+	}
 	return "minecraft:" + h.Tier.Name + "_hoe", 0
 }

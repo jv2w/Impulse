@@ -80,7 +80,13 @@ func (p Pickaxe) FuelInfo() FuelInfo {
 	return FuelInfo{}
 }
 
+// pickaxeNames holds the encoded name of every vanilla pickaxe tier.
+var pickaxeNames = toolNames("_pickaxe")
+
 // EncodeItem ...
 func (p Pickaxe) EncodeItem() (name string, meta int16) {
+	if n, ok := pickaxeNames[p.Tier.Name]; ok {
+		return n, 0
+	}
 	return "minecraft:" + p.Tier.Name + "_pickaxe", 0
 }

@@ -82,7 +82,13 @@ func (s Sword) RepairableBy(i Stack) bool {
 	return toolTierRepairable(s.Tier)(i)
 }
 
+// swordNames holds the encoded name of every vanilla sword tier.
+var swordNames = toolNames("_sword")
+
 // EncodeItem ...
 func (s Sword) EncodeItem() (name string, meta int16) {
+	if n, ok := swordNames[s.Tier.Name]; ok {
+		return n, 0
+	}
 	return "minecraft:" + s.Tier.Name + "_sword", 0
 }
