@@ -98,6 +98,10 @@ type playerData struct {
 
 	collidedVertically, collidedHorizontally bool
 
+	// collisionBoxes is the scratch buffer checkBlockCollisions fills with the
+	// block boxes around the player. It holds nothing between calls.
+	collisionBoxes []cube.BBox
+
 	breaking          bool
 	breakingPos       cube.Pos
 	breakingFace      cube.Face
@@ -2716,13 +2720,16 @@ func (p *Player) Tick(tx *world.Tx, current int64) {
 		}
 	}
 
-	p.session().SendDebugShapes(tx.World().Dimension())
+	// A Tx holds one world for its whole life and only closes once the callback
+	// that owns it returns, so the four reads below all answer the same.
+	w := tx.World()
+	p.session().SendDebugShapes(w.Dimension())
 	p.session().SendHudUpdates()
 
-	if p.prevWorld != tx.World() && p.prevWorld != nil {
-		p.Handler().HandleChangeWorld(p, p.prevWorld, tx.World())
+	if p.prevWorld != w && p.prevWorld != nil {
+		p.Handler().HandleChangeWorld(p, p.prevWorld, w)
 	}
-	p.prevWorld = tx.World()
+	p.prevWorld = w
 
 	if p.session() == session.Nop && !p.Immobile() {
 		m := p.mc.TickMovement(p, p.Position(), p.Velocity(), p.Rotation(), p.tx)
@@ -2964,8 +2971,15 @@ func (p *Player) checkBlockCollisions(vel mgl64.Vec3) {
 	minX, minY, minZ := int(math.Floor(low[0])), int(math.Floor(low[1])), int(math.Floor(low[2]))
 	maxX, maxY, maxZ := int(math.Ceil(high[0])), int(math.Ceil(high[1])), int(math.Ceil(high[2]))
 
+	// The list is refilled from scratch here and never leaves this function, so
+	// one buffer kept on the player replaces the allocation every tick made.
+	// checkEntityInsiders above is the only call that can re-enter, and it runs
+	// before the buffer is touched; everything below only reads the world.
+	blocks := p.collisionBoxes[:0]
 	// A prediction of one BBox per block, plus an additional 2, in case
-	blocks := make([]cube.BBox, 0, (maxX-minX)*(maxY-minY)*(maxZ-minZ)+2)
+	if n := (maxX-minX)*(maxY-minY)*(maxZ-minZ) + 2; cap(blocks) < n {
+		blocks = make([]cube.BBox, 0, n)
+	}
 	for y := minY; y <= maxY; y++ {
 		for x := minX; x <= maxX; x++ {
 			for z := minZ; z <= maxZ; z++ {
@@ -2977,6 +2991,7 @@ func (p *Player) checkBlockCollisions(vel mgl64.Vec3) {
 			}
 		}
 	}
+	p.collisionBoxes = blocks
 
 	// epsilon is the epsilon used for thresholds for change used for change in position and velocity.
 	const epsilon = 0.001
