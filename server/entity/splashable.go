@@ -34,9 +34,10 @@ func potionSplash(durMul float64, pot potion.Potion, linger bool) func(e *Ent, t
 		box := e.H().Type().BBox(e).Translate(pos)
 
 		if len(effects) > 0 {
+			reach := box.GrowVec3(mgl64.Vec3{4.125, 2.125, 4.125})
 			for otherE := range filterLiving(tx.EntitiesWithin(box.GrowVec3(mgl64.Vec3{8.25, 4.25, 8.25}))) {
 				otherPos := otherE.Position()
-				if !otherE.H().Type().BBox(otherE).Translate(otherPos).IntersectsWith(box.GrowVec3(mgl64.Vec3{4.125, 2.125, 4.125})) {
+				if !otherE.H().Type().BBox(otherE).Translate(otherPos).IntersectsWith(reach) {
 					continue
 				}
 
@@ -78,8 +79,9 @@ func potionSplash(durMul float64, pot potion.Potion, linger bool) func(e *Ent, t
 						tx.SetBlock(h, nil, nil)
 					}
 
-					if b, ok := tx.Block(blockPos.Side(f)).(SplashableBlock); ok {
-						b.Splash(tx, blockPos.Side(f))
+					// A second read of h: the fire above may just have been cleared.
+					if b, ok := tx.Block(h).(SplashableBlock); ok {
+						b.Splash(tx, h)
 					}
 				}
 
