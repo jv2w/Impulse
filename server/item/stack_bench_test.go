@@ -63,6 +63,17 @@ func BenchmarkStackComparable(b *testing.B) {
 	}
 }
 
+func BenchmarkStackComparablePlain(b *testing.B) {
+	s := NewStack(Stick{}, 16)
+	s2 := NewStack(Stick{}, 32)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		benchComparable = s.Comparable(s2)
+	}
+}
+
 func BenchmarkStackWithEnchantmentsFresh(b *testing.B) {
 	s := NewStack(Sword{Tier: ToolTierDiamond}, 1)
 	e := NewEnchantment(enchA, 3)

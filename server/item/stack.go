@@ -454,7 +454,9 @@ func (s Stack) Comparable(s2 Stack) bool {
 			return false
 		}
 	}
-	if !reflect.DeepEqual(s.data, s2.data) {
+	// DeepEqual reports two nil maps equal, so the reflection is only needed
+	// once at least one side actually carries user data.
+	if (s.data != nil || s2.data != nil) && !reflect.DeepEqual(s.data, s2.data) {
 		return false
 	}
 	if nbt, ok := s.item.(world.NBTer); ok {

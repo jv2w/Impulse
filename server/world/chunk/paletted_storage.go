@@ -128,7 +128,7 @@ func (storage *PalettedStorage) paletteIndex(x, y, z byte) uint16 {
 		return 0
 	}
 	offset := ((uint16(x) << 8) | (uint16(z) << 4) | uint16(y)) * storage.bitsPerIndex
-	uint32Offset, bitOffset := offset/storage.filledBitsPerIndex, offset%storage.filledBitsPerIndex
+	uint32Offset, bitOffset := storage.split(offset)
 
 	// This and setPaletteIndex index the slice instead of offsetting a cached data pointer: a storage whose
 	// width does not match its length addresses words past the end, and only the bounds check turns that into
@@ -144,10 +144,20 @@ func (storage *PalettedStorage) setPaletteIndex(x, y, z byte, i uint16) {
 		return
 	}
 	offset := ((uint16(x) << 8) | (uint16(z) << 4) | uint16(y)) * storage.bitsPerIndex
-	uint32Offset, bitOffset := offset/storage.filledBitsPerIndex, offset%storage.filledBitsPerIndex
+	uint32Offset, bitOffset := storage.split(offset)
 
 	w := storage.indices[uint32Offset]
 	storage.indices[uint32Offset] = (w &^ (storage.indexMask << bitOffset)) | (uint32(i) << bitOffset)
+}
+
+// split divides a bit offset into the index of the uint32 holding it and the bit offset within that uint32.
+// Only the padded palette sizes leave bits unused in a uint32, so every other storage divides by a power of
+// two: taking that case separately turns a hardware divide on every block access into a shift and a mask.
+func (storage *PalettedStorage) split(offset uint16) (uint32Offset, bitOffset uint16) {
+	if storage.filledBitsPerIndex == uint32BitSize {
+		return offset / uint32BitSize, offset % uint32BitSize
+	}
+	return offset / storage.filledBitsPerIndex, offset % storage.filledBitsPerIndex
 }
 
 // resize changes the size of a PalettedStorage to newPaletteSize. A new PalettedStorage is constructed,
