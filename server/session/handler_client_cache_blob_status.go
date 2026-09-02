@@ -42,13 +42,17 @@ func (c *ClientCacheBlobStatusHandler) Handle(p packet.Packet, s *Session, _ *wo
 
 // resolveBlob resolves a blob hash in the session passed. It assumes s.blobMu is locked upon calling.
 func (c *ClientCacheBlobStatusHandler) resolveBlob(hash uint64, s *Session) {
-	leftover := make([]map[uint64]struct{}, 0, len(s.openChunkTransactions))
+	// Filtering in place is safe because the write index never runs ahead of
+	// the read index. The dropped tail is cleared so that emptied transactions
+	// are not kept alive by the spare capacity.
+	leftover := s.openChunkTransactions[:0]
 	for _, m := range s.openChunkTransactions {
 		delete(m, hash)
 		if len(m) != 0 {
 			leftover = append(leftover, m)
 		}
 	}
+	clear(s.openChunkTransactions[len(leftover):])
 	s.openChunkTransactions = leftover
 	delete(s.blobs, hash)
 }

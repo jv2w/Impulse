@@ -433,21 +433,27 @@ func (h *ItemStackRequestHandler) setItemInSlot(slot protocol.StackRequestSlotIn
 		DurabilityCorrection: int32(i.MaxDurability() - i.Durability()),
 	}
 
-	if h.changes[slot.Container.ContainerID] == nil {
-		h.changes[slot.Container.ContainerID] = map[byte]changeInfo{}
+	containerChanges := h.changes[slot.Container.ContainerID]
+	if containerChanges == nil {
+		containerChanges = map[byte]changeInfo{}
+		h.changes[slot.Container.ContainerID] = containerChanges
 	}
-	h.changes[slot.Container.ContainerID][slot.Slot] = changeInfo{
+	containerChanges[slot.Slot] = changeInfo{
 		after:  respSlot,
 		before: before,
 	}
 
-	if h.responseChanges[h.currentRequest] == nil {
-		h.responseChanges[h.currentRequest] = map[*inventory.Inventory]map[byte]responseChange{}
+	requestChanges := h.responseChanges[h.currentRequest]
+	if requestChanges == nil {
+		requestChanges = map[*inventory.Inventory]map[byte]responseChange{}
+		h.responseChanges[h.currentRequest] = requestChanges
 	}
-	if h.responseChanges[h.currentRequest][inv] == nil {
-		h.responseChanges[h.currentRequest][inv] = map[byte]responseChange{}
+	invChanges := requestChanges[inv]
+	if invChanges == nil {
+		invChanges = map[byte]responseChange{}
+		requestChanges[inv] = invChanges
 	}
-	h.responseChanges[h.currentRequest][inv][slot.Slot] = responseChange{
+	invChanges[slot.Slot] = responseChange{
 		id:        respSlot.StackNetworkID,
 		timestamp: h.current,
 	}
