@@ -205,11 +205,14 @@ func writeDamage(m map[string]any, s Stack, disk bool) {
 	if _, ok := s.Item().(Durable); !ok {
 		return
 	}
+	// Durability is the maximum less the damage taken, so the difference the
+	// tag wants is the damage field itself. Spelling it out that way repeated
+	// the item assertion and the DurabilityInfo call twice over.
 	if disk {
-		m["Damage"] = int16(s.MaxDurability() - s.Durability())
+		m["Damage"] = int16(s.damage)
 		return
 	}
-	m["Damage"] = int32(s.MaxDurability() - s.Durability())
+	m["Damage"] = int32(s.damage)
 }
 
 // writeAnvilCost ...
