@@ -25,12 +25,15 @@ func (DiamondOre) SmeltInfo() item.SmeltInfo {
 	return newOreSmeltInfo(item.NewStack(item.Diamond{}, 1), 1)
 }
 
+// diamondOreName gives the encoded name of diamond ore of a type.
+var diamondOreName = enumNamer(OreTypes(), func(t OreType) string { return t.Prefix() + "diamond_ore" })
+
 // EncodeItem ...
 func (d DiamondOre) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + d.Type.Prefix() + "diamond_ore", 0
+	return diamondOreName(d.Type), 0
 }
 
 // EncodeBlock ...
 func (d DiamondOre) EncodeBlock() (string, map[string]any) {
-	return "minecraft:" + d.Type.Prefix() + "diamond_ore", nil
+	return diamondOreName(d.Type), nil
 }

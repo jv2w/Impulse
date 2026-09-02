@@ -119,16 +119,22 @@ func (RedstoneOre) SmeltInfo() item.SmeltInfo {
 	return newOreSmeltInfo(item.NewStack(RedstoneWire{}, 1), 0.7)
 }
 
+// redstoneOreName and litRedstoneOreName give the encoded name of redstone ore
+// of a type, unlit and lit.
+var (
+	redstoneOreName    = enumNamer(OreTypes(), func(t OreType) string { return t.Prefix() + "redstone_ore" })
+	litRedstoneOreName = enumNamer(OreTypes(), func(t OreType) string { return "lit_" + t.Prefix() + "redstone_ore" })
+)
+
 // EncodeItem ...
 func (r RedstoneOre) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + r.Type.Prefix() + "redstone_ore", 0
+	return redstoneOreName(r.Type), 0
 }
 
 // EncodeBlock ...
 func (r RedstoneOre) EncodeBlock() (string, map[string]any) {
-	lit := ""
 	if r.Lit {
-		lit = "lit_"
+		return litRedstoneOreName(r.Type), nil
 	}
-	return "minecraft:" + lit + r.Type.Prefix() + "redstone_ore", nil
+	return redstoneOreName(r.Type), nil
 }

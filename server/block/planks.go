@@ -42,14 +42,17 @@ func (p Planks) FuelInfo() item.FuelInfo {
 	return newFuelInfo(time.Second * 15)
 }
 
+// planksName gives the encoded name of planks of a wood type.
+var planksName = enumNamer(WoodTypes(), func(w WoodType) string { return w.String() + "_planks" })
+
 // EncodeItem ...
 func (p Planks) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + p.Wood.String() + "_planks", 0
+	return planksName(p.Wood), 0
 }
 
 // EncodeBlock ...
 func (p Planks) EncodeBlock() (name string, properties map[string]any) {
-	return "minecraft:" + p.Wood.String() + "_planks", nil
+	return planksName(p.Wood), nil
 }
 
 // allPlanks returns all planks types.

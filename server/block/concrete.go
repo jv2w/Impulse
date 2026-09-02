@@ -20,14 +20,17 @@ func (c Concrete) BreakInfo() BreakInfo {
 	return newBreakInfo(1.8, pickaxeHarvestable, pickaxeEffective, oneOf(c))
 }
 
+// concreteName gives the encoded name of this block in a colour.
+var concreteName = colourNamer(item.Colour.String, "_concrete")
+
 // EncodeItem ...
 func (c Concrete) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + c.Colour.String() + "_concrete", 0
+	return concreteName(c.Colour), 0
 }
 
 // EncodeBlock ...
 func (c Concrete) EncodeBlock() (name string, properties map[string]any) {
-	return "minecraft:" + c.Colour.String() + "_concrete", nil
+	return concreteName(c.Colour), nil
 }
 
 // allConcrete returns concrete blocks with all possible colours.

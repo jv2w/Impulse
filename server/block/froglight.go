@@ -39,14 +39,17 @@ func (f Froglight) BreakInfo() BreakInfo {
 	return newBreakInfo(0.3, alwaysHarvestable, nothingEffective, oneOf(f))
 }
 
+// froglightName gives the encoded name of a froglight of a type.
+var froglightName = enumNamer(FroglightTypes(), func(t FroglightType) string { return t.String() + "_froglight" })
+
 // EncodeItem ...
 func (f Froglight) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + f.Type.String() + "_froglight", 0
+	return froglightName(f.Type), 0
 }
 
 // EncodeBlock ...
 func (f Froglight) EncodeBlock() (name string, properties map[string]any) {
-	return "minecraft:" + f.Type.String() + "_froglight", map[string]any{"pillar_axis": f.Axis.String()}
+	return froglightName(f.Type), map[string]any{"pillar_axis": f.Axis.String()}
 }
 
 // allFrogLight ...

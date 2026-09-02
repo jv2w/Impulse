@@ -28,14 +28,17 @@ func (s StoneBricks) SmeltInfo() item.SmeltInfo {
 	return item.SmeltInfo{}
 }
 
+// stoneBricksName gives the encoded name of stone bricks of a type.
+var stoneBricksName = enumNamer(StoneBricksTypes(), StoneBricksType.String)
+
 // EncodeItem ...
 func (s StoneBricks) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + s.Type.String(), 0
+	return stoneBricksName(s.Type), 0
 }
 
 // EncodeBlock ...
 func (s StoneBricks) EncodeBlock() (string, map[string]any) {
-	return "minecraft:" + s.Type.String(), nil
+	return stoneBricksName(s.Type), nil
 }
 
 // allStoneBricks returns a list of all stoneBricks block variants.

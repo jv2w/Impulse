@@ -21,13 +21,16 @@ func (CoalOre) SmeltInfo() item.SmeltInfo {
 	return newOreSmeltInfo(item.NewStack(item.Coal{}, 1), 0.1)
 }
 
+// coalOreName gives the encoded name of coal ore of a type.
+var coalOreName = enumNamer(OreTypes(), func(t OreType) string { return t.Prefix() + "coal_ore" })
+
 // EncodeItem ...
 func (c CoalOre) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + c.Type.Prefix() + "coal_ore", 0
+	return coalOreName(c.Type), 0
 }
 
 // EncodeBlock ...
 func (c CoalOre) EncodeBlock() (string, map[string]any) {
-	return "minecraft:" + c.Type.Prefix() + "coal_ore", nil
+	return coalOreName(c.Type), nil
 
 }

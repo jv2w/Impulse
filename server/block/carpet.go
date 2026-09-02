@@ -32,14 +32,17 @@ func (c Carpet) BreakInfo() BreakInfo {
 	return newBreakInfo(0.1, alwaysHarvestable, nothingEffective, oneOf(c))
 }
 
+// carpetName gives the encoded name of this block in a colour.
+var carpetName = colourNamer(item.Colour.String, "_carpet")
+
 // EncodeItem ...
 func (c Carpet) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + c.Colour.String() + "_carpet", 0
+	return carpetName(c.Colour), 0
 }
 
 // EncodeBlock ...
 func (c Carpet) EncodeBlock() (name string, properties map[string]any) {
-	return "minecraft:" + c.Colour.String() + "_carpet", nil
+	return carpetName(c.Colour), nil
 }
 
 // HasLiquidDrops ...

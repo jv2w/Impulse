@@ -29,14 +29,17 @@ func (w Wool) BreakInfo() BreakInfo {
 	return newBreakInfo(0.8, alwaysHarvestable, shearsEffective, oneOf(w))
 }
 
+// woolName gives the encoded name of this block in a colour.
+var woolName = colourNamer(item.Colour.String, "_wool")
+
 // EncodeItem ...
 func (w Wool) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + w.Colour.String() + "_wool", 0
+	return woolName(w.Colour), 0
 }
 
 // EncodeBlock ...
 func (w Wool) EncodeBlock() (name string, properties map[string]any) {
-	return "minecraft:" + w.Colour.String() + "_wool", nil
+	return woolName(w.Colour), nil
 }
 
 // allWool returns wool blocks with all possible colours.

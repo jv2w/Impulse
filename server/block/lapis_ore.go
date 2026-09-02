@@ -25,12 +25,15 @@ func (LapisOre) SmeltInfo() item.SmeltInfo {
 	return newOreSmeltInfo(item.NewStack(item.LapisLazuli{}, 1), 0.2)
 }
 
+// lapisOreName gives the encoded name of lapis ore of a type.
+var lapisOreName = enumNamer(OreTypes(), func(t OreType) string { return t.Prefix() + "lapis_ore" })
+
 // EncodeItem ...
 func (l LapisOre) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + l.Type.Prefix() + "lapis_ore", 0
+	return lapisOreName(l.Type), 0
 }
 
 // EncodeBlock ...
 func (l LapisOre) EncodeBlock() (string, map[string]any) {
-	return "minecraft:" + l.Type.Prefix() + "lapis_ore", nil
+	return lapisOreName(l.Type), nil
 }

@@ -67,14 +67,17 @@ func (d DoubleTallGrass) CompostChance() float64 {
 	return 0.5
 }
 
+// doubleTallGrassName gives the encoded name of double tall grass of a type.
+var doubleTallGrassName = enumNamer(DoubleTallGrassTypes(), DoubleTallGrassType.String)
+
 // EncodeItem ...
 func (d DoubleTallGrass) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + d.Type.String(), 0
+	return doubleTallGrassName(d.Type), 0
 }
 
 // EncodeBlock ...
 func (d DoubleTallGrass) EncodeBlock() (string, map[string]any) {
-	return "minecraft:" + d.Type.String(), map[string]any{"upper_block_bit": d.UpperPart}
+	return doubleTallGrassName(d.Type), map[string]any{"upper_block_bit": d.UpperPart}
 }
 
 // allDoubleTallGrass ...

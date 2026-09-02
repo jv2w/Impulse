@@ -81,9 +81,12 @@ func (s Skull) BreakInfo() BreakInfo {
 	return newBreakInfo(1, alwaysHarvestable, nothingEffective, oneOf(Skull{Type: s.Type}))
 }
 
+// skullName gives the encoded name of a skull of a type.
+var skullName = enumNamer(SkullTypes(), SkullType.String)
+
 // EncodeItem ...
 func (s Skull) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + s.Type.String(), 0
+	return skullName(s.Type), 0
 }
 
 // DecodeNBT ...
@@ -106,11 +109,11 @@ func (s Skull) EncodeNBT() map[string]interface{} {
 func (s Skull) EncodeBlock() (string, map[string]interface{}) {
 	if s.Attach.hanging {
 		if s.Attach.facing == unknownDirection {
-			return "minecraft:" + s.Type.String(), map[string]interface{}{"facing_direction": int32(0)}
+			return skullName(s.Type), map[string]interface{}{"facing_direction": int32(0)}
 		}
-		return "minecraft:" + s.Type.String(), map[string]interface{}{"facing_direction": int32(s.Attach.facing) + 2}
+		return skullName(s.Type), map[string]interface{}{"facing_direction": int32(s.Attach.facing) + 2}
 	}
-	return "minecraft:" + s.Type.String(), map[string]interface{}{"facing_direction": int32(1)}
+	return skullName(s.Type), map[string]interface{}{"facing_direction": int32(1)}
 }
 
 // allSkulls ...

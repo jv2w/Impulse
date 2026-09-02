@@ -69,9 +69,14 @@ func (s Sign) FuelInfo() item.FuelInfo {
 	return newFuelInfo(time.Second * 10)
 }
 
+// signName gives the encoded item name of a sign of a wood type. The block
+// names below are built from a prefix that varies with the attachment, so they
+// keep concatenating.
+var signName = enumNamer(WoodTypes(), func(w WoodType) string { return w.String() + "_sign" })
+
 // EncodeItem ...
 func (s Sign) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + s.Wood.String() + "_sign", 0
+	return signName(s.Wood), 0
 }
 
 // BreakInfo ...

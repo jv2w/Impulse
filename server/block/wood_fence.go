@@ -48,7 +48,7 @@ func (w WoodFence) FuelInfo() item.FuelInfo {
 
 // EncodeBlock ...
 func (w WoodFence) EncodeBlock() (name string, properties map[string]any) {
-	return "minecraft:" + w.Wood.String() + "_fence", nil
+	return woodFenceName(w.Wood), nil
 }
 
 // Model ...
@@ -56,9 +56,12 @@ func (w WoodFence) Model() world.BlockModel {
 	return model.Fence{Wood: true}
 }
 
+// woodFenceName gives the encoded name of a fence of a wood type.
+var woodFenceName = enumNamer(WoodTypes(), func(w WoodType) string { return w.String() + "_fence" })
+
 // EncodeItem ...
 func (w WoodFence) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + w.Wood.String() + "_fence", 0
+	return woodFenceName(w.Wood), 0
 }
 
 // allFence ...

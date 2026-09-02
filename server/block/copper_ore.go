@@ -25,12 +25,15 @@ func (CopperOre) SmeltInfo() item.SmeltInfo {
 	return newOreSmeltInfo(item.NewStack(item.CopperIngot{}, 1), 0.7)
 }
 
+// copperOreName gives the encoded name of copper ore of a type.
+var copperOreName = enumNamer(OreTypes(), func(t OreType) string { return t.Prefix() + "copper_ore" })
+
 // EncodeItem ...
 func (c CopperOre) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + c.Type.Prefix() + "copper_ore", 0
+	return copperOreName(c.Type), 0
 }
 
 // EncodeBlock ...
 func (c CopperOre) EncodeBlock() (string, map[string]any) {
-	return "minecraft:" + c.Type.Prefix() + "copper_ore", nil
+	return copperOreName(c.Type), nil
 }

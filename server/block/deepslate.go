@@ -48,9 +48,12 @@ func (d Deepslate) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *wo
 	return placed(ctx)
 }
 
+// deepslateName gives the encoded name of deepslate of a type.
+var deepslateName = enumNamer(DeepslateTypes(), DeepslateType.String)
+
 // EncodeItem ...
 func (d Deepslate) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + d.Type.String(), 0
+	return deepslateName(d.Type), 0
 }
 
 // EncodeBlock ...
@@ -58,7 +61,7 @@ func (d Deepslate) EncodeBlock() (string, map[string]any) {
 	if d.Type == NormalDeepslate() {
 		return "minecraft:deepslate", map[string]any{"pillar_axis": d.Axis.String()}
 	}
-	return "minecraft:" + d.Type.String(), nil
+	return deepslateName(d.Type), nil
 }
 
 // allDeepslate returns a list of all deepslate block variants.

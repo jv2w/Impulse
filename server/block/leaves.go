@@ -126,9 +126,12 @@ func (Leaves) CompostChance() float64 {
 	return 0.3
 }
 
+// leavesName gives the encoded name of leaves of a type.
+var leavesName = enumNamer(LeavesTypes(), LeavesType.String)
+
 // EncodeItem ...
 func (l Leaves) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + l.Type.String(), 0
+	return leavesName(l.Type), 0
 }
 
 // LightDiffusionLevel ...
@@ -143,7 +146,7 @@ func (Leaves) SideClosed(cube.Pos, cube.Pos, *world.Tx) bool {
 
 // EncodeBlock ...
 func (l Leaves) EncodeBlock() (name string, properties map[string]any) {
-	return "minecraft:" + l.Type.String(), map[string]any{"persistent_bit": l.Persistent, "update_bit": l.ShouldUpdate}
+	return leavesName(l.Type), map[string]any{"persistent_bit": l.Persistent, "update_bit": l.ShouldUpdate}
 }
 
 // allLeaves returns a list of all possible leaves states.

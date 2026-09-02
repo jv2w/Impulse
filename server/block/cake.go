@@ -153,10 +153,16 @@ func (c Cake) BreakInfo() BreakInfo {
 	return newBreakInfo(0.5, neverHarvestable, nothingEffective, simpleDrops())
 }
 
+// candleCakeName gives the encoded name of a cake carrying a candle of a
+// colour, the absent colour included.
+var candleCakeName = enumNamer(item.OptionalColours(), func(c item.OptionalColour) string {
+	return c.Prepend("candle_cake")
+})
+
 // EncodeItem ...
 func (c Cake) EncodeItem() (name string, meta int16) {
 	if c.Candle {
-		return "minecraft:" + c.CandleColour.Prepend("candle_cake"), 0
+		return candleCakeName(c.CandleColour), 0
 	}
 	return "minecraft:cake", 0
 }
@@ -164,7 +170,7 @@ func (c Cake) EncodeItem() (name string, meta int16) {
 // EncodeBlock ...
 func (c Cake) EncodeBlock() (name string, properties map[string]any) {
 	if c.Candle {
-		return "minecraft:" + c.CandleColour.Prepend("candle_cake"), map[string]any{"lit": c.CandleLit}
+		return candleCakeName(c.CandleColour), map[string]any{"lit": c.CandleLit}
 	}
 	return "minecraft:cake", map[string]any{"bite_counter": int32(c.Bites)}
 }

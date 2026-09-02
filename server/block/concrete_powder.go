@@ -39,14 +39,17 @@ func (c ConcretePowder) BreakInfo() BreakInfo {
 	return newBreakInfo(0.5, alwaysHarvestable, shovelEffective, oneOf(c))
 }
 
+// concretePowderName gives the encoded name of this block in a colour.
+var concretePowderName = colourNamer(item.Colour.String, "_concrete_powder")
+
 // EncodeItem ...
 func (c ConcretePowder) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + c.Colour.String() + "_concrete_powder", 0
+	return concretePowderName(c.Colour), 0
 }
 
 // EncodeBlock ...
 func (c ConcretePowder) EncodeBlock() (name string, properties map[string]any) {
-	return "minecraft:" + c.Colour.String() + "_concrete_powder", nil
+	return concretePowderName(c.Colour), nil
 }
 
 // allConcretePowder returns concrete powder with all possible colours.

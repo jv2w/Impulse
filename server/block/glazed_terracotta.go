@@ -23,17 +23,20 @@ func (t GlazedTerracotta) BreakInfo() BreakInfo {
 	return newBreakInfo(1.4, pickaxeHarvestable, pickaxeEffective, oneOf(t))
 }
 
+// glazedTerracottaName gives the encoded name of this block in a colour.
+var glazedTerracottaName = colourNamer(item.Colour.SilverString, "_glazed_terracotta")
+
 // EncodeItem ...
 func (t GlazedTerracotta) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + t.Colour.SilverString() + "_glazed_terracotta", 0
+	return glazedTerracottaName(t.Colour), 0
 }
 
 // EncodeBlock ...
 func (t GlazedTerracotta) EncodeBlock() (name string, properties map[string]any) {
 	if t.Facing == unknownDirection {
-		return "minecraft:" + t.Colour.SilverString() + "_glazed_terracotta", map[string]any{"facing_direction": int32(0)}
+		return glazedTerracottaName(t.Colour), map[string]any{"facing_direction": int32(0)}
 	}
-	return "minecraft:" + t.Colour.SilverString() + "_glazed_terracotta", map[string]any{"facing_direction": int32(2 + t.Facing)}
+	return glazedTerracottaName(t.Colour), map[string]any{"facing_direction": int32(2 + t.Facing)}
 }
 
 // UseOnBlock ensures the proper facing is used when placing a glazed terracotta block, by using the opposite of the player.

@@ -132,14 +132,20 @@ func (c Candle) EntityInside(pos cube.Pos, tx *world.Tx, e world.Entity) {
 	}
 }
 
+// candleName gives the encoded name of a candle of a colour, the absent colour
+// included.
+var candleName = enumNamer(item.OptionalColours(), func(c item.OptionalColour) string {
+	return c.Prepend("candle")
+})
+
 // EncodeItem ...
 func (c Candle) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + c.Colour.Prepend("candle"), 0
+	return candleName(c.Colour), 0
 }
 
 // EncodeBlock ...
 func (c Candle) EncodeBlock() (name string, properties map[string]any) {
-	return "minecraft:" + c.Colour.Prepend("candle"), map[string]any{"candles": int32(c.AdditionalCandles), "lit": c.Lit}
+	return candleName(c.Colour), map[string]any{"candles": int32(c.AdditionalCandles), "lit": c.Lit}
 }
 
 // allCandles returns candle blocks with all possible colours.

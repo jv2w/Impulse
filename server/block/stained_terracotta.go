@@ -31,14 +31,17 @@ func (t StainedTerracotta) SmeltInfo() item.SmeltInfo {
 	return newSmeltInfo(item.NewStack(GlazedTerracotta{Colour: t.Colour}, 1), 0.1)
 }
 
+// stainedTerracottaName gives the encoded name of this block in a colour.
+var stainedTerracottaName = colourNamer(item.Colour.String, "_terracotta")
+
 // EncodeItem ...
 func (t StainedTerracotta) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + t.Colour.String() + "_terracotta", 0
+	return stainedTerracottaName(t.Colour), 0
 }
 
 // EncodeBlock ...
 func (t StainedTerracotta) EncodeBlock() (name string, properties map[string]any) {
-	return "minecraft:" + t.Colour.String() + "_terracotta", nil
+	return stainedTerracottaName(t.Colour), nil
 }
 
 // allStainedTerracotta returns stained terracotta blocks with all possible colours.

@@ -99,14 +99,17 @@ func (Flower) CompostChance() float64 {
 	return 0.65
 }
 
+// flowerName gives the encoded name of a flower of a type.
+var flowerName = enumNamer(FlowerTypes(), FlowerType.String)
+
 // EncodeItem ...
 func (f Flower) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + f.Type.String(), 0
+	return flowerName(f.Type), 0
 }
 
 // EncodeBlock ...
 func (f Flower) EncodeBlock() (string, map[string]any) {
-	return "minecraft:" + f.Type.String(), nil
+	return flowerName(f.Type), nil
 }
 
 // allFlowers ...

@@ -79,14 +79,17 @@ func (Anvil) Landed(tx *world.Tx, pos cube.Pos) {
 	tx.PlaySound(pos.Vec3Centre(), sound.AnvilLand{})
 }
 
+// anvilName gives the encoded name of an anvil of a type.
+var anvilName = enumNamer(AnvilTypes(), AnvilType.String)
+
 // EncodeItem ...
 func (a Anvil) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + a.Type.String(), 0
+	return anvilName(a.Type), 0
 }
 
 // EncodeBlock ...
 func (a Anvil) EncodeBlock() (string, map[string]any) {
-	return "minecraft:" + a.Type.String(), map[string]any{
+	return anvilName(a.Type), map[string]any{
 		"minecraft:cardinal_direction": a.Facing.String(),
 	}
 }

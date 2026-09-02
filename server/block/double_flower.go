@@ -69,14 +69,17 @@ func (d DoubleFlower) HasLiquidDrops() bool {
 	return true
 }
 
+// doubleFlowerName gives the encoded name of a double flower of a type.
+var doubleFlowerName = enumNamer(DoubleFlowerTypes(), DoubleFlowerType.String)
+
 // EncodeItem ...
 func (d DoubleFlower) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + d.Type.String(), 0
+	return doubleFlowerName(d.Type), 0
 }
 
 // EncodeBlock ...
 func (d DoubleFlower) EncodeBlock() (string, map[string]any) {
-	return "minecraft:" + d.Type.String(), map[string]any{"upper_block_bit": d.UpperPart}
+	return doubleFlowerName(d.Type), map[string]any{"upper_block_bit": d.UpperPart}
 }
 
 // allDoubleFlowers ...

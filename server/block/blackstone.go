@@ -41,14 +41,17 @@ func (b Blackstone) BreakInfo() BreakInfo {
 	return newBreakInfo(hardness, pickaxeHarvestable, pickaxeEffective, drops).withBlastResistance(6)
 }
 
+// blackstoneName gives the encoded name of blackstone of a type.
+var blackstoneName = enumNamer(BlackstoneTypes(), BlackstoneType.String)
+
 // EncodeItem ...
 func (b Blackstone) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + b.Type.String(), 0
+	return blackstoneName(b.Type), 0
 }
 
 // EncodeBlock ...
 func (b Blackstone) EncodeBlock() (string, map[string]any) {
-	return "minecraft:" + b.Type.String(), nil
+	return blackstoneName(b.Type), nil
 }
 
 // allBlackstone returns a list of all blackstone block variants.

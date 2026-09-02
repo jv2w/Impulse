@@ -218,6 +218,32 @@ func placed(ctx *item.UseContext) bool {
 	return ctx.CountSub > 0
 }
 
+// enumNamer returns a function giving the encoded name a block carries for one
+// of the values passed. The names are built once: item.Stack.Empty reaches
+// EncodeItem on nearly every method of Stack, so concatenating the name there
+// allocated a string on each of those calls. A value the list does not cover
+// still has its name built on the spot.
+func enumNamer[T comparable](values []T, name func(T) string) func(T) string {
+	names := make(map[T]string, len(values))
+	for _, v := range values {
+		names[v] = "minecraft:" + name(v)
+	}
+	return func(v T) string {
+		if n, ok := names[v]; ok {
+			return n
+		}
+		return "minecraft:" + name(v)
+	}
+}
+
+// colourNamer is enumNamer over the sixteen colours, for a block whose name is
+// a colour followed by the suffix passed.
+func colourNamer(name func(item.Colour) string, suffix string) func(item.Colour) string {
+	return enumNamer(item.Colours(), func(c item.Colour) string {
+		return name(c) + suffix
+	})
+}
+
 // boolByte returns 1 if the bool passed is true, or 0 if it is false.
 func boolByte(b bool) uint8 {
 	if b {
