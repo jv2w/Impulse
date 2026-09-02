@@ -84,10 +84,13 @@ func (s *lightningState) dealDamage(e *Ent, tx *world.Tx) {
 // spreadFire attempts to place fire at the position of the lightning and does
 // 4 additional attempts to spread it around that position.
 func (s *lightningState) spreadFire(tx *world.Tx, pos cube.Pos) {
-	s.fire().Start(tx, pos)
+	// Every fire() call builds a property map and walks the block registry for
+	// the same block; nothing between the five placements can register another.
+	f := s.fire()
+	f.Start(tx, pos)
 	for i := 0; i < 4; i++ {
 		pos.Add(cube.Pos{rand.IntN(3) - 1, rand.IntN(3) - 1, rand.IntN(3) - 1})
-		s.fire().Start(tx, pos)
+		f.Start(tx, pos)
 	}
 }
 

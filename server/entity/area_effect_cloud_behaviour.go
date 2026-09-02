@@ -136,12 +136,19 @@ func (a *AreaEffectCloudBehaviour) filter(seq iter.Seq[world.Entity]) iter.Seq[w
 // cooldown period.
 func (a *AreaEffectCloudBehaviour) applyEffects(pos mgl64.Vec3, ent *Ent, entities iter.Seq[world.Entity]) bool {
 	var update bool
+	// Effects builds a fresh slice out of the potion, which never changes for the
+	// life of the cloud. Build it on the first entity in range rather than on
+	// every one, and not at all for a sweep that reaches nobody.
+	var effects []effect.Effect
 	for e := range entities {
 		delta := e.Position().Sub(pos)
 		delta[1] = 0
 		if delta.Len() <= a.radius {
 			l := e.(Living)
-			for _, eff := range a.Effects() {
+			if effects == nil {
+				effects = a.Effects()
+			}
+			for _, eff := range effects {
 				if lasting, ok := eff.Type().(effect.LastingType); ok {
 					l.AddEffect(effect.New(lasting, eff.Level(), eff.Duration()/4))
 					continue
