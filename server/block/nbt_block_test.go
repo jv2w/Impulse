@@ -200,116 +200,140 @@ func TestDecodeNBTOnEmptyMap(t *testing.T) {
 	}
 }
 
-// TestDecodeNBTPanics is the catalogue of block entities whose DecodeNBT panics on input a client or a corrupt save can
-// supply. Every entry here is reachable from server/session's stackToItem, which hands client-supplied NBT straight to
-// DecodeNBT, and from world loading.
-//
-// PINNED BUG: all of these violate CLAUDE.md 2.2 - decode failure must be a value, not a panic. They are pinned, not
-// fixed, so that a later fix has to delete a test deliberately rather than by accident.
-func TestDecodeNBTPanics(t *testing.T) {
+// TestDecodeNBTRejectsOutOfRangeValues is the catalogue of block entity fields whose stored value can name something
+// this build has no meaning for. Every case here is reachable from server/session's stackToItem, which hands
+// client-supplied NBT straight to DecodeNBT, and from world loading. None of them may panic: the unreadable value is
+// ignored and the field keeps the default it would have had if the key were absent.
+func TestDecodeNBTRejectsOutOfRangeValues(t *testing.T) {
 	tests := []struct {
-		name string
-		// site is the file:line of the panic, recorded so the catalogue stays traceable as the code moves.
-		site  string
+		name  string
 		block world.NBTer
 		data  map[string]any
-		// wantMsg is a substring of the panic value formatted with %v.
-		wantMsg string
+		// want is the decoded block, which must equal what the same receiver decodes from an empty map.
+		check func(*testing.T, any)
 	}{
 		{
-			name:    "bed colour index out of range",
-			site:    "bed.go:220",
-			block:   block.Bed{},
-			data:    map[string]any{"color": uint8(16)},
-			wantMsg: "index out of range [16] with length 16",
+			name:  "bed colour index out of range",
+			block: block.Bed{},
+			data:  map[string]any{"color": uint8(16)},
+			check: func(t *testing.T, got any) {
+				if c := got.(block.Bed).Colour; c != item.ColourWhite() {
+					t.Errorf("colour = %v, want white", c)
+				}
+			},
 		},
 		{
-			name:    "bed colour 255",
-			site:    "bed.go:220",
-			block:   block.Bed{},
-			data:    map[string]any{"color": uint8(255)},
-			wantMsg: "index out of range [255] with length 16",
+			name:  "bed colour 255",
+			block: block.Bed{},
+			data:  map[string]any{"color": uint8(255)},
+			check: func(t *testing.T, got any) {
+				if c := got.(block.Bed).Colour; c != item.ColourWhite() {
+					t.Errorf("colour = %v, want white", c)
+				}
+			},
 		},
 		{
 			name:  "beacon primary effect is instant, not lasting",
-			site:  "beacon.go:54",
 			block: block.Beacon{},
 			// Effect 6 is InstantHealth, which is registered but does not implement effect.LastingType.
-			data:    map[string]any{"Primary": int32(6)},
-			wantMsg: "interface conversion",
+			data: map[string]any{"Primary": int32(6)},
+			check: func(t *testing.T, got any) {
+				if p := got.(block.Beacon).Primary; p != nil {
+					t.Errorf("primary = %v, want nil", p)
+				}
+			},
 		},
 		{
-			name:    "beacon secondary effect is instant, not lasting",
-			site:    "beacon.go:57",
-			block:   block.Beacon{},
-			data:    map[string]any{"Secondary": int32(7)},
-			wantMsg: "interface conversion",
+			name:  "beacon secondary effect is instant, not lasting",
+			block: block.Beacon{},
+			data:  map[string]any{"Secondary": int32(7)},
+			check: func(t *testing.T, got any) {
+				if s := got.(block.Beacon).Secondary; s != nil {
+					t.Errorf("secondary = %v, want nil", s)
+				}
+			},
 		},
 		{
-			name:    "banner pattern id is unknown",
-			site:    "banner_pattern_layer.go:31",
-			block:   block.Banner{},
-			data:    map[string]any{"Patterns": []any{map[string]any{"Pattern": "not_a_pattern"}}},
-			wantMsg: `unknown banner pattern id "not_a_pattern"`,
+			name:  "banner pattern id is unknown",
+			block: block.Banner{},
+			data:  map[string]any{"Patterns": []any{map[string]any{"Pattern": "not_a_pattern"}}},
+			check: func(t *testing.T, got any) {
+				if p := got.(block.Banner).Patterns; len(p) != 0 {
+					t.Errorf("patterns = %v, want the unknown layer dropped", p)
+				}
+			},
 		},
 		{
 			name:  "banner pattern id is absent",
-			site:  "banner_pattern_layer.go:31",
 			block: block.Banner{},
 			// An empty compound reads Pattern as "", which is not a registered id either.
-			data:    map[string]any{"Patterns": []any{map[string]any{}}},
-			wantMsg: `unknown banner pattern id ""`,
+			data: map[string]any{"Patterns": []any{map[string]any{}}},
+			check: func(t *testing.T, got any) {
+				if p := got.(block.Banner).Patterns; len(p) != 0 {
+					t.Errorf("patterns = %v, want the unknown layer dropped", p)
+				}
+			},
 		},
 		{
-			name:    "banner pattern element is not a compound",
-			site:    "banner.go:112",
-			block:   block.Banner{},
-			data:    map[string]any{"Patterns": []any{"not a compound"}},
-			wantMsg: "interface conversion",
+			name:  "banner pattern element is not a compound",
+			block: block.Banner{},
+			data:  map[string]any{"Patterns": []any{"not a compound"}},
+			check: func(t *testing.T, got any) {
+				if p := got.(block.Banner).Patterns; len(p) != 0 {
+					t.Errorf("patterns = %v, want the unreadable layer dropped", p)
+				}
+			},
 		},
 		{
-			name:    "decorated pot sherd names an unknown item",
-			site:    "decorated_pot.go:194",
-			block:   block.DecoratedPot{},
-			data:    map[string]any{"sherds": []any{"minecraft:not_an_item"}},
-			wantMsg: "unknown item minecraft:not_an_item",
+			name:  "decorated pot sherd names an unknown item",
+			block: block.DecoratedPot{},
+			data:  map[string]any{"sherds": []any{"minecraft:not_an_item"}},
+			check: wantNoDecoration,
 		},
 		{
-			name:    "decorated pot sherd names a non-decoration item",
-			site:    "decorated_pot.go:198",
-			block:   block.DecoratedPot{},
-			data:    map[string]any{"sherds": []any{"minecraft:diamond"}},
-			wantMsg: "is not a pot decoration",
+			name:  "decorated pot sherd names a non-decoration item",
+			block: block.DecoratedPot{},
+			data:  map[string]any{"sherds": []any{"minecraft:diamond"}},
+			check: wantNoDecoration,
 		},
 		{
-			name:    "decorated pot sherd is not a string",
-			site:    "decorated_pot.go:192",
-			block:   block.DecoratedPot{},
-			data:    map[string]any{"sherds": []any{int32(3)}},
-			wantMsg: "interface conversion",
+			name:  "decorated pot sherd is not a string",
+			block: block.DecoratedPot{},
+			data:  map[string]any{"sherds": []any{int32(3)}},
+			check: wantNoDecoration,
 		},
 		{
 			name:  "decorated pot sherd is an empty string",
-			site:  "decorated_pot.go:194",
 			block: block.DecoratedPot{},
 			// A truncated list element decodes to "", which resolves to no item.
-			data:    map[string]any{"sherds": []any{""}},
-			wantMsg: "unknown item ",
+			data:  map[string]any{"sherds": []any{""}},
+			check: wantNoDecoration,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			defer func() {
-				r := recover()
-				if r == nil {
-					t.Fatalf("DecodeNBT did not panic; the panic at %s may have been fixed", tt.site)
-				}
-				if msg := fmt.Sprint(r); !strings.Contains(msg, tt.wantMsg) {
-					t.Errorf("panic = %q, want it to contain %q (%s)", msg, tt.wantMsg, tt.site)
-				}
-			}()
-			tt.block.DecodeNBT(tt.data)
+			got := tt.block.DecodeNBT(tt.data)
+			tt.check(t, got)
+			// The result must still encode, i.e. nothing was left in a shape the encoder rejects.
+			if m := got.(world.NBTer).EncodeNBT(); m == nil {
+				t.Error("EncodeNBT after the rejected decode returned nil")
+			}
 		})
+	}
+
+	// A value in range is still read, so the guards do not blank good data.
+	if c := (block.Bed{}.DecodeNBT(map[string]any{"color": uint8(5)}).(block.Bed).Colour); c != item.Colours()[5] {
+		t.Errorf("colour 5 decoded to %v, want %v", c, item.Colours()[5])
+	}
+	if p := (block.Beacon{}.DecodeNBT(map[string]any{"Primary": int32(1)}).(block.Beacon).Primary); p == nil {
+		t.Error("a lasting primary effect decoded to nil")
+	}
+}
+
+// wantNoDecoration asserts that a decorated pot decoded no sherd into its first decoration slot.
+func wantNoDecoration(t *testing.T, got any) {
+	if d := got.(block.DecoratedPot).Decorations[0]; d != nil {
+		t.Errorf("decoration = %v, want nil", d)
 	}
 }
 

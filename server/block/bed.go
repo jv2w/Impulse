@@ -217,7 +217,11 @@ func (b Bed) EncodeNBT() map[string]interface{} {
 
 // DecodeNBT ...
 func (b Bed) DecodeNBT(data map[string]interface{}) interface{} {
-	b.Colour = item.Colours()[nbtconv.Uint8(data, "color")]
+	// A colour outside the sixteen is not a colour this build has; the bed keeps the white an absent key gives it.
+	colours := item.Colours()
+	if c := int(nbtconv.Uint8(data, "color")); c < len(colours) {
+		b.Colour = colours[c]
+	}
 	return b
 }
 

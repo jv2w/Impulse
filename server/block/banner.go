@@ -107,10 +107,18 @@ func (b Banner) DecodeNBT(m map[string]any) any {
 	}
 	b.Illager = nbtconv.Int32(m, "Type") == 1
 	if patterns := nbtconv.Slice(m, "Patterns"); patterns != nil {
-		b.Patterns = make([]BannerPatternLayer, len(patterns))
-		for i, p := range b.Patterns {
-			b.Patterns[i] = p.DecodeNBT(patterns[i].(map[string]any)).(BannerPatternLayer)
+		// A layer that cannot be read is dropped rather than saved back as some other pattern.
+		var layers []BannerPatternLayer
+		for _, p := range patterns {
+			data, ok := p.(map[string]any)
+			if !ok {
+				continue
+			}
+			if layer, ok := (BannerPatternLayer{}).DecodeNBT(data); ok {
+				layers = append(layers, layer)
+			}
 		}
+		b.Patterns = layers
 	}
 	return b
 }

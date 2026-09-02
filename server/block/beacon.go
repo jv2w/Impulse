@@ -50,11 +50,17 @@ func (b Beacon) Activate(pos cube.Pos, _ cube.Face, tx *world.Tx, u item.User, _
 // DecodeNBT ...
 func (b Beacon) DecodeNBT(data map[string]any) any {
 	b.level = int(nbtconv.Int32(data, "Levels"))
+	// A registered effect that is instant rather than lasting, such as instant health, is a valid effect ID that no
+	// beacon can hold. It leaves the slot unset, as an unregistered ID does.
 	if primary, ok := effect.ByID(int(nbtconv.Int32(data, "Primary"))); ok {
-		b.Primary = primary.(effect.LastingType)
+		if lasting, ok := primary.(effect.LastingType); ok {
+			b.Primary = lasting
+		}
 	}
 	if secondary, ok := effect.ByID(int(nbtconv.Int32(data, "Secondary"))); ok {
-		b.Secondary = secondary.(effect.LastingType)
+		if lasting, ok := secondary.(effect.LastingType); ok {
+			b.Secondary = lasting
+		}
 	}
 	return b
 }

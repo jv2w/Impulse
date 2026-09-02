@@ -1,7 +1,6 @@
 package block
 
 import (
-	"fmt"
 	"github.com/go-gl/mathgl/mgl64"
 	"github.com/jv2w/Impulse/server/block/cube"
 	"github.com/jv2w/Impulse/server/block/model"
@@ -189,15 +188,19 @@ func (p DecoratedPot) DecodeNBT(data map[string]any) any {
 			if i >= len(p.Decorations) {
 				break
 			}
-			it, ok := world.ItemByName(name.(string), 0)
+			// A sherd this build cannot resolve to a decoration leaves the slot undecorated, which is what an
+			// absent sherd means and what EncodeNBT writes back as a plain brick.
+			id, ok := name.(string)
 			if !ok {
-				panic(fmt.Errorf("unknown item %s", name))
+				continue
 			}
-			decoration, ok := it.(PotDecoration)
+			it, ok := world.ItemByName(id, 0)
 			if !ok {
-				panic(fmt.Errorf("item %s is not a pot decoration", name))
+				continue
 			}
-			p.Decorations[i] = decoration
+			if decoration, ok := it.(PotDecoration); ok {
+				p.Decorations[i] = decoration
+			}
 		}
 	}
 	return p
