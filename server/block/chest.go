@@ -320,7 +320,9 @@ func (c Chest) DecodeNBT(data map[string]any) any {
 		}
 	}
 
-	nbtconv.InvFromNBT(c.inventory, nbtconv.Slice(data, "Items"))
+	// DecodeNBT has no channel to report an entry this build cannot read on; the slots it
+	// names load empty and the rest of the chest loads intact.
+	_ = nbtconv.InvFromNBT(c.inventory, nbtconv.Slice(data, "Items"))
 	return c
 }
 

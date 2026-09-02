@@ -133,7 +133,9 @@ func (s Smoker) DecodeNBT(data map[string]interface{}) interface{} {
 	s.Lit = lit
 	s.setExperience(xp)
 	s.setDurations(remaining, maximum, cook)
-	nbtconv.InvFromNBT(s.inventory, nbtconv.Slice(data, "Items"))
+	// DecodeNBT has no channel to report an entry this build cannot read on; the slots it
+	// names load empty and the rest of the smoker loads intact.
+	_ = nbtconv.InvFromNBT(s.inventory, nbtconv.Slice(data, "Items"))
 	return s
 }
 

@@ -133,7 +133,9 @@ func (b BlastFurnace) DecodeNBT(data map[string]interface{}) interface{} {
 	b.Lit = lit
 	b.setExperience(xp)
 	b.setDurations(remaining, maximum, cook)
-	nbtconv.InvFromNBT(b.inventory, nbtconv.Slice(data, "Items"))
+	// DecodeNBT has no channel to report an entry this build cannot read on; the slots it
+	// names load empty and the rest of the blast furnace loads intact.
+	_ = nbtconv.InvFromNBT(b.inventory, nbtconv.Slice(data, "Items"))
 	return b
 }
 

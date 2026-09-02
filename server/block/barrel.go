@@ -150,7 +150,9 @@ func (b Barrel) DecodeNBT(data map[string]any) any {
 	b = NewBarrel()
 	b.Facing = facing
 	b.CustomName = nbtconv.String(data, "CustomName")
-	nbtconv.InvFromNBT(b.inventory, nbtconv.Slice(data, "Items"))
+	// DecodeNBT has no channel to report an entry this build cannot read on; the slots it
+	// names load empty and the rest of the barrel loads intact.
+	_ = nbtconv.InvFromNBT(b.inventory, nbtconv.Slice(data, "Items"))
 	return b
 }
 

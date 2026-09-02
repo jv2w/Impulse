@@ -680,9 +680,9 @@ func TestContainerItemsKeyAndSlots(t *testing.T) {
 // TestContainerDropsUnresolvableItems pins that a container entry naming an item this build cannot resolve is dropped
 // silently, leaving the slot empty.
 //
-// PINNED BUG: this is unrecoverable data loss on the next save. nbtconv.InvFromNBT discards both item.ReadNBT's error
-// and inventory.SetItem's error because it has no channel to report them on; the comment in nbtconv/item.go says so.
-// An unknown item is exactly what a save written by a newer build looks like to an older one.
+// PINNED BUG: this is unrecoverable data loss on the next save. nbtconv.InvFromNBT now reports the entry it could not
+// read, but DecodeNBT has no channel to carry that report on and drops it. An unknown item is exactly what a save
+// written by a newer build looks like to an older one.
 func TestContainerDropsUnresolvableItems(t *testing.T) {
 	tests := []struct {
 		name  string

@@ -274,7 +274,9 @@ func (s ShulkerBox) EncodeItem() (id string, meta int16) {
 
 func (s ShulkerBox) DecodeNBT(data map[string]any) any {
 	s = s.initialised()
-	nbtconv.InvFromNBT(s.inventory, nbtconv.Slice(data, "Items"))
+	// DecodeNBT has no channel to report an entry this build cannot read on; the slots it
+	// names load empty and the rest of the shulker box loads intact.
+	_ = nbtconv.InvFromNBT(s.inventory, nbtconv.Slice(data, "Items"))
 	s.Facing = cube.Face(nbtconv.Uint8(data, "facing"))
 	s.CustomName = nbtconv.String(data, "CustomName")
 	return s

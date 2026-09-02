@@ -1,22 +1,46 @@
 package nbtconv
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/jv2w/Impulse/server/item"
 	"github.com/jv2w/Impulse/server/item/inventory"
 )
 
-// InvFromNBT decodes the data of an NBT slice into the inventory passed.
-func InvFromNBT(inv *inventory.Inventory, items []any) {
-	for _, itemData := range items {
-		data, _ := itemData.(map[string]any)
-		// An item this build cannot resolve leaves its slot empty; InvFromNBT
-		// has no channel to report the loss on.
-		it, _ := item.ReadNBT(data, nil)
+// InvFromNBT decodes the data of an NBT slice into the inventory passed. Entries are independent: every entry that
+// decodes is written, and the error returned joins the failures of the rest. Rejecting the whole slice on one bad
+// entry would erase the items around it on the next save, which is a larger loss than the entry itself.
+//
+// An entry fails when it is not a compound, when item.ReadNBT rejects it, when its "Slot" is not the byte InvToNBT
+// writes, or when that slot lies outside inv. An entry that decodes to an empty stack is a free slot and is skipped.
+func InvFromNBT(inv *inventory.Inventory, items []any) error {
+	var errs []error
+	for i, itemData := range items {
+		data, ok := itemData.(map[string]any)
+		if !ok {
+			errs = append(errs, fmt.Errorf("item %d: %T is not a compound", i, itemData))
+			continue
+		}
+		it, err := item.ReadNBT(data, nil)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("item %d: %w", i, err))
+			continue
+		}
 		if it.Empty() {
 			continue
 		}
-		_ = inv.SetItem(int(Uint8(data, "Slot")), it)
+		// A "Slot" of another type read as a uint8 is 0, which silently overwrites whatever the first slot holds.
+		slot, ok := data["Slot"].(uint8)
+		if !ok {
+			errs = append(errs, fmt.Errorf("item %d: slot is %T, not uint8", i, data["Slot"]))
+			continue
+		}
+		if err := inv.SetItem(int(slot), it); err != nil {
+			errs = append(errs, fmt.Errorf("item %d: slot %d: %w", i, slot, err))
+		}
 	}
+	return errors.Join(errs...)
 }
 
 // InvToNBT encodes an inventory to a data slice which may be encoded as NBT.

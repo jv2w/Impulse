@@ -612,7 +612,9 @@ func TestInvNBTRoundTrip(t *testing.T) {
 	}
 
 	out := inventory.New(27, nil)
-	nbtconv.InvFromNBT(out, data)
+	if err := nbtconv.InvFromNBT(out, data); err != nil {
+		t.Fatalf("InvFromNBT on data InvToNBT wrote: %v", err)
+	}
 	for _, slot := range []int{0, 26} {
 		want, _ := inv.Item(slot)
 		got, err := out.Item(slot)
@@ -625,29 +627,32 @@ func TestInvNBTRoundTrip(t *testing.T) {
 	}
 }
 
-// TestInvFromNBTDropsUnreadableEntries pins that InvFromNBT swallows every failure: a malformed entry, an entry naming
-// an item this build does not know, and an entry whose slot is out of range all leave the inventory untouched with no
-// error returned.
+// TestInvFromNBTReportsUnreadableEntries covers the failure modes an entry can carry. Each leaves the inventory
+// untouched, and each is reported: a caller with a channel to report on can tell that the slice was not read whole.
 //
-// PINNED BUG: item.ReadNBT's error and inv.SetItem's error are both discarded (item.go:16 and item.go:19). An item that
-// this build cannot resolve is deleted from the chest on the next save, silently and irreversibly. The comment in
-// item.go acknowledges this; the test pins it so a future fix has to change the test deliberately.
-func TestInvFromNBTDropsUnreadableEntries(t *testing.T) {
+// PINNED CONSTRAINT: an entry whose count is of the wrong type reads as a count of 0, which is indistinguishable from
+// an empty slot, so it is dropped without an error. The count is read in item.readItemStack, not here.
+func TestInvFromNBTReportsUnreadableEntries(t *testing.T) {
 	tests := []struct {
-		name  string
-		items []any
+		name    string
+		items   []any
+		wantErr bool
 	}{
-		{name: "nil entry", items: []any{nil}},
-		{name: "entry of wrong type", items: []any{"not a compound"}},
+		{name: "nil entry", items: []any{nil}, wantErr: true},
+		{name: "entry of wrong type", items: []any{"not a compound"}, wantErr: true},
 		{name: "empty compound", items: []any{map[string]any{}}},
-		{name: "unknown item name", items: []any{map[string]any{"Name": "minecraft:not_an_item", "Count": byte(1), "Slot": byte(0)}}},
-		{name: "slot beyond inventory size", items: []any{map[string]any{"Name": "minecraft:diamond", "Count": byte(1), "Damage": int16(0), "Slot": byte(200)}}},
+		{name: "unknown item name", items: []any{map[string]any{"Name": "minecraft:not_an_item", "Count": byte(1), "Slot": byte(0)}}, wantErr: true},
+		{name: "slot beyond inventory size", items: []any{map[string]any{"Name": "minecraft:diamond", "Count": byte(1), "Damage": int16(0), "Slot": byte(200)}}, wantErr: true},
+		{name: "slot of wrong type", items: []any{map[string]any{"Name": "minecraft:diamond", "Count": byte(1), "Damage": int16(0), "Slot": int32(5)}}, wantErr: true},
+		{name: "slot absent", items: []any{map[string]any{"Name": "minecraft:diamond", "Count": byte(1), "Damage": int16(0)}}, wantErr: true},
 		{name: "count of wrong type", items: []any{map[string]any{"Name": "minecraft:diamond", "Count": int32(1), "Slot": byte(0)}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			inv := inventory.New(27, nil)
-			nbtconv.InvFromNBT(inv, tt.items)
+			if err := nbtconv.InvFromNBT(inv, tt.items); (err != nil) != tt.wantErr {
+				t.Errorf("InvFromNBT error = %v, want an error: %v", err, tt.wantErr)
+			}
 			for slot, it := range inv.Slots() {
 				if !it.Empty() {
 					t.Errorf("slot %d = %v, want empty", slot, it)
@@ -657,25 +662,24 @@ func TestInvFromNBTDropsUnreadableEntries(t *testing.T) {
 	}
 }
 
-// TestInvFromNBTSlotKeyIsUint8 pins that the slot index is read through Uint8, so an entry storing "Slot" as int32 -
-// the type a hand-built or foreign-format map would plausibly use - lands in slot 0 instead of the intended slot.
-//
-// PINNED BUG: a wrong-typed Slot silently overwrites slot 0. Two such entries in one chest overwrite each other and the
-// remaining items are lost.
-func TestInvFromNBTSlotKeyIsUint8(t *testing.T) {
+// TestInvFromNBTKeepsReadableEntries covers the decision behind reporting per entry rather than rejecting the slice:
+// an entry that cannot be read costs its own slot and nothing else. Rejecting the whole slice would blank the entries
+// beside it, and the next save would make that permanent.
+func TestInvFromNBTKeepsReadableEntries(t *testing.T) {
 	inv := inventory.New(27, nil)
-	nbtconv.InvFromNBT(inv, []any{
-		map[string]any{"Name": "minecraft:diamond", "Count": byte(1), "Damage": int16(0), "Slot": int32(5)},
+	err := nbtconv.InvFromNBT(inv, []any{
+		map[string]any{"Name": "minecraft:not_an_item", "Count": byte(1), "Slot": byte(0)},
+		map[string]any{"Name": "minecraft:diamond", "Count": byte(2), "Damage": int16(0), "Slot": byte(5)},
 	})
-	it, err := inv.Item(0)
-	if err != nil {
-		t.Fatalf("read slot 0: %v", err)
+	if err == nil {
+		t.Error("InvFromNBT error = nil, want the unreadable entry reported")
 	}
-	if it.Empty() {
-		t.Fatal("slot 0 is empty; expected the int32 Slot to have been read as 0")
+	if zero, _ := inv.Item(0); !zero.Empty() {
+		t.Errorf("slot 0 = %v, want empty", zero)
 	}
-	if five, _ := inv.Item(5); !five.Empty() {
-		t.Errorf("slot 5 = %v, want empty", five)
+	five, _ := inv.Item(5)
+	if five.Empty() || five.Count() != 2 {
+		t.Errorf("slot 5 = %v, want 2 diamonds", five)
 	}
 }
 

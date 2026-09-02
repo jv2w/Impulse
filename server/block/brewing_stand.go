@@ -110,7 +110,9 @@ func (b BrewingStand) DecodeNBT(data map[string]any) any {
 	b = NewBrewingStand()
 	b.setDuration(brew)
 	b.setFuel(fuel, maxFuel)
-	nbtconv.InvFromNBT(b.inventory, nbtconv.Slice(data, "Items"))
+	// DecodeNBT has no channel to report an entry this build cannot read on; the slots it
+	// names load empty and the rest of the brewing stand loads intact.
+	_ = nbtconv.InvFromNBT(b.inventory, nbtconv.Slice(data, "Items"))
 	return b
 }
 
