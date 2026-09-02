@@ -2359,8 +2359,11 @@ func (p *Player) Move(deltaPos mgl64.Vec3, deltaYaw, deltaPitch float64) {
 		}
 	}
 
-	_, submergedBefore := p.tx.Liquid(cube.PosFromVec3(pos.Add(mgl64.Vec3{0, p.EyeHeight()})))
-	_, submergedAfter := p.tx.Liquid(cube.PosFromVec3(res.Add(mgl64.Vec3{0, p.EyeHeight()})))
+	// Only a liquid read separates the two eye heights, and the pose flags the
+	// switch reads cannot change during it.
+	eye := mgl64.Vec3{0, p.EyeHeight()}
+	_, submergedBefore := p.tx.Liquid(cube.PosFromVec3(pos.Add(eye)))
+	_, submergedAfter := p.tx.Liquid(cube.PosFromVec3(res.Add(eye)))
 	if submergedBefore != submergedAfter {
 		// Player wasn't either breathing before and no longer isn't, or wasn't breathing before and now is,
 		// so send the updated metadata.
@@ -2682,7 +2685,13 @@ func (p *Player) Tick(tx *world.Tx, current int64) {
 		}
 	}
 
-	held, _ := p.HeldItems()
+	// Both blocks below need usingItem to be set, and nothing runs between this
+	// read and the first of them, so the two inventory locks and stack copies
+	// are only worth taking while an item is in use.
+	var held item.Stack
+	if p.usingItem {
+		held, _ = p.HeldItems()
+	}
 	if current%4 == 0 && p.usingItem {
 		if _, ok := held.Item().(item.Consumable); ok {
 			// Eating particles seem to happen roughly every 4 ticks.
