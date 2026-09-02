@@ -113,8 +113,12 @@ type RedstoneNonConductive interface {
 // and scheduled block ticks remain the semantic model for block behaviour; the engine just resolves wire/relayer power
 // and lets consumers and actions schedule any delayed or directional changes themselves.
 type redstoneEngine struct {
-	currentTick       int64
-	dirty             map[cube.Pos]redstoneDirty
+	currentTick int64
+	dirty       map[cube.Pos]redstoneDirty
+	// dirtySpare holds the map the last tick drained, so a tick can swap maps
+	// instead of cloning the dirty set. It is nil while a tick is running: the
+	// map it would hold is the set that tick is reading.
+	dirtySpare        map[cube.Pos]redstoneDirty
 	power             map[cube.Pos]int
 	output            map[cube.Pos]int
 	evaluating        map[cube.Pos]struct{}
@@ -170,6 +174,7 @@ func newRedstoneEngine(tick int64) *redstoneEngine {
 	return &redstoneEngine{
 		currentTick: tick,
 		dirty:       make(map[cube.Pos]redstoneDirty),
+		dirtySpare:  make(map[cube.Pos]redstoneDirty),
 		power:       make(map[cube.Pos]int),
 		output:      make(map[cube.Pos]int),
 		evaluating:  make(map[cube.Pos]struct{}),
@@ -276,8 +281,17 @@ func (e *redstoneEngine) tick(tx *Tx, tick int64) {
 		return
 	}
 	e.currentTick = tick
-	dirty := maps.Clone(e.dirty)
-	clear(e.dirty)
+	// Swap the dirty set out for the map the last tick drained rather than
+	// cloning it. Invalidations raised while this tick runs land in the fresh
+	// map and so are still evaluated on the next tick.
+	dirty := e.dirty
+	if e.dirtySpare == nil {
+		// A nested tick already took the spare: the pass it interrupted is
+		// still reading the map that would be handed out here.
+		e.dirty = make(map[cube.Pos]redstoneDirty)
+	} else {
+		e.dirty, e.dirtySpare = e.dirtySpare, nil
+	}
 
 	candidates := slices.Collect(maps.Keys(dirty))
 	slices.SortFunc(candidates, compareBlockPos)
@@ -306,6 +320,9 @@ func (e *redstoneEngine) tick(tx *Tx, tick int64) {
 			e.updateSource(tx, node.pos, d)
 		}
 	}
+
+	clear(dirty)
+	e.dirtySpare = dirty
 }
 
 // redstoneDirtyContext returns the direct dirty context for pos, or the nearest dirty context that pulled pos into

@@ -81,6 +81,11 @@ type World struct {
 	scheduledUpdates *scheduledTickQueue
 	redstone         *redstoneEngine
 	neighbourUpdates []neighbourUpdate
+	// neighbourUpdatesSpare holds the buffer the last neighbour update pass
+	// drained, so a pass can swap buffers instead of cloning the queue. It is
+	// nil while a pass is running: the buffer it would hold is the queue that
+	// pass is appending to, and handing it out would alias the two.
+	neighbourUpdatesSpare []neighbourUpdate
 
 	viewerMu sync.Mutex
 	viewers  map[*Loader]Viewer

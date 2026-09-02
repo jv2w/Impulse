@@ -106,9 +106,12 @@ func (t ticker) tick(tx *Tx) {
 
 // performNeighbourUpdates performs all block updates that came as a result of a neighbouring block being changed.
 func (t ticker) performNeighbourUpdates(tx *Tx) {
-	updates := slices.Clone(tx.World().neighbourUpdates)
-	clear(tx.World().neighbourUpdates)
-	tx.World().neighbourUpdates = tx.World().neighbourUpdates[:0]
+	w := tx.World()
+	// Swap the queue out for the buffer the previous pass drained rather than
+	// cloning it. Updates registered while this pass runs land in the fresh
+	// buffer and so are still deferred to the next tick.
+	updates := w.neighbourUpdates
+	w.neighbourUpdates, w.neighbourUpdatesSpare = w.neighbourUpdatesSpare[:0], nil
 
 	for _, update := range updates {
 		pos, changedNeighbour := update.pos, update.neighbour
@@ -121,6 +124,9 @@ func (t ticker) performNeighbourUpdates(tx *Tx) {
 			}
 		}
 	}
+
+	clear(updates)
+	w.neighbourUpdatesSpare = updates[:0]
 }
 
 // tickBlocksRandomly executes random block ticks in loaded chunks within range of loaders.
