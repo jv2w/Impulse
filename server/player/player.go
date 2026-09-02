@@ -2643,9 +2643,12 @@ func (p *Player) Tick(tx *world.Tx, current int64) {
 		}
 	}
 
-	if _, ok := p.Armour().Chestplate().Item().(item.Elytra); ok && p.Gliding() {
+	// Only the glide tick counter changes between the two reads of the
+	// chestplate slot, so the stack read for the type check is the one damaged.
+	chestplate := p.Armour().Chestplate()
+	if _, ok := chestplate.Item().(item.Elytra); ok && p.Gliding() {
 		if p.glideTicks += 1; p.glideTicks%20 == 0 {
-			d := p.damageItem(p.Armour().Chestplate(), 1)
+			d := p.damageItem(chestplate, 1)
 			p.armour.SetChestplate(d)
 			if d.Durability() < 2 {
 				p.StopGliding()
