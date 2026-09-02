@@ -66,7 +66,8 @@ func BuildAvailableCommands(
 	suffixIndices := map[string]uint32{}
 
 	for alias, c := range commands {
-		if c.Name() != alias {
+		name := c.Name()
+		if name != alias {
 			// Don't add duplicate entries for aliases.
 			continue
 		}
@@ -81,10 +82,11 @@ func BuildAvailableCommands(
 		overloads := make([]protocol.CommandOverload, len(params))
 
 		aliasesIndex := uint32(math.MaxUint32)
-		if len(c.Aliases()) > 0 {
+		if aliases := c.Aliases(); len(aliases) > 0 {
 			aliasesIndex = uint32(len(enumIndices))
-			enumIndices[c.Name()+"Aliases"] = aliasesIndex
-			enums = append(enums, commandEnum{Type: c.Name() + "Aliases", Options: c.Aliases()})
+			aliasEnum := name + "Aliases"
+			enumIndices[aliasEnum] = aliasesIndex
+			enums = append(enums, commandEnum{Type: aliasEnum, Options: aliases})
 		}
 
 		for i, params := range params {
@@ -133,7 +135,7 @@ func BuildAvailableCommands(
 			}
 		}
 		pk.Commands = append(pk.Commands, protocol.Command{
-			Name:            c.Name(),
+			Name:            name,
 			Description:     c.Description(),
 			AliasesOffset:   aliasesIndex,
 			PermissionLevel: protocol.CommandPermissionLevelAny,

@@ -112,8 +112,10 @@ func (a *lightArea) propagateNeighbour(queue *lightQueue, lt light, level uint8,
 		return
 	}
 	pos := cube.Pos{x, y, z}
-	filter := a.highest(pos, a.br.FilteringBlock) + 1
-	if level > filter && a.light(pos, lt) < level-filter {
+	// The filter lookup and the light read both resolve the SubChunk holding pos, so resolve it once here.
+	sub, bx, by, bz := a.sub(pos), uint8(x&0xf), uint8(y&0xf), uint8(z&0xf)
+	filter := highestIn(sub, bx, by, bz, a.br.FilteringBlock) + 1
+	if level > filter && lt.light(sub, bx, by, bz) < level-filter {
 		queue.push(node(pos, level-filter, lt))
 	}
 }
