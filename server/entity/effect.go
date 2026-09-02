@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"github.com/jv2w/Impulse/server/entity/effect"
 	"github.com/jv2w/Impulse/server/world"
-	"maps"
 	"reflect"
-	"slices"
 )
 
 // EffectManager manages the effects of an entity. The effect manager will only store effects that last for
@@ -89,7 +87,17 @@ func (m *EffectManager) Effect(e effect.Type) (effect.Effect, bool) {
 // Effects returns a list of all effects currently present in the effect manager. This will never include
 // effects that have expired.
 func (m *EffectManager) Effects() []effect.Effect {
-	return append(slices.Collect(maps.Values(m.effects)), m.initialEffects...)
+	if len(m.effects) == 0 && len(m.initialEffects) == 0 {
+		// A manager holding nothing returns a nil slice, not the empty non-nil
+		// one make below would hand back: a caller comparing the result against
+		// nil can tell the two apart.
+		return nil
+	}
+	e := make([]effect.Effect, 0, len(m.effects)+len(m.initialEffects))
+	for _, eff := range m.effects {
+		e = append(e, eff)
+	}
+	return append(e, m.initialEffects...)
 }
 
 // Tick ticks the EffectManager, applying all of its effects to the Living entity passed when applicable and

@@ -55,8 +55,9 @@ func BlockIntercept(pos cube.Pos, src world.BlockSource, b world.Block, start, e
 		dist  = math.MaxFloat64
 	)
 
+	vec := pos.Vec3()
 	for _, bb := range bbs {
-		next, ok := BBoxIntercept(bb.Translate(pos.Vec3()), start, end)
+		next, ok := BBoxIntercept(bb.Translate(vec), start, end)
 		if !ok {
 			continue
 		}
@@ -87,8 +88,9 @@ func BlockIntersects(pos cube.Pos, src world.BlockSource, b world.Block, start, 
 		return BBoxIntersects(cube.Box(0, 0, 0, 1, 1, 1).Translate(pos.Vec3()), start, end)
 	}
 
+	vec := pos.Vec3()
 	for _, bb := range m.BBox(pos, src) {
-		if BBoxIntersects(bb.Translate(pos.Vec3()), start, end) {
+		if BBoxIntersects(bb.Translate(vec), start, end) {
 			return true
 		}
 	}
