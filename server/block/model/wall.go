@@ -25,7 +25,9 @@ func (w Wall) BBox(cube.Pos, world.BlockSource) []cube.BBox {
 	if w.Post {
 		postHeight = 1
 	}
-	boxes := []cube.BBox{cube.Box(0.25, 0, 0.25, 0.75, postHeight, 0.75)}
+	// The post, plus at most one box per horizontal connection.
+	boxes := make([]cube.BBox, 1, 5)
+	boxes[0] = cube.Box(0.25, 0, 0.25, 0.75, postHeight, 0.75)
 	if w.NorthConnection > 0 {
 		boxes = append(boxes, cube.Box(0.25, 0, 0, 0.75, w.NorthConnection, 0.25))
 	}

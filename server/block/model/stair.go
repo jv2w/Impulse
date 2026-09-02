@@ -19,7 +19,9 @@ type Stair struct {
 // BBox returns a slice of physics.BBox depending on if the Stair is upside down and which direction it is facing.
 // Additionally, these BBoxs depend on the Stair blocks surrounding this one, which can influence the model.
 func (s Stair) BBox(pos cube.Pos, bs world.BlockSource) []cube.BBox {
-	b := []cube.BBox{cube.Box(0, 0, 0, 1, 0.5, 1)}
+	// The slab half, plus the step and, on an inner corner, its extension.
+	b := make([]cube.BBox, 1, 3)
+	b[0] = cube.Box(0, 0, 0, 1, 0.5, 1)
 	if s.UpsideDown {
 		b[0] = cube.Box(0, 0.5, 0, 1, 1, 1)
 	}
