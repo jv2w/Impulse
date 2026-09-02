@@ -481,7 +481,7 @@ func (s Stack) Values() map[string]any {
 // cloneMap calls maps.Clone, but initialises m if it does not yet exist.
 func cloneMap[M ~map[K]V, K comparable, V any](m M) M {
 	if m == nil {
-		m = make(M)
+		return make(M)
 	}
 	return maps.Clone(m)
 }
