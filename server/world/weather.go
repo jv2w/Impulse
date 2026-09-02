@@ -65,7 +65,10 @@ func (tx *Tx) thunderingAt(pos cube.Pos) bool {
 	w.set.Lock()
 	a := w.set.Thundering && raining
 	w.set.Unlock()
-	return a && tx.highestObstructingBlock(pos[0], pos[2]) < pos[1]
+	// A true raining means rainingAt already found pos above the highest
+	// obstructing block, and nothing since could have moved it, so repeating
+	// that column scan here can only confirm it.
+	return a
 }
 
 // raining checks if it is raining anywhere in the World.
