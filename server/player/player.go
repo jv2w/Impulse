@@ -2805,12 +2805,18 @@ func (p *Player) tickAirSupply() {
 // tickFood ticks food related functionality, such as the depletion of the food bar and regeneration if it
 // is full enough.
 func (p *Player) tickFood() {
-	if p.hunger.foodTick%10 == 0 && (p.hunger.canQuicklyRegenerate() || p.tx.World().Difficulty().FoodRegenerates()) {
-		if p.tx.World().Difficulty().FoodRegenerates() {
-			p.AddFood(1)
-		}
-		if p.hunger.foodTick%20 == 0 {
-			p.regenerate(true)
+	if p.hunger.foodTick%10 == 0 {
+		// Difficulty() takes the world settings mutex, and only the hunger
+		// manager is read between the two calls that used to make it, so one
+		// read serves both.
+		regenerates := p.tx.World().Difficulty().FoodRegenerates()
+		if p.hunger.canQuicklyRegenerate() || regenerates {
+			if regenerates {
+				p.AddFood(1)
+			}
+			if p.hunger.foodTick%20 == 0 {
+				p.regenerate(true)
+			}
 		}
 	}
 	if p.hunger.foodTick == 1 {

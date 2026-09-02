@@ -117,6 +117,7 @@ func (f *FireworkBehaviour) explode(e *Ent, tx *world.Tx) {
 	}
 
 	force := float64(len(explosions)*2) + 5.0
+	src := ProjectileDamageSource{Owner: owner, Projectile: e}
 	for victim := range filterLiving(tx.EntitiesWithin(e.H().Type().BBox(e).Translate(pos).Grow(5.25))) {
 		tpos := victim.Position()
 		dist := pos.Sub(tpos).Len()
@@ -125,7 +126,6 @@ func (f *FireworkBehaviour) explode(e *Ent, tx *world.Tx) {
 			continue
 		}
 		dmg := force * math.Sqrt((5.0-dist)/5.0)
-		src := ProjectileDamageSource{Owner: owner, Projectile: e}
 
 		if pos == tpos {
 			victim.(Living).Hurt(dmg, src)
