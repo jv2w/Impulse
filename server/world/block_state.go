@@ -3,7 +3,6 @@ package world
 import (
 	"bytes"
 	_ "embed"
-	"fmt"
 	"maps"
 	"math"
 	"slices"
@@ -78,10 +77,12 @@ type stateHash struct {
 	name, properties string
 }
 
-// hashProperties produces a hash for the block properties held by the BlockState.
-func hashProperties(properties map[string]any) string {
+// hashProperties produces a hash for the block properties held by the BlockState. The bool returned is false if a
+// property holds a type the block format cannot encode, in which case the properties describe no registrable state and
+// the hash must not be used.
+func hashProperties(properties map[string]any) (string, bool) {
 	if properties == nil {
-		return ""
+		return "", true
 	}
 	keys := make([]string, 0, len(properties))
 	for k := range properties {
@@ -106,11 +107,12 @@ func hashProperties(properties map[string]any) string {
 		case string:
 			b.WriteString(v)
 		default:
-			// If block encoding is broken, we want to find out as soon as possible. This saves a lot of time
-			// debugging in-game.
-			panic(fmt.Sprintf("invalid block property type %T for property %v", v, k))
+			// NBT readily decodes int16, int64, floats, lists and compounds, and both saved worlds and client
+			// packets reach here through item and block entity NBT. No state is registered with such a property,
+			// so this is a lookup miss, not a fault to crash on.
+			return "", false
 		}
 	}
 
-	return b.String()
+	return b.String(), true
 }

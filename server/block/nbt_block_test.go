@@ -932,46 +932,25 @@ func mustSet(t *testing.T, inv interface{ SetItem(int, item.Stack) error }, slot
 	}
 }
 
-// TestContainerItemBlockTagPanicsOnOddStateType pins the most remotely reachable panic in the block entity decode path:
-// an item inside a container carrying a "Block" tag whose "states" compound holds a value of any type other than bool,
-// uint8, int32 or string crashes the world goroutine while hashing the block state.
-//
-// PINNED BUG: world/block_state.go:111 panics instead of rejecting the state. The chain is
-// Chest.DecodeNBT -> nbtconv.InvFromNBT -> item.ReadNBT -> nbtBlock -> world.BlockByName -> hashProperties, and it is
-// reachable from every inventory-bearing block entity and from server/session's stackToItem, which hands
-// client-supplied NBT straight to DecodeNBT. NBT decoders readily produce int16, int64, float32, lists and compounds
-// here, so a corrupt save or a hostile client reaches it with a single tag. CLAUDE.md 2.2 forbids this.
-func TestContainerItemBlockTagPanicsOnOddStateType(t *testing.T) {
-	// The lookup this panic lives behind refuses to run on an unfinalized registry; Finalize is idempotent.
+// TestContainerItemBlockTagOddStateType covers the most remotely reachable path into the block registry: an item
+// inside a container carrying a "Block" tag whose "states" compound holds a value of a type no block state uses. The
+// chain is Chest.DecodeNBT -> nbtconv.InvFromNBT -> item.ReadNBT -> nbtBlock -> world.BlockByName -> hashProperties,
+// and it is open to every inventory-bearing block entity and to server/session's stackToItem, which hands
+// client-supplied NBT straight to DecodeNBT. The state is a lookup miss; the item still resolves by its own name, so
+// the slot survives.
+func TestContainerItemBlockTagOddStateType(t *testing.T) {
+	// The lookup refuses to run on an unfinalized registry and reports every name as missing; Finalize is idempotent.
 	world.DefaultBlockRegistry.Finalize()
 
-	for _, v := range []any{int16(1), int64(1), float32(1), float64(1), []any{}, map[string]any{}} {
+	for _, v := range []any{int16(1), int64(1), float32(1), float64(1), []any{}, map[string]any{}, true, uint8(1), int32(1), "s"} {
 		t.Run(fmt.Sprintf("%T", v), func(t *testing.T) {
-			defer func() {
-				r := recover()
-				if r == nil {
-					t.Fatalf("decoding a Block tag with a %T state did not panic", v)
-				}
-				want := fmt.Sprintf("invalid block property type %T for property x", v)
-				if msg := fmt.Sprint(r); !strings.Contains(msg, want) {
-					t.Errorf("panic = %q, want it to contain %q", msg, want)
-				}
-			}()
-			block.NewChest().DecodeNBT(map[string]any{"Items": []any{map[string]any{
+			c := block.NewChest().DecodeNBT(map[string]any{"Items": []any{map[string]any{
 				"Name": "minecraft:stone", "Count": byte(1), "Damage": int16(0), "Slot": byte(0),
 				"Block": map[string]any{"name": "minecraft:stone", "states": map[string]any{"x": v}},
-			}}})
+			}}}).(block.Chest)
+			if items, _ := c.EncodeNBT()["Items"].([]any); len(items) != 1 {
+				t.Errorf("a %T state gave %d items, want 1", v, len(items))
+			}
 		})
-	}
-
-	// The four legal property types are accepted; an unknown property simply fails the lookup and empties the slot.
-	for _, v := range []any{true, uint8(1), int32(1), "s"} {
-		c := block.NewChest().DecodeNBT(map[string]any{"Items": []any{map[string]any{
-			"Name": "minecraft:stone", "Count": byte(1), "Damage": int16(0), "Slot": byte(0),
-			"Block": map[string]any{"name": "minecraft:stone", "states": map[string]any{"x": v}},
-		}}}).(block.Chest)
-		if items, _ := c.EncodeNBT()["Items"].([]any); len(items) != 1 {
-			t.Errorf("a %T state gave %d items, want 1", v, len(items))
-		}
 	}
 }

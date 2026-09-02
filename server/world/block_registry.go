@@ -287,7 +287,7 @@ func (br *BasicBlockRegistry) RegisterBlock(b Block) {
 	if _, ok := b.(CustomBlock); ok {
 		br.registerBlockStateLocked(BlockState{Name: name, Properties: properties})
 	}
-	rid, ok := br.stateRuntimeIDs[stateHash{name: name, properties: hashProperties(properties)}]
+	rid, ok := br.stateRuntimeID(name, properties)
 	if !ok {
 		// We assume all blocks must have all their states registered beforehand. Vanilla blocks will have
 		// this done through registering of all states present in the block_states.nbt file.
@@ -317,7 +317,14 @@ func (br *BasicBlockRegistry) registerBlockStateLocked(s BlockState) {
 	if br.finalized {
 		panic("BlockRegistry.RegisterBlockState called on finalized BlockRegistry")
 	}
-	h := stateHash{name: s.Name, properties: hashProperties(s.Properties)}
+	p, ok := hashProperties(s.Properties)
+	if !ok {
+		// Registration is a setup-time call with no error channel, and a state the format cannot encode can never
+		// be looked up again. Failing here rather than storing it keeps the lookup paths free of a hash that
+		// stands for "unencodable".
+		panic(fmt.Sprintf("cannot register a state with an unencodable property type (%+v)", s))
+	}
+	h := stateHash{name: s.Name, properties: p}
 	if _, ok := br.stateRuntimeIDs[h]; ok {
 		panic(fmt.Sprintf("cannot register the same state twice (%+v)", s))
 	}
@@ -367,7 +374,13 @@ func (br *BasicBlockRegistry) Finalize() {
 	for idx, b := range br.blocks {
 		rid := uint32(idx)
 		name, properties := b.EncodeBlock()
-		h := stateHash{name: name, properties: hashProperties(properties)}
+		p, ok := hashProperties(properties)
+		if !ok {
+			// Every block here passed hashProperties when it was registered, so an unencodable property means
+			// EncodeBlock is not deterministic. Finalize has no error channel to report that on.
+			panic(fmt.Sprintf("block state has an unencodable property type (%s %+v)", name, properties))
+		}
+		h := stateHash{name: name, properties: p}
 		if name == "minecraft:air" {
 			br.airRID = rid
 			foundAir = true
@@ -447,11 +460,21 @@ func (br *BasicBlockRegistry) StateToRuntimeID(name string, properties map[strin
 	if !br.finalized {
 		panic("BlockRegistry.StateToRuntimeID called on non finalized BlockRegistry")
 	}
-	if rid, ok := br.stateRuntimeIDs[stateHash{name: name, properties: hashProperties(properties)}]; ok {
+	if rid, ok := br.stateRuntimeID(name, properties); ok {
 		return rid, true
 	}
-	rid, ok := br.stateRuntimeIDs[stateHash{name: name, properties: hashProperties(br.blockProperties[name])}]
-	return rid, ok
+	return br.stateRuntimeID(name, br.blockProperties[name])
+}
+
+// stateRuntimeID looks up the runtime ID registered for a block state. found is false both when the state was never
+// registered and when its properties hold a type the block format cannot encode.
+func (br *BasicBlockRegistry) stateRuntimeID(name string, properties map[string]any) (rid uint32, found bool) {
+	p, ok := hashProperties(properties)
+	if !ok {
+		return 0, false
+	}
+	rid, found = br.stateRuntimeIDs[stateHash{name: name, properties: p}]
+	return rid, found
 }
 
 // BlockHash returns a unique identifier of the block including the block states. This function is used internally
@@ -491,7 +514,7 @@ func (br *BasicBlockRegistry) BlockByRuntimeIDOrAir(rid uint32) Block {
 // Block.EncodeBlock method and looking it up in the stateRuntimeIDs map.
 func (br *BasicBlockRegistry) slowBlockRuntimeID(b Block) uint32 {
 	name, properties := b.EncodeBlock()
-	rid, ok := br.stateRuntimeIDs[stateHash{name: name, properties: hashProperties(properties)}]
+	rid, ok := br.stateRuntimeID(name, properties)
 	if !ok {
 		panic(fmt.Sprintf("cannot find block by (name + properties): %#v", b))
 	}
@@ -511,12 +534,13 @@ func (br *BasicBlockRegistry) BlockByRuntimeID(rid uint32) (Block, bool) {
 }
 
 // BlockByName attempts to return a Block by its name and properties. If not found, the bool returned is
-// false.
+// false. A registry that has not been finalized holds no usable runtime IDs yet and reports every name as not found;
+// the lookup is reachable from block entity NBT, so it must not depend on the registry's lifetime to stay alive.
 func (br *BasicBlockRegistry) BlockByName(name string, properties map[string]any) (Block, bool) {
 	if !br.finalized {
-		panic("BlockRegistry.BlockByName called on non finalized BlockRegistry")
+		return nil, false
 	}
-	rid, ok := br.stateRuntimeIDs[stateHash{name: name, properties: hashProperties(properties)}]
+	rid, ok := br.stateRuntimeID(name, properties)
 	if !ok {
 		return nil, false
 	}

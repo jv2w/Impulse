@@ -24,26 +24,17 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// TestBlockReadPanicsOnNonFinalizedRegistry pins the panic that nbtconv.Block inherits from world.BlockByName when the
-// registry backing it has not been finalized.
+// TestBlockReadOnNonFinalizedRegistry covers the lookup nbtconv.Block inherits from world.BlockByName when the registry
+// backing it has not been finalized. nbtconv.Block is called from block entity DecodeNBT implementations, which are in
+// turn reachable from client-supplied NBT, so the liveness of the build-then-Finalize lifetime must not decide whether
+// decoding a chest survives. A fresh registry is used because TestMain finalizes DefaultBlockRegistry.
 //
-// PINNED BUG: block_registry.go:517 panics rather than returning (nil, false). nbtconv.Block is called from block
-// entity DecodeNBT implementations, which are in turn reachable from client-supplied NBT, so the liveness of a global
-// two-phase lifetime decides whether decoding a chest panics the world goroutine. CLAUDE.md 2.2 bans the panic and 2.4
-// bans the build-then-Finalize lifetime that makes it possible. The panic is pinned on a fresh registry rather than on
-// DefaultBlockRegistry because TestMain must finalize the latter for every other test in this file.
-func TestBlockReadPanicsOnNonFinalizedRegistry(t *testing.T) {
-	br := world.NewBlockRegistry()
-	defer func() {
-		r := recover()
-		if r == nil {
-			t.Fatal("BlockByName on a non-finalized registry did not panic")
-		}
-		if s, ok := r.(string); !ok || s != "BlockRegistry.BlockByName called on non finalized BlockRegistry" {
-			t.Errorf("panicked with %#v, want %q", r, "BlockRegistry.BlockByName called on non finalized BlockRegistry")
-		}
-	}()
-	br.BlockByName("minecraft:stone", nil)
+// PINNED CONSTRAINT: the two-phase lifetime itself remains, and CLAUDE.md 2.4 bans it; only its panic is gone.
+func TestBlockReadOnNonFinalizedRegistry(t *testing.T) {
+	b, ok := world.NewBlockRegistry().BlockByName("minecraft:stone", nil)
+	if b != nil || ok {
+		t.Errorf("BlockByName on a non-finalized registry = (%#v, %v), want (nil, false)", b, ok)
+	}
 }
 
 // The scalar readers in read.go are the sole gateway between raw NBT maps and every block entity's DecodeNBT. Their
