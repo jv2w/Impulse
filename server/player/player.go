@@ -627,7 +627,13 @@ func (p *Player) blocksUnder() (low, high cube.Pos) {
 // final damage dealt to the Player and if the Player was vulnerable to this
 // kind of damage.
 func (p *Player) Hurt(dmg float64, src world.DamageSource) (float64, bool) {
-	if _, ok := p.Effect(effect.FireResistance); (ok && src.Fire()) || p.Dead() || !p.GameMode().AllowsTakingDamage() || dmg < 0 {
+	// The effect lookup hashes a reflect.Type and scans the initial effects,
+	// while the three checks it used to precede are field reads. All four are
+	// pure, so testing them in this order refuses exactly the same damage.
+	if p.Dead() || !p.GameMode().AllowsTakingDamage() || dmg < 0 {
+		return 0, false
+	}
+	if _, ok := p.Effect(effect.FireResistance); ok && src.Fire() {
 		return 0, false
 	}
 	totalDamage := p.FinalDamageFrom(dmg, src)
@@ -3535,8 +3541,14 @@ func (p *Player) broadcastArmour(_ int, before, after item.Stack) {
 // viewers returns a list of all viewers of the Player.
 func (p *Player) viewers() []world.Viewer {
 	viewers := p.tx.Viewers(p.Position())
+	if p.s == nil {
+		// The scan below only decides whether to append p.s, and there is none
+		// to append, so its result was thrown away for every session-less
+		// Player.
+		return viewers
+	}
 	var s world.Viewer = p.session()
-	if slices.Index(viewers, s) == -1 && p.s != nil {
+	if slices.Index(viewers, s) == -1 {
 		return append(viewers, p.s)
 	}
 	return viewers
