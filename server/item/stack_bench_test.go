@@ -63,6 +63,16 @@ func BenchmarkStackComparable(b *testing.B) {
 	}
 }
 
+func BenchmarkStackDamage(b *testing.B) {
+	s := NewStack(Sword{Tier: ToolTierDiamond}, 1)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		benchStack = s.Damage(1)
+	}
+}
+
 func BenchmarkStackComparablePlain(b *testing.B) {
 	s := NewStack(Stick{}, 16)
 	s2 := NewStack(Stick{}, 32)

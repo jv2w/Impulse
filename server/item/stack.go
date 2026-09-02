@@ -102,8 +102,11 @@ func (s Stack) Damage(d int) Stack {
 	if !ok || s.unbreakable {
 		return s
 	}
-	durability := s.Durability()
+	// Durability would repeat the Item assertion and the DurabilityInfo call
+	// that the two lines around it already made; past the assertion above it is
+	// this subtraction and nothing else.
 	info := durable.DurabilityInfo()
+	durability := info.MaxDurability - s.damage
 	if durability-d <= 0 {
 		if info.Persistent {
 			// Persistent items can't be broken.

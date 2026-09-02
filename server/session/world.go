@@ -51,7 +51,8 @@ func (s *Session) entityHidden(e world.Entity) bool {
 
 // ViewEntity ...
 func (s *Session) ViewEntity(e world.Entity) {
-	if e.H() == s.ent {
+	h := e.H()
+	if h == s.ent {
 		s.ViewEntityState(e)
 		return
 	}
@@ -63,20 +64,21 @@ func (s *Session) ViewEntity(e world.Entity) {
 	_, controllable := e.(Controllable)
 
 	s.entityMutex.Lock()
-	if id, ok := s.entityRuntimeIDs[e.H()]; ok && controllable {
+	if id, ok := s.entityRuntimeIDs[h]; ok && controllable {
 		runtimeID = id
 	} else {
 		s.currentEntityRuntimeID += 1
 		runtimeID = s.currentEntityRuntimeID
-		s.entityRuntimeIDs[e.H()] = runtimeID
-		s.entities[runtimeID] = e.H()
+		s.entityRuntimeIDs[h] = runtimeID
+		s.entities[runtimeID] = h
 	}
 	s.entityMutex.Unlock()
 
 	yaw, pitch := e.Rotation().Elem()
 	metadata := s.entityMetadata(e)
 
-	id := e.H().Type().EncodeEntity()
+	t := h.Type()
+	id := t.EncodeEntity()
 	switch v := e.(type) {
 	case Controllable:
 		_, actualPlayer := sessions.Lookup(v.UUID())
@@ -120,7 +122,7 @@ func (s *Session) ViewEntity(e world.Entity) {
 		}
 		return
 	case *entity.Ent:
-		switch e.H().Type() {
+		switch t {
 		case entity.ItemType:
 			s.writePacket(&packet.AddItemActor{
 				EntityUniqueID:  int64(runtimeID),
@@ -137,7 +139,7 @@ func (s *Session) ViewEntity(e world.Entity) {
 			metadata[protocol.EntityDataKeyVariant] = int32(s.br.BlockRuntimeID(v.Behaviour().(*entity.FallingBlockBehaviour).Block()))
 		}
 	}
-	if v, ok := e.H().Type().(NetworkEncodeableEntity); ok {
+	if v, ok := t.(NetworkEncodeableEntity); ok {
 		id = v.NetworkEncodeEntity()
 	}
 
