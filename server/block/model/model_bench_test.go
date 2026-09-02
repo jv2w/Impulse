@@ -42,6 +42,17 @@ func BenchmarkFenceBBox(b *testing.B) {
 	}
 }
 
+// BenchmarkFenceBBoxOpen benchmarks a fence with nothing around it, the case
+// where a side has to be rejected by every connection check in turn.
+func BenchmarkFenceBBoxOpen(b *testing.B) {
+	src := fakeSource{}
+
+	b.ReportAllocs()
+	for range b.N {
+		benchBoxes = Fence{Wood: true}.BBox(cube.Pos{}, src)
+	}
+}
+
 func BenchmarkThinBBox(b *testing.B) {
 	pos := cube.Pos{0, 0, 0}
 	src := fakeSource{}
@@ -52,6 +63,17 @@ func BenchmarkThinBBox(b *testing.B) {
 	b.ReportAllocs()
 	for range b.N {
 		benchBoxes = Thin{}.BBox(pos, src)
+	}
+}
+
+// BenchmarkThinBBoxOpen benchmarks a pane with nothing around it, the case
+// where a side has to be rejected by every connection check in turn.
+func BenchmarkThinBBoxOpen(b *testing.B) {
+	src := fakeSource{}
+
+	b.ReportAllocs()
+	for range b.N {
+		benchBoxes = Thin{}.BBox(cube.Pos{}, src)
 	}
 }
 

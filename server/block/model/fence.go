@@ -63,13 +63,13 @@ func (f Fence) FaceSolid(_ cube.Pos, face cube.Face, _ world.BlockSource) bool {
 // checkConnection checks if the block at the given position and face has a connection to the current fence block.
 func (f Fence) checkConnection(pos cube.Pos, face cube.Face, src world.BlockSource) bool {
 	sidePos := pos.Side(face)
-	sideBlock := src.Block(sidePos)
-	if fence, ok := sideBlock.Model().(Fence); ok && fence.Wood == f.Wood {
+	sideModel := src.Block(sidePos).Model()
+	if fence, ok := sideModel.(Fence); ok && fence.Wood == f.Wood {
 		return true
 	}
-	if sideBlock.Model().FaceSolid(sidePos, face.Opposite(), src) {
+	if sideModel.FaceSolid(sidePos, face.Opposite(), src) {
 		return true
 	}
-	_, ok := sideBlock.Model().(FenceGate)
+	_, ok := sideModel.(FenceGate)
 	return ok
 }
