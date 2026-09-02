@@ -101,18 +101,21 @@ func (f Fire) tick(pos cube.Pos, tx *world.Tx, r *rand.Rand) {
 	tx.ScheduleBlockUpdate(pos, f, time.Duration(30+r.IntN(10))*time.Second/20)
 
 	if !infinitelyBurns {
-		_, waterBelow := tx.Block(pos.Side(cube.FaceDown)).(Water)
-		if waterBelow {
+		// Only neighboursFlammable runs between the three reads of the block
+		// below, and it does not write, so one lookup answers all three. Every
+		// SetBlock here returns straight after.
+		below := tx.Block(pos.Side(cube.FaceDown))
+		if _, waterBelow := below.(Water); waterBelow {
 			tx.SetBlock(pos, nil, nil)
 			return
 		}
 		if !neighboursFlammable(pos, tx) {
-			if !tx.Block(pos.Side(cube.FaceDown)).Model().FaceSolid(pos, cube.FaceUp, tx) || f.Age > 3 {
+			if !below.Model().FaceSolid(pos, cube.FaceUp, tx) || f.Age > 3 {
 				tx.SetBlock(pos, nil, nil)
 			}
 			return
 		}
-		if !flammableBlock(tx.Block(pos.Side(cube.FaceDown))) && f.Age == 15 && r.IntN(4) == 0 {
+		if !flammableBlock(below) && f.Age == 15 && r.IntN(4) == 0 {
 			tx.SetBlock(pos, nil, nil)
 			return
 		}

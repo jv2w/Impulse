@@ -157,7 +157,7 @@ func (p DecoratedPot) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx 
 
 // EncodeNBT ...
 func (p DecoratedPot) EncodeNBT() map[string]any {
-	var sherds []any
+	sherds := make([]any, 0, len(p.Decorations))
 	for _, decoration := range p.Decorations {
 		if decoration == nil {
 			sherds = append(sherds, "minecraft:brick")
