@@ -2901,7 +2901,7 @@ func (p *Player) insideOfWater() bool {
 // insideOfSolid returns true if the player is inside a solid block.
 func (p *Player) insideOfSolid() bool {
 	pos := cube.PosFromVec3(entity.EyePosition(p))
-	b, box := p.tx.Block(pos), p.handle.Type().BBox(p).Translate(p.Position())
+	b := p.tx.Block(pos)
 
 	// Model() derives the model from the block state alone, and nothing between
 	// the two reads writes the world, so one lookup answers both.
@@ -2919,6 +2919,9 @@ func (p *Player) insideOfSolid() bool {
 	if immune, ok := b.(block.NonSuffocating); ok && immune.PreventsSuffocation() {
 		return false
 	}
+	// The box only matters once a suffocating block is found, and the three
+	// checks above return for nearly every block a player stands in.
+	box := p.handle.Type().BBox(p).Translate(p.Position())
 	for _, blockBox := range m.BBox(pos, p.tx) {
 		if blockBox.Translate(pos.Vec3()).IntersectsWith(box) {
 			return true

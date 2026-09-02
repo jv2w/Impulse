@@ -99,7 +99,7 @@ func (s Stair) cornerType(pos cube.Pos, bs world.BlockSource) uint8 {
 		} else if closedSide.Facing == rotatedFacing.Opposite() {
 			// This will only form a corner if there is not a stair on the right of this one with the same
 			// direction.
-			if side, ok := bs.Block(pos.Side(s.Facing.RotateRight().Face())).Model().(Stair); !ok || side.Facing != s.Facing || side.UpsideDown != s.UpsideDown {
+			if side, ok := bs.Block(pos.Side(rotatedFacing.Face())).Model().(Stair); !ok || side.Facing != s.Facing || side.UpsideDown != s.UpsideDown {
 				return cornerRightOuter
 			}
 			return noCorner
@@ -109,7 +109,7 @@ func (s Stair) cornerType(pos cube.Pos, bs world.BlockSource) uint8 {
 		if openSide.Facing == rotatedFacing {
 			// This will only form a corner if there is not a stair on the right of this one with the same
 			// direction.
-			if side, ok := bs.Block(pos.Side(s.Facing.RotateRight().Face())).Model().(Stair); !ok || side.Facing != s.Facing || side.UpsideDown != s.UpsideDown {
+			if side, ok := bs.Block(pos.Side(rotatedFacing.Face())).Model().(Stair); !ok || side.Facing != s.Facing || side.UpsideDown != s.UpsideDown {
 				return cornerRightInner
 			}
 		} else if openSide.Facing == rotatedFacing.Opposite() {
