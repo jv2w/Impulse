@@ -306,18 +306,19 @@ func (e *redstoneEngine) tick(tx *Tx, tick int64) {
 
 	powers := e.graphPower(tx, graph)
 	for i, node := range graph.nodes {
-		d := redstoneDirtyContext(dirty, node.pos)
+		// redstoneDirtyContext scans the whole dirty set for a position that is
+		// not itself dirty, which compilation pulls in plenty of, so it is only
+		// worth resolving for the nodes that consume it.
 		if node.sink {
-			e.update(tx, node.pos, d, powers[i])
+			e.update(tx, node.pos, redstoneDirtyContext(dirty, node.pos), powers[i])
 		}
 	}
 	for _, node := range graph.nodes {
 		if _, ok := checkedSources[node.pos]; ok {
 			continue
 		}
-		d := redstoneDirtyContext(dirty, node.pos)
 		if node.source {
-			e.updateSource(tx, node.pos, d)
+			e.updateSource(tx, node.pos, redstoneDirtyContext(dirty, node.pos))
 		}
 	}
 

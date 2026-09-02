@@ -142,10 +142,14 @@ func (t ticker) tickBlocksRandomly(tx *Tx, loaders []*Loader, tick int64) {
 		return
 	}
 
-	loaded := make([]ChunkPos, 0, len(loaders))
-	if tx.World().conf.Synchronous {
-		loaded = slices.Collect(maps.Keys(tx.World().chunks))
-	} else {
+	// A Synchronous world's loaded set is the key set of the very chunk map
+	// ranged below, so every chunk sits at distance 0 from itself and passes the
+	// check. Collecting the keys only to scan them per chunk is quadratic work
+	// with a constant answer, so the whole check is skipped instead.
+	synchronous := tx.World().conf.Synchronous
+	var loaded []ChunkPos
+	if !synchronous {
+		loaded = make([]ChunkPos, 0, len(loaders))
 		for _, loader := range loaders {
 			loader.mu.RLock()
 			pos := loader.pos
@@ -156,7 +160,7 @@ func (t ticker) tickBlocksRandomly(tx *Tx, loaders []*Loader, tick int64) {
 	}
 
 	for pos, c := range tx.World().chunks {
-		if !t.anyWithinDistance(pos, loaded, r) {
+		if !synchronous && !t.anyWithinDistance(pos, loaded, r) {
 			// No loaders in this chunk that are within the simulation distance, so proceed to the next.
 			continue
 		}
