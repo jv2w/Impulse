@@ -1104,6 +1104,20 @@ func (e *redstoneEngine) redstoneRelayerNeighbourPositions(tx *Tx, pos cube.Pos,
 	return neighbours
 }
 
+// redstoneRelayerPointsAt reports whether the relayer neighbours of b at pos include target. It answers the same
+// question as searching redstoneRelayerNeighbourPositions, without building and sorting a list a membership test does
+// not read in order.
+func (e *redstoneEngine) redstoneRelayerPointsAt(tx *Tx, pos cube.Pos, b Block, target cube.Pos) bool {
+	if neighbourer, ok := b.(RedstonePowerRelayerNeighbourer); ok {
+		return slices.Contains(neighbourer.RedstoneRelayerNeighbours(pos, tx), target)
+	}
+	found := false
+	e.redstoneRelayerNeighbours(tx, pos, func(neighbour cube.Pos) {
+		found = found || neighbour == target
+	})
+	return found
+}
+
 // redstoneRelayerConnectedPositions returns relayers connected to pos in either direction. Graph membership must be
 // weakly connected so a one-way relayer, such as dust climbing glowstone, still compiles with its lower input path.
 func (e *redstoneEngine) redstoneRelayerConnectedPositions(tx *Tx, pos cube.Pos, b Block) []cube.Pos {
@@ -1123,7 +1137,7 @@ func (e *redstoneEngine) redstoneRelayerConnectedPositions(tx *Tx, pos cube.Pos,
 		if _, ok := candidateBlock.(RedstonePowerRelayer); !ok {
 			continue
 		}
-		if slices.Contains(e.redstoneRelayerNeighbourPositions(tx, candidate, candidateBlock), pos) {
+		if e.redstoneRelayerPointsAt(tx, candidate, candidateBlock, pos) {
 			neighbours = append(neighbours, candidate)
 			seen[candidate] = struct{}{}
 		}

@@ -41,3 +41,46 @@ func BenchmarkRedstoneDirtyTickLongLineWithClocks(b *testing.B) {
 		}
 	})
 }
+
+// BenchmarkRedstoneCompileOneWayRelayerChain measures graph compilation over a
+// chain of relayers that each point at the next but not back at the previous, so
+// every step reaches its predecessor through the incoming candidate scan rather
+// than through its own neighbour list.
+func BenchmarkRedstoneCompileOneWayRelayerChain(b *testing.B) {
+	const steps = 64
+
+	registry := NewBlockRegistry()
+	registry.RegisterBlockState(BlockState{Name: "test:redstone_stair_relayer", Properties: map[string]any{}})
+	registry.RegisterBlock(redstoneStairRelayer{})
+	w := Config{Synchronous: true, Blocks: registry}.New()
+	defer w.Close()
+
+	runWorld(w, func(tx *Tx) {
+		start := cube.Pos{0, 8, 0}
+		for i := range steps {
+			tx.SetBlock(cube.Pos{start[0] + i, start[1] + i, start[2]}, redstoneStairRelayer{}, nil)
+		}
+		engine, candidates := tx.World().redstone, []cube.Pos{start}
+
+		b.ReportAllocs()
+		b.ResetTimer()
+		for range b.N {
+			engine.compile(tx, candidates)
+		}
+		b.StopTimer()
+	})
+}
+
+// redstoneStairRelayer relays power one block up and along +X only, standing in
+// for the stepping geometry of redstone wire on a staircase.
+type redstoneStairRelayer struct{}
+
+func (redstoneStairRelayer) RedstoneSignalLoss(cube.Pos, *Tx) int { return 1 }
+func (redstoneStairRelayer) RedstoneRelayerNeighbours(pos cube.Pos, _ *Tx) []cube.Pos {
+	return []cube.Pos{{pos[0] + 1, pos[1] + 1, pos[2]}}
+}
+func (redstoneStairRelayer) EncodeBlock() (string, map[string]any) {
+	return "test:redstone_stair_relayer", nil
+}
+func (redstoneStairRelayer) Hash() (uint64, uint64) { return 1 << 59, 0 }
+func (redstoneStairRelayer) Model() BlockModel      { return redstoneCancellationModel{} }
