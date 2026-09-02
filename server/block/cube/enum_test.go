@@ -69,7 +69,7 @@ func equalFaces(got, want []Face) bool {
 // PINNED BUG: a caller writing into any of these three results silently
 // rewrites the enumeration for every other caller in the process, for the rest
 // of its life. Axes() is the odd one out and returns a fresh slice. Pinned
-// as-is; decide in stage 1. Violates CLAUDE.md 2.4 and 3.4.
+// as-is; decide in stage 1.
 func TestFacesAliasesAPackageArray(t *testing.T) {
 	t.Run("Faces", func(t *testing.T) {
 		defer func() { faces = [...]Face{FaceDown, FaceUp, FaceNorth, FaceEast, FaceSouth, FaceWest} }()
@@ -190,8 +190,8 @@ func TestFaceIdentities(t *testing.T) {
 //
 // PINNED BUG: Opposite folds every unknown Face onto FaceUp and Direction hands
 // back an equally meaningless Direction, so a corrupt face propagates silently
-// instead of being caught. String is the one that panics, which CLAUDE.md 2.2
-// forbids. Pinned as-is; decide in stage 1.
+// instead of being caught. String is the one that panics. Pinned as-is;
+// decide in stage 1.
 func TestFaceOutOfRange(t *testing.T) {
 	unknown := Face(9)
 
@@ -277,7 +277,7 @@ func TestDirectionIdentities(t *testing.T) {
 //
 // PINNED BUG: Direction is an int with no validation at its boundaries, so a
 // bad value from a packet or a saved world takes down the goroutine instead of
-// being reported. Violates CLAUDE.md 2.2. Pinned as-is; decide in stage 1.
+// being reported. Pinned as-is; decide in stage 1.
 func TestDirectionOutOfRangePanics(t *testing.T) {
 	unknown := Direction(9)
 

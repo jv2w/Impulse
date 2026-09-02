@@ -382,7 +382,7 @@ func TestSkinToProtocolFallbacks(t *testing.T) {
 // generated per call rather than derived from the skin.
 //
 // PINNED SCOPE: two conversions of the same skin produce different SkinIDs, so
-// the client cannot use the ID to cache a skin. Out of scope per CLAUDE.md 2.6.
+// the client cannot use the ID to cache a skin. Out of scope.
 func TestSkinToProtocolIDsAreFreshEachCall(t *testing.T) {
 	s := skin.New(64, 32)
 	s.FullID = "stable"
@@ -530,8 +530,7 @@ func TestProtocolToSkinErrors(t *testing.T) {
 // their cause with %v rather than %w, so errors.Is and errors.As cannot see
 // through to the json error.
 //
-// PINNED BUG: CLAUDE.md 3.3 requires %w for wrapped errors. Pinned as-is;
-// decide in stage 1.
+// PINNED BUG: a wrapped error must use %w. Pinned as-is; decide in stage 1.
 func TestProtocolToSkinErrorsAreNotWrapped(t *testing.T) {
 	sk := validProtocolSkin()
 	sk.SkinGeometry = []byte("not json")

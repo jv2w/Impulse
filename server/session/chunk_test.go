@@ -18,7 +18,7 @@ import (
 // The chunk send path is the one place where what goes on the wire depends on a
 // client capability (the client-side blob cache) rather than on world state.
 // What is pinned here is which of the two encodings a session picks and what it
-// puts in the packet, because CLAUDE.md 2.4 rewrites this path.
+// puts in the packet.
 
 // TestSubChunkRequestsIsEnabled pins the package constant that decides the
 // encoding. With it set, both send paths return a header-only LevelChunk and
@@ -26,7 +26,7 @@ import (
 //
 // PINNED SCOPE: subChunkRequests is a compile-time const true, so the full
 // chunk encodings below it in sendNetworkChunk and sendBlobHashes are dead
-// code that no test can reach. Out of scope per CLAUDE.md 2.6.
+// code that no test can reach. Out of scope.
 func TestSubChunkRequestsIsEnabled(t *testing.T) {
 	if !subChunkRequests {
 		t.Fatal("subChunkRequests = false; the pinned behaviour below assumes it is true")
@@ -243,7 +243,7 @@ func TestViewChunkPositionAxes(t *testing.T) {
 // drops the block entities it is handed: they are re-sent per sub-chunk later.
 //
 // PINNED SCOPE: sendNetworkChunk takes a blockEntities map and, with
-// subChunkRequests on, never reads it. Out of scope per CLAUDE.md 2.6.
+// subChunkRequests on, never reads it. Out of scope.
 func TestSendNetworkChunkIgnoresBlockEntities(t *testing.T) {
 	s := newStubSession(t, &stubConn{})
 	c := emptyChunk(t)

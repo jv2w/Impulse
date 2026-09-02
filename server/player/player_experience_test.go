@@ -135,7 +135,7 @@ func TestSetExperienceLevelLandsOnTheLevelAsked(t *testing.T) {
 }
 
 // PINNED BUG: the level and progress setters panic on an out-of-range argument
-// instead of returning an error, which CLAUDE.md 2.2 forbids. The panic comes
+// instead of returning an error. The panic comes
 // from entity.ExperienceManager, but Player is the exported surface that lets a
 // caller reach it. Pinned as-is; decide in stage 1.
 func TestExperienceSettersPanicOutOfRange(t *testing.T) {

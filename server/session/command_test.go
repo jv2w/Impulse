@@ -148,8 +148,7 @@ func TestValueToParamType(t *testing.T) {
 		},
 		{
 			// PINNED SCOPE: anything the switch does not name falls through to
-			// the raw value type rather than being rejected. Out of scope per
-			// CLAUDE.md 2.6.
+			// the raw value type rather than being rejected. Out of scope.
 			name:     "an unknown type falls through to a raw value",
 			info:     cmd.ParamInfo{Value: struct{}{}},
 			wantType: goldenArgTypeRValue,

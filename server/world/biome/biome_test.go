@@ -16,14 +16,14 @@ import (
 
 // register.go fills two package-level maps in server/world from an init
 // function, then hardens the registry through a linkname'd
-// world.finaliseBiomeRegistry. Both halves are CLAUDE.md 2.4 violations: the
-// state is global, and it is built by init rather than by a constructor.
+// world.finaliseBiomeRegistry. Both halves are global mutable state: it is
+// process-wide, and it is built by init rather than by a constructor.
 //
 // The IDs those maps hold are the on-disk and on-network identity of a biome.
 // A chunk stores biome IDs, and BiomeDefinitions sends them to the client, so
 // a changed ID silently rewrites every saved chunk and desynchronises every
-// connected client. That makes the mapping below result integrity in the sense
-// of CLAUDE.md 2.1, and it is pinned exhaustively rather than by sampling.
+// connected client. That makes the mapping below result integrity, and it is
+// pinned exhaustively rather than by sampling.
 
 // golden is the complete registry as it stands: every biome that init
 // registers appears exactly once, and nothing else is registered. Ordered by
@@ -297,8 +297,8 @@ func TestRangeInvariants(t *testing.T) {
 	}
 }
 
-// TestTagsAreNotSharedBetweenCalls checks the aliasing question CLAUDE.md 3.4
-// asks of every returned slice. Each Tags implementation builds a fresh literal
+// TestTagsAreNotSharedBetweenCalls checks the aliasing question every returned
+// slice raises. Each Tags implementation builds a fresh literal
 // per call, so a caller that sorts or truncates the result cannot corrupt the
 // registry for everyone else.
 func TestTagsAreNotSharedBetweenCalls(t *testing.T) {
@@ -314,8 +314,8 @@ func TestTagsAreNotSharedBetweenCalls(t *testing.T) {
 	}
 }
 
-// TestUnregisteredLookupsReturnFalse pins the CLAUDE.md 2.2 behaviour of the
-// two lookups: they report failure as a value rather than panicking, and the
+// TestUnregisteredLookupsReturnFalse pins the behaviour of the two lookups:
+// they report failure as a value rather than panicking, and the
 // biome they return alongside false is nil, not the unknown-biome fallback.
 func TestUnregisteredLookupsReturnFalse(t *testing.T) {
 	for _, id := range []int{-1, math.MinInt, 50, 128, 195, highestID + 1, math.MaxInt} {
@@ -335,8 +335,8 @@ func TestUnregisteredLookupsReturnFalse(t *testing.T) {
 }
 
 // PINNED BUG: RegisterBiome panics on a duplicate ID. The caller of a registry
-// is exactly the third party CLAUDE.md 2.2 says must not be able to take the
-// process down, and "this ID is taken" is a condition a caller can act on.
+// is exactly the third party that must not be able to take the process down,
+// and "this ID is taken" is a condition a caller can act on.
 // Pinned as-is; decide in stage 1.
 func TestDuplicateRegistrationPanics(t *testing.T) {
 	// Ocean is already registered under ID 0, so this panics before it writes

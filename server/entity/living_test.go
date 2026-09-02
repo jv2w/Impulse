@@ -463,8 +463,8 @@ func TestEffectIntervalShiftPanicsBelowLevelOne(t *testing.T) {
 
 func TestEffectManagerAddPanicsOnInvalidInput(t *testing.T) {
 	// PINNED BUG: EffectManager.Add panics on input a caller cannot always
-	// validate, against CLAUDE.md 2.2 which requires failures to be returned as
-	// values. Pinned as-is; decide in stage 1.
+	// validate, instead of returning the failure as a value. Pinned as-is;
+	// decide in stage 1.
 	tests := []struct {
 		name string
 		eff  effect.Effect

@@ -204,10 +204,10 @@ func explExtent(blocks []cube.Pos) (n, maxAxis int, maxLenSqr float64) {
 // `rays` slice is iterated in a fixed order and is not mutated by a blast, since
 // the identical second run reproduces the slice element for element.
 //
-// PINNED CONSTRAINT: `rays` is a package-global `var` built by `init()`, which
-// CLAUDE.md 2.4 forbids. It has length 1352, exactly its cap, so `append` in
-// `init` never reallocates and the slice header is never written again after
-// `init` returns. Every World in the process reads that one slice.
+// PINNED CONSTRAINT: `rays` is a package-global `var` built by `init()`. It has
+// length 1352, exactly its cap, so `append` in `init` never reallocates and the
+// slice header is never written again after `init` returns. Every World in the
+// process reads that one slice.
 func TestExplosionAffectedBlocksAreDeterministicForASeed(t *testing.T) {
 	const (
 		wantBlocks    = 1133
@@ -673,8 +673,8 @@ func TestExplosionCancelledLeavesTheWorldUntouched(t *testing.T) {
 //
 // The blast is aborted at that point: the world recovers the panic into a
 // *world.PanicError on the Task, so the world goroutine survives, but no block
-// is broken and no sound or particle is emitted. CLAUDE.md 2.2 forbids reaching
-// a panic through a value a caller controls. Not fixed here.
+// is broken and no sound or particle is emitted. A value a caller controls must
+// not be able to reach a panic. Not fixed here.
 func TestExplosionPanicsOnBoundingBoxSampleAtOrigin(t *testing.T) {
 	rec := &explRecord{}
 	typ := explEntityType{box: cube.Box(1, 1, 1, 2, 2, 2), rec: rec}

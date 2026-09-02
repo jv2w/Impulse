@@ -415,7 +415,7 @@ func TestReadDragonflyDataFromByteSlice(t *testing.T) {
 
 // User data that cannot be decoded costs the item its values and nothing else.
 // Panicking would take the goroutine loading the inventory down over one bad
-// item, which CLAUDE.md 2.2 rules out.
+// item.
 func TestReadDragonflyDataDropsBadInput(t *testing.T) {
 	for _, c := range []struct {
 		name string

@@ -271,7 +271,7 @@ func TestTierToSoundEvent(t *testing.T) {
 // TestTierToSoundEventDefaults pins the fallback. The switch is on the concrete
 // type, so a dyed leather tier still matches ArmourTierLeather, but a tier
 // defined outside server/item falls through to the generic sound. This is the
-// enumeration default that CLAUDE.md 2.2 asks for: a value, not a panic.
+// enumeration default done right: a value, not a panic.
 func TestTierToSoundEventDefaults(t *testing.T) {
 	if got := tierToSoundEvent(dyedLeatherTier()); got != "armor.equip_leather" {
 		t.Fatalf("tierToSoundEvent of a dyed leather tier = %q, want %q", got, "armor.equip_leather")
@@ -312,7 +312,7 @@ func TestValueOrDefault(t *testing.T) {
 	}
 	// PINNED SCOPE: the zero value is indistinguishable from "unset", so an
 	// explicit zero can never be kept. Callers such as debugShapeToProtocol
-	// rely on that. Out of scope per CLAUDE.md 2.6.
+	// rely on that. Out of scope.
 	if got := valueOrDefault(float32(0), float32(1)); got != 1 {
 		t.Fatalf("valueOrDefault of an explicit zero = %v, want the default 1", got)
 	}

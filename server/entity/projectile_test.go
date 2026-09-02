@@ -1291,9 +1291,8 @@ func TestProjectileParticleCountWithoutAParticlePanics(t *testing.T) {
 	// PINNED BUG: New() only fills ParticleCount in when a Particle is set, but
 	// Tick loops over ParticleCount without checking Particle, so a config with
 	// a count and no particle reaches World.addParticle with a nil interface and
-	// panics on Particle.Spawn. A library caller can build that config, and
-	// CLAUDE.md 2.2 rules out panics reaching one. Pinned as-is; decide in
-	// stage 1.
+	// panics on Particle.Spawn. A library caller can build that config and has
+	// no way to prevent the panic. Pinned as-is; decide in stage 1.
 	w := syncWorld(t)
 	mustDo(t, w, func(tx *world.Tx) {
 		tx.SetBlock(cube.Pos{0, 100, 0}, block.Stone{}, nil)

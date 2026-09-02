@@ -287,8 +287,7 @@ func TestMusicDiscsIsExhaustiveAndOrdered(t *testing.T) {
 // failure. disc is an unexported uint8, but DiscType is exported with an
 // exported zero value, so DiscType{} plus arithmetic on the wrapped value is
 // not the only route -- any future decoder reading a stored uint8 back into a
-// DiscType reaches this. CLAUDE.md 2.2 names exactly this shape.
-// Pinned as-is; decide in stage 1.
+// DiscType reaches this. Pinned as-is; decide in stage 1.
 func TestDiscOutOfRangePanics(t *testing.T) {
 	for _, c := range []struct {
 		name string
@@ -371,9 +370,8 @@ func TestHornGolden(t *testing.T) {
 	}
 }
 
-// PINNED BUG: goatHornType.Name panics with the literal string CLAUDE.md 2.2
-// forbids, "should never happen", for any value above 7.
-// Pinned as-is; decide in stage 1.
+// PINNED BUG: goatHornType.Name panics with the literal string "should never
+// happen" for any value above 7. Pinned as-is; decide in stage 1.
 func TestHornOutOfRangePanics(t *testing.T) {
 	for _, id := range []uint8{hornCount, 100, 255} {
 		func() {
@@ -459,8 +457,8 @@ func TestCrossbowLoadingStages(t *testing.T) {
 	}
 }
 
-// TestEnumListsAreFreshPerCall answers the aliasing question CLAUDE.md 3.4 asks
-// of a returned slice. Both lists are built from a literal on every call, so a
+// TestEnumListsAreFreshPerCall answers the aliasing question a returned slice
+// raises. Both lists are built from a literal on every call, so a
 // caller that sorts or truncates one cannot affect the next caller.
 func TestEnumListsAreFreshPerCall(t *testing.T) {
 	first := MusicDiscs()

@@ -294,7 +294,7 @@ func TestPlayerWithoutANameMethodPanics(t *testing.T) {
 	// NamedTarget with sliceutil.Convert, which panics on a failed assertion. An
 	// entity type that encodes as minecraft:player without a Name method
 	// therefore takes down the world goroutine as soon as anyone runs a command
-	// with a []Target parameter, whatever selector they used. CLAUDE.md 2.2.
+	// with a []Target parameter, whatever selector they used.
 	w := syncWorld(t)
 	mustDo(t, w, func(tx *world.Tx) {
 		tx.AddEntity(world.EntitySpawnOpts{Position: mgl64.Vec3{0, 64, 0}}.New(namelessType{}, nopConfig{}))

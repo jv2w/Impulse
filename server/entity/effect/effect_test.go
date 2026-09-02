@@ -114,7 +114,7 @@ func TestConstructorsValidateNothing(t *testing.T) {
 	// value that an entity will happily be given. The level checks live in
 	// entity.EffectManager.Add, which panics rather than returning a value, so
 	// there is currently no path that rejects a bad level without crashing.
-	// CLAUDE.md 2.2: the validation belongs here, as a (Effect, error) result.
+	// The validation belongs here, as a (Effect, error) result.
 	cases := []struct {
 		name string
 		eff  Effect

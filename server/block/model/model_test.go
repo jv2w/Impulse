@@ -188,7 +188,7 @@ func TestEmptyBBoxIsNil(t *testing.T) {
 
 func TestPortalBBoxIsNil(t *testing.T) {
 	// PINNED SCOPE: Portal.Axis is stored but never read; the model has no
-	// collision box on any axis. Out of scope per CLAUDE.md 2.6.
+	// collision box on any axis. Out of scope.
 	for _, axis := range allAxes() {
 		t.Run(axis.String(), func(t *testing.T) {
 			if got := (Portal{Axis: axis}).BBox(origin, emptySource); got != nil {

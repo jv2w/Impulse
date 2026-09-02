@@ -455,8 +455,7 @@ func TestHdlNopHandlerIsNoOp(t *testing.T) {
 }
 
 func TestHdlHandlerInterfaceShape(t *testing.T) {
-	// CLAUDE.md 2.3 caps an interface at 5 methods. Handler has 3; a redesign
-	// that grows it trips this test.
+	// Handler has 3 methods; a redesign that grows it trips this test.
 	typ := reflect.TypeOf((*Handler)(nil)).Elem()
 	if typ.Kind() != reflect.Interface {
 		t.Fatalf("Handler kind: got %v, want interface", typ.Kind())

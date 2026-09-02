@@ -693,7 +693,7 @@ func TestAddSpecificMetadataFireworkOwner(t *testing.T) {
 
 	// PINNED SCOPE: the firework branch is an if/else with the plain owner
 	// branch, so a detached firework reports no owner at all rather than
-	// falling back to EntityDataKeyOwner. Out of scope per CLAUDE.md 2.6.
+	// falling back to EntityDataKeyOwner. Out of scope.
 	detached := newStubSession(t, nil)
 	detached.entityRuntimeIDs[owner.H()] = 9
 	m = protocol.NewEntityMetadata()
@@ -798,7 +798,7 @@ func TestNameTagState(t *testing.T) {
 		{
 			// PINNED SCOPE: an entity that reports an always show state but no
 			// name is reported as unnamed, and the state is still returned.
-			// Out of scope per CLAUDE.md 2.6.
+			// Out of scope.
 			name: "always show without a name",
 			e:    stubAlwaysShow{true},
 
@@ -945,7 +945,7 @@ func TestParseEntityMetadataDefaults(t *testing.T) {
 	}
 
 	// PINNED SCOPE: gravity and climb are set for every entity type, including
-	// ones that neither fall nor climb. Out of scope per CLAUDE.md 2.6.
+	// ones that neither fall nor climb. Out of scope.
 	if !m.Flag(protocol.EntityDataKeyFlags, protocol.EntityDataFlagClimb) {
 		t.Fatal("climb is not set on a plain entity")
 	}

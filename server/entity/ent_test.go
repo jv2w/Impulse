@@ -996,7 +996,7 @@ func TestEntBehaviourPanicsWhenDataIsNotABehaviour(t *testing.T) {
 	// PINNED BUG: Ent.Behaviour is an unchecked type assertion on caller-supplied
 	// EntityData, so an EntityConfig that stores anything else takes the world
 	// goroutine down with a type assertion panic the caller cannot prevent.
-	// CLAUDE.md 2.2 forbids exactly this. Pinned as-is; decide in stage 1.
+	// Pinned as-is; decide in stage 1.
 	tests := []struct {
 		name string
 		data any

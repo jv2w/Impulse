@@ -342,7 +342,6 @@ func TestInstantEffectsPanicOnANegativeLevel(t *testing.T) {
 	// PINNED BUG: the amount is computed with a left shift by the level, so a
 	// negative level is a negative shift count and panics at run time. Nothing
 	// between a potion's NBT and this shift rejects such a level.
-	// CLAUDE.md 2.2.
 	l := newTestLiving()
 	for _, f := range []func(){
 		func() { InstantHealth.Apply(l, NewInstant(InstantHealth, -1)) },
@@ -431,7 +430,7 @@ func TestIntervalEffectsPanicAtLevelZero(t *testing.T) {
 	// as 25>>(lvl-1) or 50>>(lvl-1). At level 0 that is a shift by -1, which
 	// panics. effect.New accepts level 0, so the only thing standing between a
 	// caller and this panic is entity.EffectManager.Add, which rejects the level
-	// by panicking too. There is no non-crashing path. CLAUDE.md 2.2.
+	// by panicking too. There is no non-crashing path.
 	l := newTestLiving()
 	for _, e := range []LastingType{Poison, FatalPoison, Regeneration} {
 		v := mustPanic(t, func() { e.Apply(l, NewInfinite(e, 0)) })

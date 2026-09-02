@@ -63,8 +63,8 @@ func TestNewRefOnANilHandle(t *testing.T) {
 // PINNED BUG: NopProvider.Load reports "there is no stored data" with
 // errors.New(""), a fresh empty-message error on every call. The server
 // branches on it (server.go), so it is a condition callers must distinguish,
-// which CLAUDE.md 3.3 requires be a sentinel or an error type. As written it
-// matches nothing, carries no message, and cannot even be compared to itself.
+// which needs a sentinel or an error type. As written it matches nothing,
+// carries no message, and cannot even be compared to itself.
 // Pinned as-is; decide in stage 1.
 func TestNopProviderLoadReturnsAnUnmatchableError(t *testing.T) {
 	var p NopProvider

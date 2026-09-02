@@ -118,8 +118,7 @@ func TestTraverseBlocksDiagonalPrefersYOnATie(t *testing.T) {
 // PINNED BUG: a degenerate ray is a caller mistake that TraverseBlocks cannot
 // fix, but it takes the goroutine down instead of reporting the failure as a
 // value. Perform inherits it, so an entity whose eye position equals its target
-// kills the world goroutine. Violates CLAUDE.md 2.2. Pinned as-is; decide in
-// stage 1.
+// kills the world goroutine. Pinned as-is; decide in stage 1.
 func TestTraverseBlocksPanicsOnAZeroLengthRay(t *testing.T) {
 	defer func() {
 		if recover() == nil {

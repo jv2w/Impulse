@@ -83,7 +83,7 @@ func TestRegistryOrder(t *testing.T) {
 }
 
 // PINNED SCOPE: twelve vanilla enchantments have no implementation, so their
-// IDs resolve to nothing. Adding them is out of scope per CLAUDE.md 2.6; this
+// IDs resolve to nothing. Adding them is out of scope; this
 // pins which IDs are deliberately absent so an accidental partial
 // implementation is visible.
 func TestUnimplementedEnchantmentIDsAreAbsent(t *testing.T) {

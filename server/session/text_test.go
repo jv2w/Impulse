@@ -306,7 +306,7 @@ func TestSetTitleDurations(t *testing.T) {
 		},
 		{
 			// PINNED SCOPE: negative durations are neither rejected nor
-			// clamped. Out of scope per CLAUDE.md 2.6.
+			// clamped. Out of scope.
 			name: "negative durations pass through",
 			in:   -time.Second, remain: -50 * time.Millisecond, out: -time.Nanosecond,
 			wantIn: -20, wantRemain: -1, wantOut: 0,

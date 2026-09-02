@@ -75,8 +75,8 @@ func TestOutputErrorUnwrapsASingleError(t *testing.T) {
 func TestOutputErrorfDoesNotWrap(t *testing.T) {
 	// PINNED BUG: Errorf is fmt.Errorf, so a caller writing %w does get a
 	// wrapping error, but every error the package produces itself is a chat
-	// translation built with %v-style formatting. CLAUDE.md 3.3 asks for
-	// sentinels; this pins that the package offers none.
+	// translation built with %v-style formatting. This pins that the package
+	// offers no sentinels.
 	sentinel := errors.New("pinned cause")
 	o := &Output{}
 	o.Errorf("context: %w", sentinel)
@@ -94,7 +94,7 @@ func TestOutputErrorfDoesNotWrap(t *testing.T) {
 func TestOutputTranslationsPanicOnAWrongArgumentCount(t *testing.T) {
 	// PINNED BUG: Errort and Printt forward to Translation.F, which panics when
 	// the argument count does not match. A command reporting an error can
-	// therefore crash the world goroutine while reporting it. CLAUDE.md 2.2.
+	// therefore crash the world goroutine while reporting it.
 	o := &Output{}
 	if v := mustPanic(t, func() { o.Errort(MessageNumberInvalid) }); v == nil {
 		t.Fatal("Errort with too few arguments did not panic")

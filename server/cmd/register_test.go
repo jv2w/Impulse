@@ -8,10 +8,10 @@ import (
 )
 
 // register.go keeps the command table in a package-level sync.Map. That is the
-// clearest violation of CLAUDE.md 2.4 left in the package: two Impulse servers
-// in one process share one command table, a command registered by one is
-// runnable on the other, and nothing can ever be removed. The tests below pin
-// what that costs so the stage 1 replacement has a target to hit.
+// clearest global mutable state left in the package: two Impulse servers in one
+// process share one command table, a command registered by one is runnable on
+// the other, and nothing can ever be removed. The tests below pin what that
+// costs.
 
 type registeredRunnable struct {
 	V   int

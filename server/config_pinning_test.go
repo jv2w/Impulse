@@ -177,7 +177,7 @@ func TestPortalDestinationsAreCrossWired(t *testing.T) {
 }
 
 // PINNED BUG: loadGenerator panics on any dimension that is not one of the
-// three built-in ones, in direct conflict with CLAUDE.md §2.2. It is reachable
+// three built-in ones, rather than returning an error. It is reachable
 // from Config.New for any caller that registers a custom dimension and leaves
 // Config.Generator nil.
 func TestLoadGeneratorPanicsOnUnknownDimensions(t *testing.T) {

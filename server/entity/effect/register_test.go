@@ -8,9 +8,9 @@ import (
 	"testing"
 )
 
-// register.go builds two package-level maps from an init function. That is two
-// CLAUDE.md 2.4 violations in twenty lines: the state is global, and it is
-// constructed by init rather than by a constructor. The IDs it holds are the
+// register.go builds two package-level maps from an init function: the state is
+// global, and it is constructed by init rather than by a constructor. The IDs it
+// holds are the
 // on-disk and on-network representation of an effect, so the mapping is result
 // integrity: getting one wrong silently rewrites saved potions and effects.
 
@@ -100,8 +100,8 @@ func TestRegistryHoldsNothingElse(t *testing.T) {
 
 func TestUnimplementedEffectIDs(t *testing.T) {
 	// PINNED SCOPE: 28 (bad omen) and 29 (hero of the village) are deliberately
-	// unregistered because they require villages, which CLAUDE.md 2.6 puts out
-	// of scope. A saved entity carrying either ID decodes to nothing, and there
+	// unregistered because they require villages, which are out of scope. A
+	// saved entity carrying either ID decodes to nothing, and there
 	// is no error path that says so: ByID returns false and the caller decides.
 	for _, id := range []int{28, 29} {
 		if e, ok := ByID(id); ok {
@@ -160,7 +160,7 @@ func TestRegisterOverwritesBothDirections(t *testing.T) {
 	// maps with no locking and no duplicate check. Anyone may rebind a vanilla
 	// effect ID at any time, from any goroutine, for every server in the
 	// process. The maps are built in init, so there is no point at which they
-	// are complete and frozen. CLAUDE.md 2.4.
+	// are complete and frozen.
 	original, ok := ByID(1)
 	if !ok {
 		t.Fatal("effect 1 is not registered")

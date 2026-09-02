@@ -49,8 +49,8 @@ func TestUnsupportedFieldTypePanicsAtExecuteNotAtNew(t *testing.T) {
 	// command. Execute is called on the world goroutine, so a third party
 	// shipping a command with a []string parameter takes the world down at the
 	// moment a player types the command rather than at registration.
-	// CLAUDE.md 2.2: the default branch of parseArgument's type switch must
-	// become a value, and verifySignature must reject the type in New.
+	// The fix is for the default branch of parseArgument's type switch to
+	// become a value, and for verifySignature to reject the type in New.
 	cases := []struct {
 		name string
 		make func(*result) Runnable
@@ -219,7 +219,7 @@ func (notAStruct) Run(Source, *Output, *world.Tx) {}
 func TestNewPanicsOnAnInvalidSignature(t *testing.T) {
 	// PINNED BUG: every signature New does reject, it rejects by panicking with
 	// a bare string. New has no error return, so a caller building commands from
-	// third-party plugins cannot survive a bad one. CLAUDE.md 2.2.
+	// third-party plugins cannot survive a bad one.
 	cases := []struct {
 		name string
 		make func() Command
@@ -545,8 +545,8 @@ func TestParamsAndRunnablesFilterByAllower(t *testing.T) {
 
 func TestExecutePanicsOnANilSource(t *testing.T) {
 	// PINNED BUG: Execute documents and enforces a nil Source with a panic. It is
-	// the one input check the package makes, and it makes it the way CLAUDE.md
-	// 2.2 forbids.
+	// the one input check the package makes, and it makes it by panicking rather
+	// than returning a value.
 	res := &result{}
 	v := mustPanic(t, func() { New("pinned", "", nil, intRunnable{res: res}).Execute("5", nil, nil) })
 	if got, want := fmt.Sprint(v), "execute: invalid command source: source must not be nil"; got != want {

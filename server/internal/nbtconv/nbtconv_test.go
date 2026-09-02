@@ -29,7 +29,7 @@ func TestMain(m *testing.M) {
 // turn reachable from client-supplied NBT, so the liveness of the build-then-Finalize lifetime must not decide whether
 // decoding a chest survives. A fresh registry is used because TestMain finalizes DefaultBlockRegistry.
 //
-// PINNED CONSTRAINT: the two-phase lifetime itself remains, and CLAUDE.md 2.4 bans it; only its panic is gone.
+// PINNED CONSTRAINT: the two-phase lifetime itself remains; only its panic is gone.
 func TestBlockReadOnNonFinalizedRegistry(t *testing.T) {
 	b, ok := world.NewBlockRegistry().BlockByName("minecraft:stone", nil)
 	if b != nil || ok {
@@ -76,7 +76,7 @@ func TestBoolReadsUint8One(t *testing.T) {
 //
 // PINNED BUG: no reader distinguishes "absent" from "present but wrong type". A save written by a build that stored
 // BurnTime as int32 is read back as 0 by a build reading int16, silently voiding the furnace's progress rather than
-// failing. CLAUDE.md 2.2 wants failure carried as a value; these helpers have no way to carry one.
+// failing. These helpers have no way to carry a failure as a value.
 func TestScalarReadersZeroOnTypeMismatch(t *testing.T) {
 	// Each reader is exercised with its own type (must round-trip), with every other scalar type at the same key
 	// (must yield zero), and with the key absent (must yield zero).
@@ -281,8 +281,8 @@ func TestTickDuration(t *testing.T) {
 // TestTickDurationPanicsOnUnsupportedType pins that TickDuration panics for any integer type outside {uint8, int16,
 // int32}, with the exact message.
 //
-// PINNED BUG: read.go's default branch is `panic("invalid tick duration value type")`, violating CLAUDE.md 2.2's ban on
-// enum-switch default panics. The type parameter is constrained only to constraints.Integer, so `int` and `int64` -
+// PINNED BUG: read.go's default branch is `panic("invalid tick duration value type")` rather than a returned value.
+// The type parameter is constrained only to constraints.Integer, so `int` and `int64` -
 // both entirely plausible at a call site - compile and then panic at run time rather than failing to compile.
 func TestTickDurationPanicsOnUnsupportedType(t *testing.T) {
 	assertPanics := func(t *testing.T, name string, f func()) {

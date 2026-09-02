@@ -105,8 +105,8 @@ func TestConvertNilAndEmptyBecomeNonNilEmpty(t *testing.T) {
 // satisfy A. The doc comment says so, which does not make it a value: cmd's
 // target.go:29 hands it whatever entities a transaction holds, so a third-party
 // entity type that does not implement cmd.Target panics inside the world
-// goroutine. CLAUDE.md 2.2 names exactly this shape -- a lookup that can fail
-// should return (T, bool) or (T, error). Pinned as-is; decide in stage 1.
+// goroutine. A lookup that can fail should return (T, bool) or (T, error).
+// Pinned as-is; decide in stage 1.
 func TestConvertPanicsOnAFailedAssertion(t *testing.T) {
 	for _, c := range []struct {
 		name string

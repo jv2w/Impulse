@@ -345,8 +345,8 @@ func TestDebugShapeToProtocolText(t *testing.T) {
 //
 // PINNED BUG: an unknown debug.Shape implementation panics rather than being
 // skipped or reported. debug.Shape is an exported single-method interface, so a
-// third-party shape reaching SendDebugShapes takes the session down. CLAUDE.md
-// 2.2 requires this to be a value. Pinned as-is; decide in stage 1.
+// third-party shape reaching SendDebugShapes takes the session down. Pinned
+// as-is; decide in stage 1.
 func TestDebugShapeToProtocolUnknownShapePanics(t *testing.T) {
 	defer func() {
 		if recover() == nil {
@@ -392,7 +392,7 @@ func TestShapeAttachedEntityRuntimeID(t *testing.T) {
 	}
 	// PINNED SCOPE: an unknown shape reports 0 rather than panicking here, so
 	// the panic in debugShapeToProtocol is the only one on this path. Out of
-	// scope per CLAUDE.md 2.6.
+	// scope.
 	if got := s.shapeAttachedEntityRuntimeID(foreignShape{}); got != 0 {
 		t.Fatalf("an unknown shape reported runtime ID %d, want 0", got)
 	}

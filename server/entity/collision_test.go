@@ -202,7 +202,7 @@ func TestCheckCollisionZeroesOnlyBlockedAxes(t *testing.T) {
 
 func TestCheckCollisionIgnoresOtherEntities(t *testing.T) {
 	// PINNED SCOPE: entities do not collide with each other (movement.go:122
-	// TODO). Intentionally out of scope per CLAUDE.md 2.6; pinned so a rewrite
+	// TODO). Intentionally out of scope; pinned so a rewrite
 	// cannot change it silently. A second entity sitting exactly on the path is
 	// passed straight through, velocity intact.
 	w := syncWorld(t)

@@ -168,8 +168,8 @@ func TestStubTransactionSupportsEventContexts(t *testing.T) {
 // so with a panic rather than a value.
 //
 // PINNED BUG: context.go:19 turns three distinct caller mistakes into one
-// unrecoverable panic with a single message, which CLAUDE.md 2.2 forbids for a
-// failure the caller could be told about. Pinned as-is; decide in stage 1.
+// unrecoverable panic with a single message, for a failure the caller could be
+// told about. Pinned as-is; decide in stage 1.
 func TestNewEventContextPanicsOnAForeignTransaction(t *testing.T) {
 	p := newStubPlayer(Config{})
 

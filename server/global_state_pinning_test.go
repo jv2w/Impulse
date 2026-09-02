@@ -10,9 +10,8 @@ import (
 // PINNED SCOPE: Config.New() is not a constructor of an isolated Server. It is
 // also the only place in the tree that boots four process-wide registries. The
 // tests in this file record exactly what it writes outside the Server it
-// returns, because that list is what has to move onto the instance before
-// CLAUDE.md §2.4 ("한 프로세스에 Impulse 서버를 둘 이상 띄울 수 있어야 한다")
-// can hold.
+// returns, because that list is what has to move onto the instance before two
+// Impulse servers can run in one process.
 //
 // The state Config.New() touches, in the order conf.go touches it:
 //   - world.DefaultBlockRegistry is finalized (conf.go:178), irreversibly, and
