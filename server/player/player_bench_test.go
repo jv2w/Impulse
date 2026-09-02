@@ -21,21 +21,28 @@ func benchPlayer(b *testing.B, f func(p *Player)) {
 	w := world.Config{Synchronous: true, RandSource: rand.NewPCG(1, 1)}.New()
 	defer w.Close()
 
-	data := &world.EntityData{Pos: mgl64.Vec3{8.5, 65, 8.5}}
-	Config{EnchantmentSeed: 1}.Apply(data)
+	// Config.Apply overwrites data.Pos with Config.Position, so the standing
+	// position has to come from the Config. A player left at the origin falls
+	// out of the world and takes void damage every tick instead.
+	cfg := Config{EnchantmentSeed: 1, Position: mgl64.Vec3{8.5, 65, 8.5}}
+	data := &world.EntityData{}
+	cfg.Apply(data)
 
 	w.Do(func(tx *world.Tx) {
-		for x := 7; x <= 10; x++ {
-			for z := 7; z <= 10; z++ {
+		for x := 6; x <= 11; x++ {
+			for z := 6; z <= 11; z++ {
 				tx.SetBlock(cube.Pos{x, 64, z}, block.Stone{}, nil)
 			}
 		}
 		p := &Player{
 			tx:         tx,
-			handle:     world.EntitySpawnOpts{ID: stubUUID}.New(Type, Config{EnchantmentSeed: 1}),
+			handle:     world.EntitySpawnOpts{ID: stubUUID}.New(Type, cfg),
 			data:       data,
 			playerData: data.Data.(*playerData),
 		}
+		// One tick settles the movement computer onto the floor, so the
+		// measured ticks are the standing-still case.
+		p.Tick(tx, 0)
 		b.ReportAllocs()
 		b.ResetTimer()
 		f(p)
@@ -60,6 +67,17 @@ func BenchmarkCheckOnGround(b *testing.B) {
 	benchPlayer(b, func(p *Player) {
 		for range b.N {
 			p.checkOnGround(mgl64.Vec3{})
+		}
+	})
+}
+
+// BenchmarkTick measures a whole tick of a survival player standing still with
+// nothing held, which is what the tick loop spends its time on for most of the
+// players on a server.
+func BenchmarkTick(b *testing.B) {
+	benchPlayer(b, func(p *Player) {
+		for i := range b.N {
+			p.Tick(p.tx, int64(i))
 		}
 	})
 }
