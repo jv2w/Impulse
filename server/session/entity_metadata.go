@@ -159,8 +159,9 @@ func (s *Session) addSpecificMetadata(e any, m protocol.EntityMetadata) {
 		m[protocol.EntityDataKeyPlayerHasDied] = boolByte(died)
 	}
 	if p, ok := e.(splash); ok {
-		m[protocol.EntityDataKeyAuxValueData] = int16(p.Potion().Uint8())
-		if tip := p.Potion().Uint8(); tip > 4 {
+		tip := p.Potion().Uint8()
+		m[protocol.EntityDataKeyAuxValueData] = int16(tip)
+		if tip > 4 {
 			m[protocol.EntityDataKeyCustomDisplay] = tip + 1
 		}
 	}

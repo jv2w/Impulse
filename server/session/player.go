@@ -1003,12 +1003,14 @@ func stackFromItem(br world.BlockRegistry, it item.Stack) protocol.ItemStack {
 		return protocol.ItemStack{}
 	}
 
+	t := it.Item()
+
 	var blockRuntimeID uint32
-	if b, ok := it.Item().(world.Block); ok {
+	if b, ok := t.(world.Block); ok {
 		blockRuntimeID = br.BlockRuntimeID(b)
 	}
 
-	rid, meta, _ := world.ItemRuntimeID(it.Item())
+	rid, meta, _ := world.ItemRuntimeID(t)
 
 	return protocol.ItemStack{
 		ItemType: protocol.ItemType{
