@@ -3,10 +3,15 @@
 A Minecraft: Bedrock Edition server written in Go, derived from
 [dragonfly](https://github.com/df-mc/dragonfly).
 
-Impulse keeps dragonfly's observable behaviour and replaces its internals. The two goals are an
-execution model that is not bound to a single core, and a codebase that holds up as Go: failures
-returned as values rather than panics, small interfaces, no package-level mutable state, and
-documentation that says something.
+Impulse is a hardened dragonfly, not a redesign. It keeps dragonfly's structure and observable
+behaviour and changes two things: defects that take the server down — panics, memory corruption and
+irreversible world or inventory damage reachable from client packets and world files — and measured
+hot-path cost. Changes outside those two categories are out of scope.
+
+The world is ticked by a single goroutine. That is a choice, not a limitation: horizontal scaling
+belongs to a proxy, and region-level parallelism would trade away the tick-level ordering that
+interactions crossing a region boundary depend on. Performance comes from removing waste on the hot
+path instead.
 
 Impulse is deliberately not a feature-coverage project. Mobs, world generation and the unfinished
 vanilla systems inherited from dragonfly stay out of scope.
@@ -32,7 +37,8 @@ ctrl+c to shut down.
 go get github.com/jv2w/Impulse
 ```
 
-Impulse does not preserve dragonfly's API. Code written against dragonfly needs porting.
+Impulse keeps dragonfly's API where it can, so most code ports by changing the import path. A
+signature only changes where a defect cannot be fixed otherwise.
 
 ## Licence
 
