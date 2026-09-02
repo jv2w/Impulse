@@ -161,9 +161,9 @@ type mapValue struct {
 
 // writeEnchantments writes the enchantments of an item to a map for NBT encoding.
 func writeEnchantments(m map[string]any, s Stack) {
-	if len(s.Enchantments()) != 0 {
+	if enchants := s.Enchantments(); len(enchants) != 0 {
 		var enchantments []map[string]any
-		for _, e := range s.Enchantments() {
+		for _, e := range enchants {
 			if eType, ok := EnchantmentID(e.Type()); ok {
 				enchantments = append(enchantments, map[string]any{
 					"id":  int16(eType),
