@@ -93,12 +93,14 @@ func (a *lightArea) propagate(queue *lightQueue) {
 	if !ok {
 		return
 	}
-	if a.light(n.pos, n.lt) >= n.level {
+	x, y, z := n.pos[0], n.pos[1], n.pos[2]
+	// The light read and the write that follows it hit the same SubChunk, so resolve it once.
+	sub, bx, by, bz := a.sub(n.pos), uint8(x&0xf), uint8(y&0xf), uint8(z&0xf)
+	if n.lt.light(sub, bx, by, bz) >= n.level {
 		return
 	}
-	a.setLight(n.pos, n.lt, n.level)
+	n.lt.setLight(sub, bx, by, bz, n.level)
 
-	x, y, z := n.pos[0], n.pos[1], n.pos[2]
 	a.propagateNeighbour(queue, n.lt, n.level, x+1, y, z)
 	a.propagateNeighbour(queue, n.lt, n.level, x-1, y, z)
 	a.propagateNeighbour(queue, n.lt, n.level, x, y+1, z)

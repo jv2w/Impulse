@@ -67,7 +67,8 @@ func (w Wall) BreakInfo() BreakInfo {
 	if !ok {
 		panic("wall block is not breakable")
 	}
-	return newBreakInfo(breakable.BreakInfo().Hardness, pickaxeHarvestable, pickaxeEffective, oneOf(w)).withBlastResistance(breakable.BreakInfo().BlastResistance)
+	info := breakable.BreakInfo()
+	return newBreakInfo(info.Hardness, pickaxeHarvestable, pickaxeEffective, oneOf(w)).withBlastResistance(info.BlastResistance)
 }
 
 // NeighbourUpdateTick ...
