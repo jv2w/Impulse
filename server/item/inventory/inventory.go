@@ -411,7 +411,7 @@ func (inv *Inventory) lockedClear() ([]item.Stack, []func()) {
 	inv.check()
 
 	items := make([]item.Stack, 0, inv.size())
-	var fs []func()
+	fs := make([]func(), 0, inv.size())
 	for slot, i := range inv.slots {
 		if i.Empty() {
 			continue

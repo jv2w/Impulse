@@ -157,16 +157,21 @@ func (e *Ent) Tick(tx *world.Tx, current int64) {
 	e.SetOnFire(e.OnFireDuration() - time.Second/20)
 
 	m := e.Behaviour().Tick(e, tx)
-	if e.finishPendingPortalTravel(tx) {
+	// A behaviour is installed once, at creation, and never replaced, so every
+	// portal step below shares the one computer looked up here.
+	tc := e.portalTravelComputer()
+	if tc != nil && tc.finishPendingPortalTravel(e, tx) {
 		return
 	}
 	if m != nil {
 		m.Send()
 	}
-	if e.checkPortalInsiders() && e.finishPendingPortalTravel(tx) {
+	if e.checkPortalInsiders() && tc != nil && tc.finishPendingPortalTravel(e, tx) {
 		return
 	}
-	e.stopPortalContact()
+	if tc != nil {
+		tc.StopPortalContact()
+	}
 	e.data.Age += time.Second / 20
 }
 
@@ -198,25 +203,10 @@ func (e *Ent) portalTravelComputer() *PortalTravelComputer {
 	return nil
 }
 
-// stopPortalContact resets portal contact state when no portal was touched.
-func (e *Ent) stopPortalContact() {
-	if tc := e.portalTravelComputer(); tc != nil {
-		tc.StopPortalContact()
-	}
-}
-
 // pendingPortalTravel reports whether this tick queued terminal portal travel.
 func (e *Ent) pendingPortalTravel() bool {
 	if tc := e.portalTravelComputer(); tc != nil {
 		return tc.hasPendingPortalTravel()
-	}
-	return false
-}
-
-// finishPendingPortalTravel starts queued terminal portal travel, if present.
-func (e *Ent) finishPendingPortalTravel(tx *world.Tx) bool {
-	if tc := e.portalTravelComputer(); tc != nil {
-		return tc.finishPendingPortalTravel(e, tx)
 	}
 	return false
 }
