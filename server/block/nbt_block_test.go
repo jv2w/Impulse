@@ -6,7 +6,6 @@ import (
 	"maps"
 	"reflect"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -337,82 +336,54 @@ func wantNoDecoration(t *testing.T, got any) {
 	}
 }
 
-// TestDecodeNBTAcceptsValuesThatPanicLater pins the second class of failure: DecodeNBT itself accepts an out-of-range
-// value without validation, and the panic happens on the next encode or state lookup instead.
-//
-// PINNED BUG: the crash is displaced from the decode that caused it, so the corrupt value is already stored in the
-// world by the time anything fails. These are as remotely reachable as the direct panics above.
-func TestDecodeNBTAcceptsValuesThatPanicLater(t *testing.T) {
-	tests := []struct {
-		name    string
-		site    string
-		decode  func() world.Block
-		trigger func(world.Block)
-		wantMsg string
-	}{
-		{
-			name: "skull type beyond the six legal types",
-			site: "skull_type.go:94",
-			decode: func() world.Block {
-				// 255 is the sentinel meaning "type lives in the block state"; 7 is simply not a skull.
-				return block.Skull{}.DecodeNBT(map[string]any{"SkullType": uint8(7)}).(world.Block)
-			},
-			trigger: func(b world.Block) { b.(block.Skull).EncodeItem() },
-			wantMsg: "unknown skull type",
-		},
-		{
-			name: "copper golem pose beyond the four legal poses",
-			site: "copper_golem_pose.go:47",
-			decode: func() world.Block {
-				return block.CopperGolemStatue{}.DecodeNBT(map[string]any{"Pose": int32(9)}).(world.Block)
-			},
-			trigger: func(b world.Block) { b.(block.CopperGolemStatue).Pose.Name() },
-			wantMsg: "unknown copper golem pose",
-		},
+// TestDecodeNBTRejectsOutOfRangeEnums covers the second class of failure: a stored enum outside the values this build
+// knows used to be accepted by DecodeNBT and to detonate on a later encode or state lookup, with the corrupt value
+// already saved to the world by then. The value is rejected at decode instead, and the field keeps its default.
+func TestDecodeNBTRejectsOutOfRangeEnums(t *testing.T) {
+	t.Run("skull type beyond the seven legal types", func(t *testing.T) {
+		// 255 is the sentinel meaning "type lives in the block state"; 7 is simply not a skull.
+		got := block.Skull{}.DecodeNBT(map[string]any{"SkullType": uint8(7)}).(block.Skull)
+		if got.Type != (block.Skull{}.Type) {
+			t.Errorf("type = %v, want the receiver's own type", got.Type)
+		}
+		if name, _ := got.EncodeItem(); name == "" {
+			t.Error("EncodeItem returned an empty name")
+		}
+	})
+	t.Run("copper golem pose beyond the four legal poses", func(t *testing.T) {
+		got := block.CopperGolemStatue{}.DecodeNBT(map[string]any{"Pose": int32(9)}).(block.CopperGolemStatue)
+		if got.Pose != block.StandingPose() {
+			t.Errorf("pose = %v, want standing", got.Pose)
+		}
+		if got.Pose.Name() != "Standing" {
+			t.Errorf("pose name = %q, want \"Standing\"", got.Pose.Name())
+		}
+	})
+	// Values in range are still read.
+	if got := (block.Skull{}.DecodeNBT(map[string]any{"SkullType": uint8(3)}).(block.Skull)); got.Type != block.PlayerHead() {
+		t.Errorf("skull type 3 decoded to %v, want a player head", got.Type)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var b world.Block
-			func() {
-				defer func() {
-					if r := recover(); r != nil {
-						t.Fatalf("DecodeNBT itself panicked with %v; it was expected to accept the value", r)
-					}
-				}()
-				b = tt.decode()
-			}()
-			defer func() {
-				r := recover()
-				if r == nil {
-					t.Fatalf("the deferred panic at %s did not fire", tt.site)
-				}
-				if msg := fmt.Sprint(r); !strings.Contains(msg, tt.wantMsg) {
-					t.Errorf("panic = %q, want it to contain %q", msg, tt.wantMsg)
-				}
-			}()
-			tt.trigger(b)
-		})
+	if got := (block.CopperGolemStatue{}.DecodeNBT(map[string]any{"Pose": int32(2)}).(block.CopperGolemStatue)); got.Pose != block.RunningPose() {
+		t.Errorf("pose 2 decoded to %v, want running", got.Pose)
 	}
 }
 
-// TestShulkerBoxFacingIsUnvalidated pins that ShulkerBox.DecodeNBT casts the "facing" byte straight to a cube.Face with
-// no range check, so a value above 5 is stored verbatim.
-//
-// PINNED BUG: cube.Face has six legal values; Face.String and Face.Direction panic outside that range
-// (cube/face.go:108). ShulkerBox.EncodeBlock does not use Facing, so the corrupt value survives a save/load cycle and
-// only detonates on an interaction path.
-func TestShulkerBoxFacingIsUnvalidated(t *testing.T) {
+// TestShulkerBoxFacingIsValidated covers the shulker box's "facing" byte, which used to be cast straight to a cube.Face
+// with no range check. cube.Face has six legal values and Face.String and Face.Direction panic outside that range, and
+// ShulkerBox.EncodeBlock does not use Facing, so an out-of-range value used to survive a save/load cycle and detonate
+// on an interaction path much later.
+func TestShulkerBoxFacingIsValidated(t *testing.T) {
 	for _, v := range []uint8{6, 200, 255} {
 		got := block.ShulkerBox{}.DecodeNBT(map[string]any{"facing": v}).(block.ShulkerBox)
-		if got.Facing != cube.Face(v) {
-			t.Errorf("facing %d decoded to %d, want it stored verbatim", v, got.Facing)
+		if got.Facing != (block.ShulkerBox{}.Facing) {
+			t.Errorf("facing %d decoded to %v, want the receiver's own face", v, got.Facing)
 		}
-		// The value round-trips through EncodeNBT, so it persists to disk.
-		if enc := got.EncodeNBT()["facing"]; enc != v {
-			t.Errorf("facing %d re-encoded as %#v, want it preserved", v, enc)
+		// The face is legal, so nothing downstream of the decode can be handed a value it has no name for.
+		if got.Facing.String() == "" {
+			t.Errorf("facing %d decoded to a face with no name", v)
 		}
 	}
-	// A legal face is stored unchanged, so the cast is a pure widening for valid input.
+	// A legal face is stored unchanged, so the guard is a pure widening for valid input.
 	if got := (block.ShulkerBox{}.DecodeNBT(map[string]any{"facing": uint8(cube.FaceEast)}).(block.ShulkerBox)); got.Facing != cube.FaceEast {
 		t.Errorf("facing = %v, want %v", got.Facing, cube.FaceEast)
 	}

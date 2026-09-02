@@ -277,7 +277,11 @@ func (s ShulkerBox) DecodeNBT(data map[string]any) any {
 	// DecodeNBT has no channel to report an entry this build cannot read on; the slots it
 	// names load empty and the rest of the shulker box loads intact.
 	_ = nbtconv.InvFromNBT(s.inventory, nbtconv.Slice(data, "Items"))
-	s.Facing = cube.Face(nbtconv.Uint8(data, "facing"))
+	// EncodeBlock does not carry Facing, so a face outside the six would survive a save/load cycle and only panic
+	// later, on the first path that asks it for a name or a direction.
+	if f := nbtconv.Uint8(data, "facing"); int(f) < len(cube.Faces()) {
+		s.Facing = cube.Face(f)
+	}
 	s.CustomName = nbtconv.String(data, "CustomName")
 	return s
 }
