@@ -153,6 +153,8 @@ func (storage *PalettedStorage) setPaletteIndex(x, y, z byte, i uint16) {
 // split divides a bit offset into the index of the uint32 holding it and the bit offset within that uint32.
 // Only the padded palette sizes leave bits unused in a uint32, so every other storage divides by a power of
 // two: taking that case separately turns a hardware divide on every block access into a shift and a mask.
+// filledBitsPerIndex is never 0 here: it is 0 only for a bitsPerIndex of 0, which both callers return on, or
+// for one above 32, which needs over 4096 words while paletteSize.uint32s() yields at most 2048.
 func (storage *PalettedStorage) split(offset uint16) (uint32Offset, bitOffset uint16) {
 	if storage.filledBitsPerIndex == uint32BitSize {
 		return offset / uint32BitSize, offset % uint32BitSize
