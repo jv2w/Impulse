@@ -178,6 +178,9 @@ func writeEnchantments(m map[string]any, s Stack) {
 // writeDisplay writes the display name and lore of an item to a map for NBT encoding.
 func writeDisplay(m map[string]any, s Stack) {
 	name, lore := s.CustomName(), s.Lore()
+	if name == "" && len(lore) == 0 {
+		return
+	}
 	v := map[string]any{}
 	if name != "" {
 		v["Name"] = name
@@ -185,9 +188,7 @@ func writeDisplay(m map[string]any, s Stack) {
 	if len(lore) != 0 {
 		v["Lore"] = lore
 	}
-	if len(v) != 0 {
-		m["display"] = v
-	}
+	m["display"] = v
 }
 
 // writeDamage writes the damage to a Stack (either an int16 for disk or int32 for network) to a map for NBT

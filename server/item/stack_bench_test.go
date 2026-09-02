@@ -42,6 +42,16 @@ func BenchmarkWriteNBTDiskEnchanted(b *testing.B) {
 	}
 }
 
+func BenchmarkWriteNBTDiskPlain(b *testing.B) {
+	s := NewStack(Stick{}, 16)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		benchNBT = WriteNBT(s, true)
+	}
+}
+
 func BenchmarkStackComparable(b *testing.B) {
 	s := benchEnchantedStack()
 	s2 := benchEnchantedStack()
