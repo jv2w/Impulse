@@ -37,9 +37,10 @@ import (
 // StartShowingEntity is made.
 func (s *Session) StopShowingEntity(e world.Entity) {
 	s.entityMutex.Lock()
-	_, ok := s.hiddenEntities[e.H().UUID()]
+	id := e.H().UUID()
+	_, ok := s.hiddenEntities[id]
 	if !ok {
-		s.hiddenEntities[e.H().UUID()] = struct{}{}
+		s.hiddenEntities[id] = struct{}{}
 	}
 	s.entityMutex.Unlock()
 
@@ -51,9 +52,10 @@ func (s *Session) StopShowingEntity(e world.Entity) {
 // StartShowingEntity starts showing a world.Entity to the Session that was previously hidden using StopShowingEntity.
 func (s *Session) StartShowingEntity(e world.Entity) {
 	s.entityMutex.Lock()
-	_, ok := s.hiddenEntities[e.H().UUID()]
+	id := e.H().UUID()
+	_, ok := s.hiddenEntities[id]
 	if ok {
-		delete(s.hiddenEntities, e.H().UUID())
+		delete(s.hiddenEntities, id)
 	}
 	s.entityMutex.Unlock()
 

@@ -193,12 +193,15 @@ func (c ExplosionConfig) Explode(tx *world.Tx, src world.ExplosionSource) {
 		} else if breakable, ok := bl.(Breakable); ok {
 			// Clear the block first so break handlers see the post-break world, this is required by things such as redstone updates.
 			tx.SetBlock(pos, nil, nil)
-			breakHandler := breakable.BreakInfo().BreakHandler
-			if breakHandler != nil {
-				breakHandler(pos, tx, nil)
+			// Both the handler and the drops come from the same value, which
+			// nothing between the two touches, so the second BreakInfo built
+			// the same struct and threw away another drops closure with it.
+			info := breakable.BreakInfo()
+			if info.BreakHandler != nil {
+				info.BreakHandler(pos, tx, nil)
 			}
 			if itemDropChance > r.Float64() {
-				for _, drop := range breakable.BreakInfo().Drops(item.ToolNone{}, nil) {
+				for _, drop := range info.Drops(item.ToolNone{}, nil) {
 					dropItem(tx, drop, pos.Vec3Centre())
 				}
 			}
