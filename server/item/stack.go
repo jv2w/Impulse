@@ -336,10 +336,16 @@ func (s Stack) Enchantment(enchant EnchantmentType) (Enchantment, bool) {
 // Enchantments returns an array of all Enchantments on the item. Enchantments returns the enchantments of a Stack in a
 // deterministic order.
 func (s Stack) Enchantments() []Enchantment {
-	if s.Empty() {
+	if s.Empty() || len(s.enchantments) == 0 {
+		// A stack with no enchantments returns a nil slice, not the empty
+		// non-nil one make below would hand back: a caller comparing the result
+		// against nil can tell the two apart.
 		return nil
 	}
-	e := slices.Collect(maps.Values(s.enchantments))
+	e := make([]Enchantment, 0, len(s.enchantments))
+	for _, enchant := range s.enchantments {
+		e = append(e, enchant)
+	}
 	sort.Slice(e, func(i, j int) bool {
 		id1, _ := EnchantmentID(e[i].t)
 		id2, _ := EnchantmentID(e[j].t)

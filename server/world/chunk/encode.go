@@ -99,7 +99,11 @@ func encodePalettedStorage(buf *bytes.Buffer, storage, previous *PalettedStorage
 		_, _ = buf.Write([]byte{0x7f<<1 | e.network()})
 		return
 	}
-	b := make([]byte, len(storage.indices)*4+1)
+	n := len(storage.indices)*4 + 1
+	// Fill the buffer's own spare capacity rather than a scratch slice: the Write below then copies the
+	// bytes onto themselves, so encoding a storage costs no allocation.
+	buf.Grow(n)
+	b := buf.AvailableBuffer()[:n]
 	b[0] = byte(storage.bitsPerIndex<<1) | e.network()
 
 	for i, v := range storage.indices {
