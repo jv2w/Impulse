@@ -28,9 +28,6 @@ type PalettedStorage struct {
 	// indexMask is the equivalent of 1 << bitsPerIndex - 1.
 	indexMask uint32
 
-	// indicesStart holds an unsafe.Pointer to the first byte in the indices slice below.
-	indicesStart unsafe.Pointer
-
 	// Palette holds all block runtime IDs that the indices in the indices slice point to. These runtime IDs
 	// point to block states.
 	palette *Palette
@@ -46,13 +43,12 @@ func newPalettedStorage(indices []uint32, palette *Palette) *PalettedStorage {
 	var (
 		bitsPerIndex       = uint16(len(indices) / uint32BitSize / uint32ByteSize)
 		indexMask          = (uint32(1) << bitsPerIndex) - 1
-		indicesStart       = (unsafe.Pointer)(unsafe.SliceData(indices))
 		filledBitsPerIndex uint16
 	)
 	if bitsPerIndex != 0 {
 		filledBitsPerIndex = uint32BitSize / bitsPerIndex * bitsPerIndex
 	}
-	return &PalettedStorage{filledBitsPerIndex: filledBitsPerIndex, indexMask: indexMask, indicesStart: indicesStart, bitsPerIndex: bitsPerIndex, indices: indices, palette: palette}
+	return &PalettedStorage{filledBitsPerIndex: filledBitsPerIndex, indexMask: indexMask, bitsPerIndex: bitsPerIndex, indices: indices, palette: palette}
 }
 
 // emptyStorage creates a PalettedStorage filled completely with a value v.
@@ -134,7 +130,10 @@ func (storage *PalettedStorage) paletteIndex(x, y, z byte) uint16 {
 	offset := ((uint16(x) << 8) | (uint16(z) << 4) | uint16(y)) * storage.bitsPerIndex
 	uint32Offset, bitOffset := offset/storage.filledBitsPerIndex, offset%storage.filledBitsPerIndex
 
-	w := *(*uint32)(unsafe.Pointer(uintptr(storage.indicesStart) + uintptr(uint32Offset<<2)))
+	// This and setPaletteIndex index the slice instead of offsetting a cached data pointer: a storage whose
+	// width does not match its length addresses words past the end, and only the bounds check turns that into
+	// a panic instead of a silent read or write of unrelated heap.
+	w := storage.indices[uint32Offset]
 	return uint16((w >> bitOffset) & storage.indexMask)
 }
 
@@ -147,8 +146,8 @@ func (storage *PalettedStorage) setPaletteIndex(x, y, z byte, i uint16) {
 	offset := ((uint16(x) << 8) | (uint16(z) << 4) | uint16(y)) * storage.bitsPerIndex
 	uint32Offset, bitOffset := offset/storage.filledBitsPerIndex, offset%storage.filledBitsPerIndex
 
-	ptr := (*uint32)(unsafe.Pointer(uintptr(storage.indicesStart) + uintptr(uint32Offset<<2)))
-	*ptr = (*ptr &^ (storage.indexMask << bitOffset)) | (uint32(i) << bitOffset)
+	w := storage.indices[uint32Offset]
+	storage.indices[uint32Offset] = (w &^ (storage.indexMask << bitOffset)) | (uint32(i) << bitOffset)
 }
 
 // resize changes the size of a PalettedStorage to newPaletteSize. A new PalettedStorage is constructed,
@@ -185,7 +184,6 @@ func (storage *PalettedStorage) compact() {
 		storage.bitsPerIndex = 0
 		storage.filledBitsPerIndex = 0
 		storage.indexMask = 0
-		storage.indicesStart = nil
 		storage.indices = nil
 		storage.palette.size = 0
 		return

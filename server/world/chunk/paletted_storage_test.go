@@ -270,6 +270,47 @@ func TestPalettedStorageSaturatedWordLayout(t *testing.T) {
 	}
 }
 
+// storageOverrunWord is the number of words a 7-bit-wide storage gets and the index of the first word it
+// addresses past the end of them. 896 words derive bitsPerIndex 7 and filledBitsPerIndex 28, so linear
+// position 3584 sits at offset 25088 == 28*896: word 896 of a 896-word slice. 7 is not one of the widths the
+// format defines, so uint32s() never produces such a slice, but newPalettedStorage derives the width from the
+// length it is handed and rejects nothing.
+const storageOverrunWord = 896
+
+// storageOverrunning returns that storage along with its backing array. The indices slice is cut short of the
+// array so the overrun lands in memory this test owns: without the bounds check, the read and the write would
+// otherwise touch unrelated heap.
+func storageOverrunning() (*PalettedStorage, []uint32) {
+	backing := make([]uint32, storageOverrunWord+1)
+	return newPalettedStorage(backing[:storageOverrunWord], newPalette(7, []uint32{ridSolid})), backing
+}
+
+func TestPalettedStoragePaletteIndexRejectsOutOfBoundsWord(t *testing.T) {
+	storage, backing := storageOverrunning()
+	backing[storageOverrunWord] = 0xffffffff
+	x, y, z := storageCoords(3584)
+
+	var got uint16
+	defer func() {
+		if recover() == nil {
+			t.Errorf("paletteIndex(%d, %d, %d) returned %#x out of word %d of a %d-word slice instead of panicking", x, y, z, got, storageOverrunWord, storageOverrunWord)
+		}
+	}()
+	got = storage.paletteIndex(x, y, z)
+}
+
+func TestPalettedStorageSetPaletteIndexRejectsOutOfBoundsWord(t *testing.T) {
+	storage, backing := storageOverrunning()
+	x, y, z := storageCoords(3584)
+
+	defer func() {
+		if recover() == nil {
+			t.Errorf("setPaletteIndex(%d, %d, %d, 0x7f) wrote %#08x into word %d of a %d-word slice instead of panicking", x, y, z, backing[storageOverrunWord], storageOverrunWord, storageOverrunWord)
+		}
+	}()
+	storage.setPaletteIndex(x, y, z, 0x7f)
+}
+
 func TestPalettedStorageFullRoundTrip(t *testing.T) {
 	// Each cardinality lands on exactly one size class: the palette grows when its length exceeds 1<<size.
 	cases := []struct {
@@ -452,8 +493,8 @@ func TestPalettedStorageCompactSingleValueDropsIndices(t *testing.T) {
 	storage := newPalettedStorage(make([]uint32, 128), palette)
 	storage.compact()
 
-	if storage.indices != nil || storage.indicesStart != nil {
-		t.Fatalf("indices, indicesStart = %v, %v, want nil, nil", storage.indices, storage.indicesStart)
+	if storage.indices != nil {
+		t.Fatalf("indices = %v, want nil", storage.indices)
 	}
 	if storage.bitsPerIndex != 0 || storage.filledBitsPerIndex != 0 || storage.indexMask != 0 {
 		t.Fatalf("bits, filled, mask = %d, %d, %#x, want 0, 0, 0", storage.bitsPerIndex, storage.filledBitsPerIndex, storage.indexMask)
