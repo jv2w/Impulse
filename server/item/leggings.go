@@ -94,9 +94,16 @@ func (l Leggings) WithTrim(trim ArmourTrim) world.Item {
 	return l
 }
 
+// leggingsNames holds the encoded name of every vanilla leggings tier.
+var leggingsNames = armourNames("_leggings")
+
 // EncodeItem ...
 func (l Leggings) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + l.Tier.Name() + "_leggings", 0
+	tier := l.Tier.Name()
+	if n, ok := leggingsNames[tier]; ok {
+		return n, 0
+	}
+	return "minecraft:" + tier + "_leggings", 0
 }
 
 // DecodeNBT ...

@@ -90,9 +90,16 @@ func (h Helmet) WithTrim(trim ArmourTrim) world.Item {
 	return h
 }
 
+// helmetNames holds the encoded name of every vanilla helmet tier.
+var helmetNames = armourNames("_helmet")
+
 // EncodeItem ...
 func (h Helmet) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + h.Tier.Name() + "_helmet", 0
+	tier := h.Tier.Name()
+	if n, ok := helmetNames[tier]; ok {
+		return n, 0
+	}
+	return "minecraft:" + tier + "_helmet", 0
 }
 
 // DecodeNBT ...

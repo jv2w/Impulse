@@ -63,6 +63,16 @@ func BenchmarkStackComparable(b *testing.B) {
 	}
 }
 
+func BenchmarkStackEmptyArmour(b *testing.B) {
+	s := NewStack(Helmet{Tier: ArmourTierDiamond{}}, 1)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		benchComparable = s.Empty()
+	}
+}
+
 func BenchmarkStackDamage(b *testing.B) {
 	s := NewStack(Sword{Tier: ToolTierDiamond}, 1)
 

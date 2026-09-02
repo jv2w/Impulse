@@ -126,6 +126,19 @@ func ArmourTiers() []ArmourTier {
 	return []ArmourTier{ArmourTierLeather{}, ArmourTierCopper{}, ArmourTierGold{}, ArmourTierChain{}, ArmourTierIron{}, ArmourTierDiamond{}, ArmourTierNetherite{}}
 }
 
+// armourNames is the ArmourTier counterpart of toolNames: it maps the name of
+// every tier to the encoded item name it forms with the suffix passed, so that
+// EncodeItem stops concatenating one on every call. A tier that is not in the
+// table falls back to that concatenation.
+func armourNames(suffix string) map[string]string {
+	tiers := ArmourTiers()
+	names := make(map[string]string, len(tiers))
+	for _, t := range tiers {
+		names[t.Name()] = "minecraft:" + t.Name() + suffix
+	}
+	return names
+}
+
 // armourTierRepairable returns true if the ArmourTier passed is repairable.
 func armourTierRepairable(tier ArmourTier) func(Stack) bool {
 	return func(stack Stack) bool {

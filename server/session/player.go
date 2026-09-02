@@ -1135,8 +1135,9 @@ func stacksToIngredientItems(_ world.BlockRegistry, inputs []recipe.Item) []prot
 
 // creativeContent returns all creative groups, and creative inventory items as protocol item stacks.
 func creativeContent(br world.BlockRegistry) ([]protocol.CreativeGroup, []protocol.CreativeItem) {
-	groups := make([]protocol.CreativeGroup, 0, len(creative.Groups()))
-	for _, group := range creative.Groups() {
+	creativeGroups := creative.Groups()
+	groups := make([]protocol.CreativeGroup, 0, len(creativeGroups))
+	for _, group := range creativeGroups {
 		groups = append(groups, protocol.CreativeGroup{
 			Category: group.Category.Uint8(),
 			Name:     group.Name,
@@ -1144,9 +1145,10 @@ func creativeContent(br world.BlockRegistry) ([]protocol.CreativeGroup, []protoc
 		})
 	}
 
-	it := make([]protocol.CreativeItem, 0, len(creative.Items()))
-	for index, i := range creative.Items() {
-		group := slices.IndexFunc(creative.Groups(), func(group creative.Group) bool {
+	creativeItems := creative.Items()
+	it := make([]protocol.CreativeItem, 0, len(creativeItems))
+	for index, i := range creativeItems {
+		group := slices.IndexFunc(creativeGroups, func(group creative.Group) bool {
 			return group.Name == i.Group
 		})
 		if group < 0 {

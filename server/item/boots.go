@@ -90,9 +90,16 @@ func (b Boots) WithTrim(trim ArmourTrim) world.Item {
 	return b
 }
 
+// bootsNames holds the encoded name of every vanilla boots tier.
+var bootsNames = armourNames("_boots")
+
 // EncodeItem ...
 func (b Boots) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + b.Tier.Name() + "_boots", 0
+	tier := b.Tier.Name()
+	if n, ok := bootsNames[tier]; ok {
+		return n, 0
+	}
+	return "minecraft:" + tier + "_boots", 0
 }
 
 // DecodeNBT ...

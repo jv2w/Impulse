@@ -94,9 +94,16 @@ func (c Chestplate) WithTrim(trim ArmourTrim) world.Item {
 	return c
 }
 
+// chestplateNames holds the encoded name of every vanilla chestplate tier.
+var chestplateNames = armourNames("_chestplate")
+
 // EncodeItem ...
 func (c Chestplate) EncodeItem() (name string, meta int16) {
-	return "minecraft:" + c.Tier.Name() + "_chestplate", 0
+	tier := c.Tier.Name()
+	if n, ok := chestplateNames[tier]; ok {
+		return n, 0
+	}
+	return "minecraft:" + tier + "_chestplate", 0
 }
 
 // DecodeNBT ...
