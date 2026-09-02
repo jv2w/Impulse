@@ -103,19 +103,31 @@ func (s *Session) subChunkEntry(offset protocol.SubChunkOffset, ind int16, col *
 
 	serialisedSubChunk := chunk.EncodeSubChunk(col.Chunk, chunk.NetworkEncoding, int(ind))
 
-	blockEntityBuf := bytes.NewBuffer(nil)
-	enc := nbt.NewEncoderWithEncoding(blockEntityBuf, nbt.NetworkLittleEndian)
+	// Most sub-chunks hold no block entity at all. The buffer and the encoder
+	// are built on the first one that lands in this sub-chunk, so that the
+	// common case allocates neither. An untouched buffer returns a nil slice,
+	// which is what the two payload writes below saw before.
+	var blockEntityBuf *bytes.Buffer
+	var enc *nbt.Encoder
 	for pos, b := range col.BlockEntities {
 		if n, ok := b.(world.NBTer); ok && col.SubIndex(int16(pos.Y())) == ind {
+			if blockEntityBuf == nil {
+				blockEntityBuf = bytes.NewBuffer(nil)
+				enc = nbt.NewEncoderWithEncoding(blockEntityBuf, nbt.NetworkLittleEndian)
+			}
 			d := n.EncodeNBT()
 			d["x"], d["y"], d["z"] = int32(pos[0]), int32(pos[1]), int32(pos[2])
 			_ = enc.Encode(d)
 		}
 	}
+	var blockEntityData []byte
+	if blockEntityBuf != nil {
+		blockEntityData = blockEntityBuf.Bytes()
+	}
 
 	entry := protocol.SubChunkEntry{
 		Result:              protocol.SubChunkResultSuccess,
-		RawPayload:          protocol.Option(append(serialisedSubChunk, blockEntityBuf.Bytes()...)),
+		RawPayload:          protocol.Option(append(serialisedSubChunk, blockEntityData...)),
 		HeightMapType:       subMapType,
 		HeightMapData:       subMapData,
 		RenderHeightMapType: subMapType,
@@ -127,7 +139,7 @@ func (s *Session) subChunkEntry(offset protocol.SubChunkOffset, ind int16, col *
 			transaction[hash] = struct{}{}
 
 			entry.BlobHash = protocol.Option(hash)
-			entry.RawPayload = protocol.Option(blockEntityBuf.Bytes())
+			entry.RawPayload = protocol.Option(blockEntityData)
 		}
 	}
 	return entry

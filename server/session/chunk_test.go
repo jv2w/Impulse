@@ -6,9 +6,11 @@ import (
 	"time"
 
 	"github.com/cespare/xxhash/v2"
+	"github.com/jv2w/Impulse/server/block"
 	"github.com/jv2w/Impulse/server/block/cube"
 	"github.com/jv2w/Impulse/server/world"
 	"github.com/jv2w/Impulse/server/world/chunk"
+	"github.com/sandertv/gophertunnel/minecraft/nbt"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 )
@@ -255,5 +257,89 @@ func TestSendNetworkChunkIgnoresBlockEntities(t *testing.T) {
 	b := onlyPacket(t, withEntities).(*packet.LevelChunk)
 	if !bytes.Equal(a.RawPayload, b.RawPayload) {
 		t.Fatalf("block entities changed the payload: %v vs %v", a.RawPayload, b.RawPayload)
+	}
+}
+
+// stoneColumn builds a column holding a single stone block at the bottom of the
+// overworld, so that the sub-chunk containing it does not report itself empty,
+// and returns the index of that sub-chunk.
+func stoneColumn(t *testing.T) (*world.Column, int16) {
+	t.Helper()
+	c := emptyChunk(t)
+	c.SetBlock(0, 0, 0, 0, testRegistry(t).BlockRuntimeID(block.Stone{}))
+	return &world.Column{Chunk: c}, c.SubIndex(0)
+}
+
+// decodeBlockEntity decodes the network NBT that subChunkEntry appends after a
+// sub-chunk payload. The bytes themselves cannot be compared: EncodeNBT hands
+// back a map, so the order the fields are written in differs per run.
+func decodeBlockEntity(t *testing.T, data []byte) map[string]any {
+	t.Helper()
+	var d map[string]any
+	if err := nbt.NewDecoderWithEncoding(bytes.NewReader(data), nbt.NetworkLittleEndian).Decode(&d); err != nil {
+		t.Fatalf("decode block entity: %v", err)
+	}
+	return d
+}
+
+// TestSubChunkEntryPayloadWithoutBlockEntities pins that a sub-chunk with no
+// block entities in it carries the encoded sub-chunk and nothing after it.
+func TestSubChunkEntryPayloadWithoutBlockEntities(t *testing.T) {
+	s := newStubSession(t, &stubConn{cacheEnabled: false})
+	col, ind := stoneColumn(t)
+
+	entry := s.subChunkEntry(protocol.SubChunkOffset{}, ind, col, map[uint64]struct{}{})
+	if entry.Result != protocol.SubChunkResultSuccess {
+		t.Fatalf("result = %d, want success %d", entry.Result, protocol.SubChunkResultSuccess)
+	}
+	got, ok := entry.RawPayload.Value()
+	if !ok {
+		t.Fatal("entry carries no raw payload")
+	}
+	if want := chunk.EncodeSubChunk(col.Chunk, chunk.NetworkEncoding, int(ind)); !bytes.Equal(got, want) {
+		t.Fatalf("payload = %v, want the bare sub-chunk %v", got, want)
+	}
+}
+
+// TestSubChunkEntryPayloadWithBlockEntities pins that a block entity inside the
+// requested sub-chunk is appended to the payload as network NBT.
+func TestSubChunkEntryPayloadWithBlockEntities(t *testing.T) {
+	s := newStubSession(t, &stubConn{cacheEnabled: false})
+	col, ind := stoneColumn(t)
+	pos := cube.Pos{1, 2, 3}
+	col.BlockEntities = map[cube.Pos]world.Block{pos: block.Chest{}}
+
+	entry := s.subChunkEntry(protocol.SubChunkOffset{}, ind, col, map[uint64]struct{}{})
+	got, ok := entry.RawPayload.Value()
+	if !ok {
+		t.Fatal("entry carries no raw payload")
+	}
+	sub := chunk.EncodeSubChunk(col.Chunk, chunk.NetworkEncoding, int(ind))
+	if !bytes.HasPrefix(got, sub) {
+		t.Fatal("payload does not start with the encoded sub-chunk")
+	}
+	d := decodeBlockEntity(t, got[len(sub):])
+	if d["id"] != "Chest" {
+		t.Fatalf("block entity id = %v, want Chest", d["id"])
+	}
+	if d["x"] != int32(pos[0]) || d["y"] != int32(pos[1]) || d["z"] != int32(pos[2]) {
+		t.Fatalf("block entity position = (%v, %v, %v), want %v", d["x"], d["y"], d["z"], pos)
+	}
+}
+
+// TestSubChunkEntryDropsOtherSubChunkBlockEntities pins that a block entity of
+// the same column but a different sub-chunk index is left out of the payload.
+func TestSubChunkEntryDropsOtherSubChunkBlockEntities(t *testing.T) {
+	s := newStubSession(t, &stubConn{cacheEnabled: false})
+	col, ind := stoneColumn(t)
+	col.BlockEntities = map[cube.Pos]world.Block{{1, 40, 3}: block.Chest{}}
+
+	entry := s.subChunkEntry(protocol.SubChunkOffset{}, ind, col, map[uint64]struct{}{})
+	got, ok := entry.RawPayload.Value()
+	if !ok {
+		t.Fatal("entry carries no raw payload")
+	}
+	if want := chunk.EncodeSubChunk(col.Chunk, chunk.NetworkEncoding, int(ind)); !bytes.Equal(got, want) {
+		t.Fatalf("a block entity outside the sub-chunk was written into the payload")
 	}
 }

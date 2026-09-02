@@ -208,7 +208,10 @@ func decodePalettedStorage(buf *bytes.Buffer, e Encoding, pe paletteEncoding) (*
 	}
 	for i := 0; i < uint32Count; i++ {
 		// Explicitly don't use the binary package to greatly improve performance of reading the uint32s.
-		uint32s[i] = uint32(data[i*4]) | uint32(data[i*4+1])<<8 | uint32(data[i*4+2])<<16 | uint32(data[i*4+3])<<24
+		// Reading through a window of exactly four bytes costs one bounds check where indexing data four
+		// times costs four of them. The length of data was checked against byteCount above.
+		d := data[i*4 : i*4+4 : i*4+4]
+		uint32s[i] = uint32(d[0]) | uint32(d[1])<<8 | uint32(d[2])<<16 | uint32(d[3])<<24
 	}
 	p, err := e.decodePalette(buf, paletteSize(blockSize), pe)
 	return newPalettedStorage(uint32s, p), err
