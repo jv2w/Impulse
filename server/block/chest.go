@@ -75,9 +75,12 @@ func (c Chest) Inventory(tx *world.Tx, pos cube.Pos) *inventory.Inventory {
 func (c Chest) tryPair(tx *world.Tx, pos cube.Pos) (*inventory.Inventory, bool) {
 	if c.paired {
 		if c.pairInv == nil {
-			if ch, pair, ok := c.pair(tx, pos, c.pairPos(pos)); ok {
+			// The pair position depends only on the receiver copy and pos, neither of
+			// which changes here, so computing it once names the same block.
+			pairPos := c.pairPos(pos)
+			if ch, pair, ok := c.pair(tx, pos, pairPos); ok {
 				tx.SetBlock(pos, ch, nil)
-				tx.SetBlock(c.pairPos(pos), pair, nil)
+				tx.SetBlock(pairPos, pair, nil)
 				return ch.pairInv, true
 			}
 			c.paired = false
@@ -102,9 +105,15 @@ func (Chest) SideClosed(cube.Pos, cube.Pos, *world.Tx) bool {
 
 // open opens the chest, displaying the animation and playing a sound.
 func (c Chest) open(tx *world.Tx, pos cube.Pos) {
+	// The pair position is loop invariant, so it leaves the loop. It is still only
+	// computed when the chest is paired, and the same actions are viewed in order.
+	var pairPos cube.Pos
+	if c.paired {
+		pairPos = c.pairPos(pos)
+	}
 	for _, v := range tx.Viewers(pos.Vec3()) {
 		if c.paired {
-			v.ViewBlockAction(c.pairPos(pos), OpenAction{})
+			v.ViewBlockAction(pairPos, OpenAction{})
 		}
 		v.ViewBlockAction(pos, OpenAction{})
 	}
@@ -113,9 +122,15 @@ func (c Chest) open(tx *world.Tx, pos cube.Pos) {
 
 // close closes the chest, displaying the animation and playing a sound.
 func (c Chest) close(tx *world.Tx, pos cube.Pos) {
+	// The pair position is loop invariant, so it leaves the loop. It is still only
+	// computed when the chest is paired, and the same actions are viewed in order.
+	var pairPos cube.Pos
+	if c.paired {
+		pairPos = c.pairPos(pos)
+	}
 	for _, v := range tx.Viewers(pos.Vec3()) {
 		if c.paired {
-			v.ViewBlockAction(c.pairPos(pos), CloseAction{})
+			v.ViewBlockAction(pairPos, CloseAction{})
 		}
 		v.ViewBlockAction(pos, CloseAction{})
 	}
@@ -232,7 +247,10 @@ func (c Chest) pair(tx *world.Tx, pos, pairPos cube.Pos) (ch, pair Chest, ok boo
 	m := new(sync.RWMutex)
 	v := make(map[ContainerViewer]struct{})
 	left, right := c.inventory.Clone(nil), pair.inventory.Clone(nil)
-	if pos.Side(c.Facing.RotateRight().Face()) == pairPos {
+	// The side test reads only pos, c.Facing and pairPos, none of which change
+	// below, so evaluating it once gives both old call sites the same answer.
+	rightSide := pos.Side(c.Facing.RotateRight().Face()) == pairPos
+	if rightSide {
 		left, right = right, left
 	}
 	double := left.Merge(right, func(slot int, _, item item.Stack) {
@@ -249,7 +267,7 @@ func (c Chest) pair(tx *world.Tx, pos, pairPos cube.Pos) (ch, pair Chest, ok boo
 	})
 
 	c.inventory, pair.inventory = left, right
-	if pos.Side(c.Facing.RotateRight().Face()) == pairPos {
+	if rightSide {
 		c.inventory, pair.inventory = right, left
 	}
 	c.pairX, c.pairZ, c.paired = pairPos[0], pairPos[2], true
@@ -361,7 +379,11 @@ func (c Chest) EncodeBlock() (name string, properties map[string]any) {
 
 // allChests ...
 func allChests() (chests []world.Block) {
-	for _, direction := range cube.Directions() {
+	// One chest per direction, so the list is sized once instead of grown. Still a
+	// fresh slice with the same blocks in the same order.
+	directions := cube.Directions()
+	chests = make([]world.Block, 0, len(directions))
+	for _, direction := range directions {
 		chests = append(chests, Chest{Facing: direction})
 	}
 	return

@@ -150,9 +150,12 @@ func (c Candle) EncodeBlock() (name string, properties map[string]any) {
 
 // allCandles returns candle blocks with all possible colours.
 func allCandles() []world.Block {
-	b := make([]world.Block, 0)
+	// The colour list is built once instead of once per candle count, and the final
+	// count is known so the list is sized once. Same blocks in the same order.
+	colours := item.OptionalColours()
+	b := make([]world.Block, 0, 4*len(colours)*2)
 	for i := 0; i <= 3; i++ {
-		for _, c := range item.OptionalColours() {
+		for _, c := range colours {
 			b = append(b, Candle{Colour: c, AdditionalCandles: i})
 			b = append(b, Candle{Colour: c, AdditionalCandles: i, Lit: true})
 		}

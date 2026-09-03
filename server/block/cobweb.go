@@ -39,11 +39,15 @@ func (c Cobweb) BreakInfo() BreakInfo {
 			return swordEffective(t) || shearsEffective(t)
 		},
 		func(t item.Tool, enchantments []item.Enchantment) []item.Stack {
-			if t.ToolType() == item.TypeShears {
-				return oneOf(c)(t, enchantments)
+			// The tool type is read once, and oneOf is inlined: it builds exactly a
+			// one element list holding NewStack(x, 1), so the same fresh slice comes
+			// out without the variadic list and the closure behind it.
+			toolType := t.ToolType()
+			if toolType == item.TypeShears {
+				return []item.Stack{item.NewStack(c, 1)}
 			}
-			if t.ToolType() == item.TypeSword {
-				return oneOf(String{})(t, enchantments)
+			if toolType == item.TypeSword {
+				return []item.Stack{item.NewStack(String{}, 1)}
 			}
 			return nil
 		},

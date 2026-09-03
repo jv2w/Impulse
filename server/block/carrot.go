@@ -101,6 +101,9 @@ func (c Carrot) EncodeBlock() (name string, properties map[string]any) {
 
 // allCarrots ...
 func allCarrots() (carrots []world.Block) {
+	// Eight growth stages, so the list is sized once instead of grown. Still a fresh
+	// slice with the same blocks in the same order.
+	carrots = make([]world.Block, 0, 8)
 	for growth := 0; growth < 8; growth++ {
 		carrots = append(carrots, Carrot{crop{Growth: growth}})
 	}

@@ -74,7 +74,10 @@ func (c Carpet) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *world
 
 // allCarpet ...
 func allCarpet() (carpets []world.Block) {
-	for _, c := range item.Colours() {
+	// coloursByID holds the same sixteen colours in the same order, so ranging over
+	// it drops the freshly built list. Colours are values, so the copy is the same.
+	carpets = make([]world.Block, 0, len(coloursByID))
+	for _, c := range coloursByID {
 		carpets = append(carpets, Carpet{Colour: c})
 	}
 	return
