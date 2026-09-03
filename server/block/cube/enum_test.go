@@ -68,8 +68,7 @@ func equalFaces(got, want []Face) bool {
 //
 // PINNED BUG: a caller writing into any of these three results silently
 // rewrites the enumeration for every other caller in the process, for the rest
-// of its life. Axes() is the odd one out and returns a fresh slice. Pinned
-// as-is; decide in stage 1.
+// of its life. Axes() is the odd one out and returns a fresh slice.
 func TestFacesAliasesAPackageArray(t *testing.T) {
 	t.Run("Faces", func(t *testing.T) {
 		defer func() { faces = [...]Face{FaceDown, FaceUp, FaceNorth, FaceEast, FaceSouth, FaceWest} }()
@@ -190,8 +189,7 @@ func TestFaceIdentities(t *testing.T) {
 //
 // PINNED BUG: Opposite folds every unknown Face onto FaceUp and Direction hands
 // back an equally meaningless Direction, so a corrupt face propagates silently
-// instead of being caught. String is the one that panics. Pinned as-is;
-// decide in stage 1.
+// instead of being caught. String is the one that panics.
 func TestFaceOutOfRange(t *testing.T) {
 	unknown := Face(9)
 
@@ -277,7 +275,7 @@ func TestDirectionIdentities(t *testing.T) {
 //
 // PINNED BUG: Direction is an int with no validation at its boundaries, so a
 // bad value from a packet or a saved world takes down the goroutine instead of
-// being reported. Pinned as-is; decide in stage 1.
+// being reported.
 func TestDirectionOutOfRangePanics(t *testing.T) {
 	unknown := Direction(9)
 
@@ -306,7 +304,7 @@ func TestAxisProperties(t *testing.T) {
 		// PINNED BUG: every Axis method falls through to the Z branch on an
 		// unknown value, except RotateLeft which falls through to Y. An invalid
 		// axis is therefore silently read as two different axes depending on
-		// which method is called. Pinned as-is; decide in stage 1.
+		// which method is called.
 		{Axis(9), "z", Y, FaceNorth, FaceSouth, mgl64.Vec3{0, 0, 1}},
 	}
 	for _, test := range tests {
@@ -370,7 +368,7 @@ func TestOrientationFromYaw(t *testing.T) {
 		// PINNED BUG: the yaw is reduced with math.Mod, which keeps the sign
 		// and does not wrap into [0, 360). A yaw just under a full turn rounds
 		// up to 16 and a negative yaw produces a negative Orientation, both
-		// outside the documented 16 options. Pinned as-is; decide in stage 1.
+		// outside the documented 16 options.
 		{359.9, 16},
 		{-11.25, -1},
 		{-90, -4},
@@ -392,7 +390,7 @@ func TestOrientationRotationAndOpposite(t *testing.T) {
 	}{
 		// PINNED BUG: RotateLeft on a low orientation subtracts 90 degrees and
 		// then reduces with math.Mod, which yields a negative Orientation
-		// rather than wrapping to 12. Pinned as-is; decide in stage 1.
+		// rather than wrapping to 12.
 		{0, 0, 8, -4, 4},
 		{4, 90, 12, 0, 8},
 		{8, 180, 0, 4, 12},

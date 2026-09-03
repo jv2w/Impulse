@@ -75,8 +75,7 @@ func TestTypeBBoxGolden(t *testing.T) {
 // PINNED BUG: every branch of BBox multiplies by the scale with no floor, so a
 // player scaled to 0 collapses to a point and one scaled negative gets a box
 // mirrored below its feet, which cube.Box then normalises into a legal box the
-// player's head hangs out of. Player.SetScale accepts both. Pinned as-is;
-// decide in stage 1.
+// player's head hangs out of. Player.SetScale accepts both.
 func TestBBoxDegeneratesOnANonPositiveScale(t *testing.T) {
 	p := newStubPlayer(Config{})
 
@@ -94,7 +93,7 @@ func TestBBoxDegeneratesOnANonPositiveScale(t *testing.T) {
 // PINNED BUG: BBox asserts its argument to *Player with no comma-ok, so an
 // EntityType handed the wrong entity takes the world goroutine down.
 // world.EntityType.BBox has no error return to use instead, so this cannot be
-// fixed inside the method. Pinned as-is; decide in stage 1.
+// fixed inside the method.
 func TestBBoxPanicsOnAForeignEntity(t *testing.T) {
 	mustPanic(t, "Type.BBox(nil)", func() { Type.BBox(nil) })
 }
@@ -124,7 +123,7 @@ func TestTypeNBTIsANoOp(t *testing.T) {
 
 // PINNED BUG: Open asserts EntityData.Data to *playerData with no comma-ok, so
 // opening a handle whose data belongs to another entity type panics rather than
-// reporting the mismatch. Pinned as-is; decide in stage 1.
+// reporting the mismatch.
 func TestOpenPanicsOnForeignEntityData(t *testing.T) {
 	mustPanic(t, "Type.Open with foreign data", func() {
 		Type.Open(&world.Tx{}, nil, &world.EntityData{Data: "not a player"})

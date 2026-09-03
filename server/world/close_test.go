@@ -145,7 +145,7 @@ func TestCloseSeqStoresOnlyModifiedChunks(t *testing.T) {
 // nil Block into Column.BlockEntities whenever the air runtime ID is NBT-flagged,
 // and saving that column then dereferences the nil in columnTo. The vanilla
 // registry is safe because its air is not an NBTer; any registry built without
-// those implementations is not. Pinned as-is; decide in stage 1.
+// those implementations is not.
 func TestCloseSeqNilBlockStoresNilBlockEntity(t *testing.T) {
 	log := &closeSeqLog{}
 	w := closeSeqWorld(t, &closeSeqProvider{log: log}, Config{Synchronous: true})
@@ -174,7 +174,6 @@ func TestCloseSeqNilBlockStoresNilBlockEntity(t *testing.T) {
 // PINNED BUG: the advancing World closes the Provider on its own Close even when
 // other Worlds still hold the same Settings, and a non-advancing World never
 // closes it, so ownership does not follow the reference count it decrements.
-// Pinned as-is; decide in stage 1.
 func TestCloseSeqProviderOwnership(t *testing.T) {
 	t.Run("non advancing world leaves the provider open", func(t *testing.T) {
 		log := &closeSeqLog{}

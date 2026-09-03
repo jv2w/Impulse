@@ -261,7 +261,7 @@ func TestAreaEffectCloudRadiusBoundariesDisagree(t *testing.T) {
 	// PINNED BUG: subtractTickRadius closes the cloud on radius < 0.5 while
 	// subtractUseRadius closes it on radius <= 0.5, so a cloud that arrives at
 	// exactly 0.5 lives on if it got there by ageing and dies if it got there by
-	// being used. Pinned as-is; decide in stage 1.
+	// being used.
 	tick := AreaEffectCloudBehaviourConfig{Radius: 1.0, RadiusTickGrowth: -0.5}.New()
 	tick.subtractTickRadius()
 	if tick.stationary.close {

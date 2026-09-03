@@ -56,8 +56,7 @@ func TestVec32To64(t *testing.T) {
 func TestVec32To64NonFinite(t *testing.T) {
 	// PINNED BUG: a client sends float32 positions. vec32To64 widens NaN and
 	// the infinities without rejecting them, so a hostile PlayerAuthInput can
-	// put a non-finite mgl64.Vec3 into server-side movement code. Pinned as-is;
-	// decide in stage 1.
+	// put a non-finite mgl64.Vec3 into server-side movement code.
 	got := vec32To64(mgl32.Vec3{float32(math.NaN()), float32(math.Inf(1)), float32(math.Inf(-1))})
 	if !math.IsNaN(got[0]) {
 		t.Fatalf("vec32To64 X = %v, want NaN", got[0])
@@ -89,8 +88,7 @@ func TestVec64To32(t *testing.T) {
 		},
 		{
 			// PINNED BUG: narrowing a float64 beyond the float32 range yields
-			// an infinity rather than a clamp or an error. Pinned as-is;
-			// decide in stage 1.
+			// an infinity rather than a clamp or an error.
 			name: "overflow becomes an infinity",
 			in:   mgl64.Vec3{math.MaxFloat64, -math.MaxFloat64, 0},
 			want: mgl32.Vec3{float32(math.Inf(1)), float32(math.Inf(-1)), 0},
@@ -210,7 +208,7 @@ func TestAbs(t *testing.T) {
 // negative int overflows back onto itself in two's complement.
 //
 // PINNED BUG: abs(math.MinInt) returns math.MinInt, a negative "absolute
-// value". Pinned as-is; decide in stage 1.
+// value".
 func TestAbsMinIntOverflows(t *testing.T) {
 	if got := abs(math.MinInt); got != math.MinInt {
 		t.Fatalf("abs(math.MinInt) = %d, want %d (the overflowed value this pins)", got, math.MinInt)
@@ -333,7 +331,6 @@ func TestGameTypeFromMode(t *testing.T) {
 	// adventure collapses onto survival (0) and spectator, which allows flying
 	// but has no creative inventory, collapses onto survival as well. The
 	// client therefore never receives game type 2 or 6 from this function.
-	// Pinned as-is; decide in stage 1.
 	if got := gameTypeFromMode(world.GameModeAdventure); got != 0 {
 		t.Fatalf("gameTypeFromMode(adventure) = %d, want 0 (the collapse this pins)", got)
 	}

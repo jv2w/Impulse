@@ -275,8 +275,7 @@ func TestExhaustBelowFourNeverTouchesTheBar(t *testing.T) {
 // PINNED BUG: exhaust never clamps the exhaustion level at 0, so a negative
 // value from a caller is stored and permanently offsets every later drain.
 // player.Exhaust passes its argument straight through, so any handler or block
-// that exhausts by a negative amount buys the player free food. Pinned as-is;
-// decide in stage 1.
+// that exhausts by a negative amount buys the player free food.
 func TestNegativeExhaustPermanentlyOffsetsTheDrain(t *testing.T) {
 	m := newHungerManager()
 	m.exhaust(-100)
@@ -293,7 +292,6 @@ func TestNegativeExhaustPermanentlyOffsetsTheDrain(t *testing.T) {
 // PINNED BUG: NaN is neither < 4 nor >= 4, so the loop in exhaust never runs
 // and the NaN is stored. Every later exhaust adds to NaN and stays NaN, so one
 // NaN from a caller disables the hunger bar for the rest of the player's life.
-// Pinned as-is; decide in stage 1.
 //
 // The +Inf case is worse and is deliberately not exercised here: +Inf >= 4 is
 // true and +Inf - 4 is still +Inf, so exhaust spins forever while holding m.mu.
@@ -323,8 +321,7 @@ func TestNaNExhaustDisablesTheHungerBarForever(t *testing.T) {
 // PINNED BUG: resetExhaustion is named and documented as if it only cleared the
 // exhaustion level, but it also wipes the saturation and rewinds the food tick.
 // player.Exhaust calls it when a handler cancels HandleFoodLoss, so cancelling
-// the event costs the player every saturation point they had. Pinned as-is;
-// decide in stage 1.
+// the event costs the player every saturation point they had.
 func TestResetExhaustionAlsoClearsSaturationAndFoodTick(t *testing.T) {
 	m := newHungerManager()
 	m.exhaustionLevel, m.foodTick = 3.5, 47

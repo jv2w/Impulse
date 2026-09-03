@@ -182,8 +182,7 @@ func TestCosts(t *testing.T) {
 // PINNED BUG: Quick Charge caps its maximum cost at a constant 50 while its
 // minimum keeps climbing, so at level 3 the range is inverted (52, 50). The
 // enchanting table selects on minCost <= cost <= maxCost, so Quick Charge III
-// can never be rolled. Vanilla's maximum is minCost + 50. Pinned as-is; decide
-// in stage 1.
+// can never be rolled. Vanilla's maximum is minCost + 50.
 func TestQuickChargeTopLevelIsUnreachable(t *testing.T) {
 	min, max := QuickCharge.Cost(QuickCharge.MaxLevel())
 	if min <= max {
@@ -609,7 +608,7 @@ func TestUnbreakingReduce(t *testing.T) {
 	// PINNED BUG: Reduce is exported and takes a raw level, and rand.IntN
 	// panics once level+1 drops to zero or below. item.NewEnchantment keeps a
 	// level below 1 out of a Stack, so the reachable paths are safe, but a
-	// direct caller is not protected. Pinned as-is; decide in stage 1.
+	// direct caller is not protected.
 	t.Run("a level below minus one panics", func(t *testing.T) {
 		defer func() {
 			if recover() == nil {
@@ -623,7 +622,7 @@ func TestUnbreakingReduce(t *testing.T) {
 // PINNED BUG: item.NewEnchantment documents a panic when the level exceeds
 // EnchantmentType.MaxLevel, but only rejects levels below 1. Thorns XIV goes
 // straight in and reaches the level-above-ten branch in inventory's armour
-// code. Pinned as-is; decide in stage 1.
+// code.
 func TestNewEnchantmentAcceptsLevelsAboveMaxLevel(t *testing.T) {
 	e := item.NewEnchantment(Thorns, 14)
 	if got, want := e.Level(), 14; got != want {

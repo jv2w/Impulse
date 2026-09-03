@@ -135,7 +135,6 @@ func TestHdlHandleNilInstallsNopHandler(t *testing.T) {
 	// PINNED BUG: only an untyped nil is replaced by NopHandler{}. A typed nil
 	// handler is a non-nil interface, so it is stored as-is and handed back to
 	// every caller outside the package, which will dereference it.
-	// Pinned as-is; decide in stage 1.
 	var typed *recordingHandler
 	inv.Handle(typed)
 	h := inv.Handler()
@@ -154,7 +153,7 @@ func TestHdlHandleNilInstallsNopHandler(t *testing.T) {
 func TestHdlZeroValueInventoryPanics(t *testing.T) {
 	// PINNED BUG: check() panics on a zero-value Inventory instead of returning
 	// an error, so third-party code that forgets New() kills the calling
-	// goroutine. Pinned as-is; decide in stage 1.
+	// goroutine.
 	cases := []hdlCase{
 		{name: "Handler", call: func(inv *Inventory) { _ = inv.Handler() }},
 		{name: "Handle", call: func(inv *Inventory) { inv.Handle(&recordingHandler{}) }},
@@ -186,7 +185,6 @@ func TestHdlZeroValueInventoryPanics(t *testing.T) {
 func TestHdlInventoryNeverInvokesHandler(t *testing.T) {
 	// PINNED BUG: no method on Inventory ever invokes the assigned Handler, so a
 	// Handler that cancels its Context cannot block any inventory mutation.
-	// Pinned as-is; decide in stage 1.
 	//
 	// Every real dispatch lives outside this package (server/player and
 	// server/session fetch inv.Handler().HandleX and call it themselves). If a
@@ -301,7 +299,7 @@ func TestHdlCancelledContextDoesNotBlockMutation(t *testing.T) {
 	// PINNED BUG: cancelling the Context inside a Handler has no effect on the
 	// Inventory, because nothing in the package consults the Context. Blocking
 	// the mutation is entirely the responsibility of the caller outside this
-	// package. Pinned as-is; decide in stage 1.
+	// package.
 	rec := &recordingHandler{cancel: true}
 	inv := New(2, nil)
 	inv.Handle(rec)

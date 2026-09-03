@@ -698,7 +698,7 @@ func TestChunkCompactKeepsBlocks(t *testing.T) {
 }
 
 func TestChunkHeightMapAliasesInternalSlice(t *testing.T) {
-	// PINNED: HeightMap returns the chunk's own slice, not a copy. A caller that writes to it changes the
+	// PINNED BUG: HeightMap returns the chunk's own slice, not a copy. A caller that writes to it changes the
 	// chunk, and the write survives every call that does not dirty the height map.
 	c := newTestChunk()
 	c.SetBlock(1, 10, 2, 0, ridSolid)
@@ -725,7 +725,7 @@ func TestChunkHeightMapAliasesInternalSlice(t *testing.T) {
 }
 
 func TestChunkHeightMapAllAir(t *testing.T) {
-	// PINNED: with no light blocker anywhere, highestLightBlocker returns int16(r[0]) from its final return,
+	// PINNED BUG: with no light blocker anywhere, highestLightBlocker returns int16(r[0]) from its final return,
 	// which is the only path that skips the +1. So an empty overworld chunk reports -64, not -63.
 	c := newTestChunk()
 	h := c.HeightMap()

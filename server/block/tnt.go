@@ -73,8 +73,8 @@ func (t TNT) EncodeItem() (name string, meta int16) {
 }
 
 // EncodeBlock ...
-func (t TNT) EncodeBlock() (name string, properties map[string]interface{}) {
-	return "minecraft:tnt", map[string]interface{}{"explode_bit": false}
+func (t TNT) EncodeBlock() (name string, properties map[string]any) {
+	return "minecraft:tnt", map[string]any{"explode_bit": false}
 }
 
 // spawnTnt creates a new TNT entity at the given position with the given fuse duration.

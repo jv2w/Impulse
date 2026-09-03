@@ -120,7 +120,7 @@ func TestSpawnIgnoresItsArguments(t *testing.T) {
 // "the normal flame particle" and "black" respectively -- but the zero value of
 // color.RGBA is an opaque-less black that a caller may also have meant
 // literally. The two are indistinguishable here, and the choice between them is
-// made in session. Pinned as-is; decide in stage 1.
+// made in session.
 func TestColourFieldsHaveNoUnsetMarker(t *testing.T) {
 	var zero color.RGBA
 	for _, c := range []struct {

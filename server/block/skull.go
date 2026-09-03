@@ -90,7 +90,7 @@ func (s Skull) EncodeItem() (name string, meta int16) {
 }
 
 // DecodeNBT ...
-func (s Skull) DecodeNBT(data map[string]interface{}) interface{} {
+func (s Skull) DecodeNBT(data map[string]any) any {
 	// Used to upgrade pre-1.21.40 skulls after their flattening. Any skull placed since will set SkullType to 255. A
 	// type this build has no name for is left to the block state rather than stored to panic on a later encode.
 	if t := skull(nbtconv.Uint8(data, "SkullType")); t != 255 && int(t) < len(SkullTypes()) {
@@ -101,19 +101,19 @@ func (s Skull) DecodeNBT(data map[string]interface{}) interface{} {
 }
 
 // EncodeNBT ...
-func (s Skull) EncodeNBT() map[string]interface{} {
-	return map[string]interface{}{"id": "Skull", "SkullType": uint8(255), "Rotation": float32(s.Attach.o.Yaw())}
+func (s Skull) EncodeNBT() map[string]any {
+	return map[string]any{"id": "Skull", "SkullType": uint8(255), "Rotation": float32(s.Attach.o.Yaw())}
 }
 
 // EncodeBlock ...
-func (s Skull) EncodeBlock() (string, map[string]interface{}) {
+func (s Skull) EncodeBlock() (string, map[string]any) {
 	if s.Attach.hanging {
 		if s.Attach.facing == unknownDirection {
-			return skullName(s.Type), map[string]interface{}{"facing_direction": int32(0)}
+			return skullName(s.Type), map[string]any{"facing_direction": int32(0)}
 		}
-		return skullName(s.Type), map[string]interface{}{"facing_direction": int32(s.Attach.facing) + 2}
+		return skullName(s.Type), map[string]any{"facing_direction": int32(s.Attach.facing) + 2}
 	}
-	return skullName(s.Type), map[string]interface{}{"facing_direction": int32(1)}
+	return skullName(s.Type), map[string]any{"facing_direction": int32(1)}
 }
 
 // allSkulls ...

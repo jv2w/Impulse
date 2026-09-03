@@ -5,7 +5,7 @@ import (
 	"github.com/jv2w/Impulse/server/item"
 )
 
-type Holder interface{}
+type Holder any
 
 type Context = event.Context[Holder]
 

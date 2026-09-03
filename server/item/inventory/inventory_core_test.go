@@ -277,7 +277,7 @@ func TestCoreSetItemCallsSlotFuncInOrder(t *testing.T) {
 func TestCoreSetItemClampsToMaxCount(t *testing.T) {
 	// PINNED BUG: setItem silently truncates a stack larger than its max count
 	// and still returns a nil error, so the excess items vanish without the
-	// caller ever being told. Pinned as-is; decide in stage 1.
+	// caller ever being told.
 	for _, c := range []struct {
 		name  string
 		set   item.Stack
@@ -317,8 +317,7 @@ func TestCoreSetItemClampsToMaxCount(t *testing.T) {
 
 func TestCoreSetItemValidatorRejection(t *testing.T) {
 	// PINNED BUG: a rejected write returns a nil error, so the caller cannot tell
-	// the difference between a stored stack and a discarded one. Pinned as-is;
-	// decide in stage 1.
+	// the difference between a stored stack and a discarded one.
 	rec, val := &recorder{}, &coreValidator{allow: false}
 	inv := New(2, rec.fn)
 	inv.SlotValidatorFunc(val.fn)
@@ -404,8 +403,7 @@ func TestCoreSlotFuncNilPanicsOnNextWrite(t *testing.T) {
 	// PINNED BUG: SlotFunc stores nil verbatim rather than reapplying the no-op
 	// substitution New performs, so the next write panics on a nil func call.
 	// Worse, the slot has already been written by the time the panic fires, so
-	// the inventory is mutated without the SlotFunc ever running. Pinned as-is;
-	// decide in stage 1.
+	// the inventory is mutated without the SlotFunc ever running.
 	inv := New(2, nil)
 	mustSet(t, inv, 0, diamonds(1))
 	inv.SlotFunc(nil)
@@ -435,7 +433,7 @@ func TestCoreSlotFuncNilPanicsOnNextWrite(t *testing.T) {
 func TestCoreSlotValidatorFuncNilPanics(t *testing.T) {
 	// PINNED BUG: SlotValidatorFunc stores nil verbatim, so the next write panics
 	// inside setItem rather than reinstating the accept-everything validator the
-	// way New does. Pinned as-is; decide in stage 1.
+	// way New does.
 	inv := New(2, nil)
 	mustSet(t, inv, 0, diamonds(1))
 	inv.SlotValidatorFunc(nil)
@@ -567,8 +565,7 @@ func TestCoreCloneNilSlotFuncIsReplacedByNoOp(t *testing.T) {
 
 func TestCoreCloneDropsTheValidator(t *testing.T) {
 	// PINNED BUG: Clone hardcodes an always-true validator, so cloning an
-	// inventory silently strips whatever placement restriction it carried. Pinned
-	// as-is; decide in stage 1.
+	// inventory silently strips whatever placement restriction it carried.
 	inv := New(2, nil)
 	inv.SlotValidatorFunc(func(item.Stack, int) bool { return false })
 
@@ -616,8 +613,7 @@ func TestCoreCloneDoesNotShareLore(t *testing.T) {
 func TestCoreCloneOfZeroValueInventory(t *testing.T) {
 	// PINNED BUG: Clone never calls check and builds its slots from Slots(),
 	// which does not either. Cloning a zero-value Inventory therefore hands back
-	// a size-0 inventory, an invariant New refuses to produce. Pinned as-is;
-	// decide in stage 1.
+	// a size-0 inventory, an invariant New refuses to produce.
 	var zero Inventory
 
 	var clone *Inventory
@@ -640,7 +636,6 @@ func TestCoreCloneOfZeroValueInventory(t *testing.T) {
 func TestCoreCloseKeepsContentsAndSilencesSlotFunc(t *testing.T) {
 	// PINNED BUG: Close documents that it "clears any items that may currently be
 	// in the inventory", but it only replaces the SlotFunc. Every slot survives.
-	// Pinned as-is; decide in stage 1.
 	rec := &recorder{}
 	inv := New(3, rec.fn)
 	mustSet(t, inv, 0, diamonds(5))
@@ -709,8 +704,7 @@ func TestCoreSlotFuncReRegisteredAfterClose(t *testing.T) {
 func TestCoreZeroValueInventory(t *testing.T) {
 	// PINNED BUG: check is applied inconsistently. Item, SetItem and Close guard
 	// against a zero-value Inventory and panic, while Slots, Items, Size and
-	// String happily operate on it and return values. Pinned as-is; decide in
-	// stage 1.
+	// String happily operate on it and return values.
 	t.Run("panics", func(t *testing.T) {
 		for _, c := range []struct {
 			name string

@@ -100,7 +100,7 @@ func TestPaletteSizeFor(t *testing.T) {
 		{65, 8}, {256, 8}, // size 7 is not a canonical size, so 8 is the next step up from 6
 		{257, 16}, {65536, 16},
 		// Current behaviour: n above the largest representable count falls out of the loop and yields 0,
-		// the smallest size, rather than an error. Pinned as-is.
+		// the smallest size, rather than an error.
 		{65537, 0},
 		// Negative n satisfies n <= 1 on the first iteration and yields 0.
 		{-1, 0},
@@ -210,7 +210,7 @@ func TestPaletteAddIndexOverflowsInt16(t *testing.T) {
 
 func TestPaletteAddPanicsPastLargestSize(t *testing.T) {
 	// Growing past size 16 indexes sizes[9], which does not exist. Current behaviour is a runtime panic
-	// rather than a returned error. Pinned as-is.
+	// rather than a returned error.
 	p := newPalette(16, paletteFill(65536))
 	defer func() {
 		if recover() == nil {

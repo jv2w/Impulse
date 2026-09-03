@@ -199,8 +199,8 @@ func (b Bed) EncodeItem() (name string, meta int16) {
 }
 
 // EncodeBlock ...
-func (b Bed) EncodeBlock() (name string, properties map[string]interface{}) {
-	return "minecraft:bed", map[string]interface{}{
+func (b Bed) EncodeBlock() (name string, properties map[string]any) {
+	return "minecraft:bed", map[string]any{
 		"direction":      int32(horizontalDirection(b.Facing)),
 		"occupied_bit":   boolByte(b.Sleeper != nil),
 		"head_piece_bit": boolByte(b.Head),
@@ -208,15 +208,15 @@ func (b Bed) EncodeBlock() (name string, properties map[string]interface{}) {
 }
 
 // EncodeNBT ...
-func (b Bed) EncodeNBT() map[string]interface{} {
-	return map[string]interface{}{
+func (b Bed) EncodeNBT() map[string]any {
+	return map[string]any{
 		"id":    "Bed",
 		"color": b.Colour.Uint8(),
 	}
 }
 
 // DecodeNBT ...
-func (b Bed) DecodeNBT(data map[string]interface{}) interface{} {
+func (b Bed) DecodeNBT(data map[string]any) any {
 	// A colour outside the sixteen is not a colour this build has; the bed keeps the white an absent key gives it.
 	colours := item.Colours()
 	if c := int(nbtconv.Uint8(data, "color")); c < len(colours) {

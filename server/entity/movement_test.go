@@ -193,7 +193,7 @@ func TestApplyHorizontalForcesFrictionByBlock(t *testing.T) {
 		{name: "block without Friction defaults to 0.6", below: block.Stone{}, onGround: true, want: 0.98 * 0.6},
 		// PINNED BUG: air is a block without a Friction method, so an entity
 		// marked on the ground over open air is slowed as if it stood on stone
-		// rather than sliding freely. Pinned as-is; decide in stage 1.
+		// rather than sliding freely.
 		{name: "air below also defaults to 0.6", below: block.Air{}, onGround: true, want: 0.98 * 0.6},
 		{name: "blue ice", below: block.BlueIce{}, onGround: true, want: 0.98 * 0.989},
 		{name: "packed ice", below: block.PackedIce{}, onGround: true, want: 0.98 * 0.98},
@@ -357,7 +357,6 @@ func TestMovementSendThresholds(t *testing.T) {
 	// whenever either operand is zero. The real cutoff is 1e-6, a thousand times
 	// tighter than the constant suggests. projectile.go:281 takes a square root to
 	// compensate for exactly this, so the omission here looks unintended.
-	// Pinned as-is; decide in stage 1.
 	const effective = epsilon * epsilon
 
 	tests := []struct {
@@ -451,7 +450,7 @@ func TestTickMovementNaNVelocity(t *testing.T) {
 	// value, so the search loop runs zero times and no block is collected at all
 	// -- collision is silently disabled on every axis, not just the poisoned one.
 	// The NaN then survives every comparison in CheckCollision and lands in the
-	// entity position. Pinned as-is; decide in stage 1.
+	// entity position.
 	w := syncWorld(t)
 	start := mgl64.Vec3{0.5, 64, 0.5}
 	handle := world.EntitySpawnOpts{Position: start}.New(testMovingEntType{}, testMoveConfig{})
@@ -477,7 +476,7 @@ func TestBlockBBoxsAroundInfiniteVelocityDoesNotTerminate(t *testing.T) {
 	// time. Any code path that lets a plugin or a packet set an infinite velocity
 	// therefore hangs the world goroutine. This test pins the arithmetic that
 	// causes it rather than calling the function, because calling it would never
-	// return. Pinned as-is; decide in stage 1.
+	// return.
 	box := cube.Box(-0.125, 0, -0.125, 0.125, 0.25, 0.125).
 		Translate(mgl64.Vec3{0.5, 64, 0.5}).
 		Extend(mgl64.Vec3{0, math.Inf(-1), 0}).

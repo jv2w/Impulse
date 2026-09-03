@@ -65,7 +65,6 @@ func TestNewRefOnANilHandle(t *testing.T) {
 // branches on it (server.go), so it is a condition callers must distinguish,
 // which needs a sentinel or an error type. As written it matches nothing,
 // carries no message, and cannot even be compared to itself.
-// Pinned as-is; decide in stage 1.
 func TestNopProviderLoadReturnsAnUnmatchableError(t *testing.T) {
 	var p NopProvider
 
@@ -155,7 +154,7 @@ func TestFormatJoinsWithSpaces(t *testing.T) {
 // PINNED BUG: format trims the newline suffix twice, so on top of the one
 // fmt.Sprintln adds it also eats one the caller wrote. A message deliberately
 // ending in a blank line loses it, and only the last one: two trailing newlines
-// come back as one. Pinned as-is; decide in stage 1.
+// come back as one.
 func TestFormatEatsOneNewlineOfTheCallersOwn(t *testing.T) {
 	for _, tc := range []struct {
 		in   string
@@ -173,8 +172,7 @@ func TestFormatEatsOneNewlineOfTheCallersOwn(t *testing.T) {
 
 // PINNED BUG: the doc comment on EyeHeight promises 1.62, 1.26 sneaking and
 // 0.52 prone. The code returns 1.62, 1.27 and 0.4. Eye height decides reach and
-// line of sight, so the comment is the one that is wrong. Pinned as-is; decide
-// in stage 1.
+// line of sight, so the comment is the one that is wrong.
 func TestEyeAndTorsoHeightGolden(t *testing.T) {
 	for _, tc := range []struct {
 		name string

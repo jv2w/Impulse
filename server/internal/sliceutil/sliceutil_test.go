@@ -106,7 +106,6 @@ func TestConvertNilAndEmptyBecomeNonNilEmpty(t *testing.T) {
 // target.go:29 hands it whatever entities a transaction holds, so a third-party
 // entity type that does not implement cmd.Target panics inside the world
 // goroutine. A lookup that can fail should return (T, bool) or (T, error).
-// Pinned as-is; decide in stage 1.
 func TestConvertPanicsOnAFailedAssertion(t *testing.T) {
 	for _, c := range []struct {
 		name string
@@ -307,7 +306,6 @@ func TestFilterCallsThePredicateOncePerElementInOrder(t *testing.T) {
 // session/session_list.go:43) assign the result straight back over the input
 // and hold no second header, so none is broken today; nothing in the signature
 // or the doc comment says the next caller may not.
-// Pinned as-is; decide in stage 1.
 func TestDeleteValAliasesAndMutatesItsInput(t *testing.T) {
 	in := []int{1, 2, 3, 4}
 	got := DeleteVal(in, 2)
@@ -379,7 +377,7 @@ func TestDeleteValComparesThroughAny(t *testing.T) {
 // type that cannot be compared turns what should be a compile error into a
 // runtime panic inside whatever goroutine called it. The `(any)(v) == (any)(vs)`
 // boxing is what defers the check to run time; a comparable constraint would
-// let the compiler reject the call. Pinned as-is; decide in stage 1.
+// let the compiler reject the call.
 func TestDeleteValPanicsOnUncomparableElements(t *testing.T) {
 	for _, c := range []struct {
 		name string

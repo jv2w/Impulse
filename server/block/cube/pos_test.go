@@ -332,8 +332,7 @@ func TestRange(t *testing.T) {
 //
 // PINNED BUG: a non-finite or out-of-int64 coordinate produces an
 // implementation-defined position rather than an error, which is how an
-// infinite velocity reaches the block iteration loop in server/entity. Pinned
-// as-is; decide in stage 1.
+// infinite velocity reaches the block iteration loop in server/entity.
 func TestPosFromVec3OnHugeValues(t *testing.T) {
 	// Only the fact that this does not panic is pinned; the value itself is
 	// platform-defined, so it is deliberately not asserted.

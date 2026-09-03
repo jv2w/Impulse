@@ -131,8 +131,7 @@ func TestSessionListRuntimeIDsIncrementPerSession(t *testing.T) {
 // PINNED BUG: Add has no membership check, so adding the same session twice
 // leaves it in the slice twice and resends its own player list entry three more
 // times. The runtime ID is unaffected only because sendSessionTo short-circuits
-// when the sender and receiver are the same session. Pinned as-is; decide in
-// stage 1.
+// when the sender and receiver are the same session.
 func TestSessionListAddTwiceDuplicates(t *testing.T) {
 	l := &sessionList{}
 	s := newListSession(t, "Steve")
@@ -203,7 +202,7 @@ func TestSessionListRemove(t *testing.T) {
 //
 // PINNED BUG: Remove loops over every session in the list unconditionally, so
 // removing a stranger broadcasts a player list removal for a UUID no viewer has
-// ever seen. Pinned as-is; decide in stage 1.
+// ever seen.
 func TestSessionListRemoveUnknownSession(t *testing.T) {
 	l := &sessionList{}
 	a := newListSession(t, "A")
@@ -273,7 +272,6 @@ func TestSessionListLookupOnEmptyList(t *testing.T) {
 //
 // PINNED BUG: Lookup dereferences session.ent without a nil check, so a single
 // session in the list that has not been through SetHandle panics the caller.
-// Pinned as-is; decide in stage 1.
 func TestSessionListLookupPanicsOnASessionWithoutAHandle(t *testing.T) {
 	l := &sessionList{s: []*Session{newStubSession(t, nil)}}
 
@@ -530,7 +528,7 @@ func TestProtocolToSkinErrors(t *testing.T) {
 // their cause with %v rather than %w, so errors.Is and errors.As cannot see
 // through to the json error.
 //
-// PINNED BUG: a wrapped error must use %w. Pinned as-is; decide in stage 1.
+// PINNED BUG: a wrapped error must use %w.
 func TestProtocolToSkinErrorsAreNotWrapped(t *testing.T) {
 	sk := validProtocolSkin()
 	sk.SkinGeometry = []byte("not json")
@@ -556,7 +554,6 @@ func TestProtocolToSkinErrorsAreNotWrapped(t *testing.T) {
 // throws that slice away for the client's SkinData, whatever length it is. A
 // later Skin.At within the declared bounds then reads out of range. The
 // unbounded make itself is the more serious half: nothing caps the dimensions.
-// Pinned as-is; decide in stage 1.
 func TestProtocolToSkinPixelDataIsNotValidated(t *testing.T) {
 	sk := validProtocolSkin()
 	sk.SkinData = []byte{1, 2, 3, 4}

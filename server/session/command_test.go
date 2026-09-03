@@ -122,7 +122,7 @@ func TestValueToParamType(t *testing.T) {
 			// nil interface with no dynamic type. The type switch therefore
 			// misses every case and a bare Target parameter is advertised as a
 			// raw value instead of a target. Only []Target survives, because a
-			// nil slice still carries its type. Pinned as-is; decide in stage 1.
+			// nil slice still carries its type.
 			name:     "a nil target falls through to a raw value",
 			info:     cmd.ParamInfo{Value: cmd.Target(nil)},
 			wantType: goldenArgTypeRValue,
@@ -330,8 +330,7 @@ func TestBuildAvailableCommandsOptional(t *testing.T) {
 //
 // PINNED BUG: a suffixed parameter's type is overwritten with
 // CommandArgSuffixed|index, dropping both the base type (int here) and the
-// CommandArgValid bit that every other branch sets. Pinned as-is; decide in
-// stage 1.
+// CommandArgValid bit that every other branch sets.
 func TestBuildAvailableCommandsSuffix(t *testing.T) {
 	commands := map[string]cmd.Command{
 		"c": cmd.New("c", "", nil, suffixedRunnable{}),

@@ -380,8 +380,8 @@ func TestBreakDurationSwordAndShears(t *testing.T) {
 //
 // PINNED CONSTRAINT: pickaxeEffective, pickaxeHarvestable and the other eight helpers are package-level
 // mutable `var`s of type func(item.Tool) bool. Any code inside package block can reassign them at run
-// time and change the harvest rules of every block at once -- this is global mutable state
-// and is slated for removal. An external block_test package cannot observe or perform that mutation, so
+// time and change the harvest rules of every block at once -- this is global mutable state.
+// An external block_test package cannot observe or perform that mutation, so
 // what is pinned here is the aliasing's visible effect, not the variables themselves.
 func TestHarvestablePickaxeAlias(t *testing.T) {
 	tests := []struct {

@@ -54,8 +54,8 @@ func (Loom) EncodeItem() (name string, meta int16) {
 }
 
 // EncodeBlock ...
-func (l Loom) EncodeBlock() (name string, properties map[string]interface{}) {
-	return "minecraft:loom", map[string]interface{}{"direction": int32(horizontalDirection(l.Facing))}
+func (l Loom) EncodeBlock() (name string, properties map[string]any) {
+	return "minecraft:loom", map[string]any{"direction": int32(horizontalDirection(l.Facing))}
 }
 
 // allLooms ...

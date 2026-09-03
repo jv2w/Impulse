@@ -28,7 +28,7 @@ func TestRotationFix(t *testing.T) {
 		// PINNED BUG: the two half-turn endpoints do not fold into the
 		// documented open range, they swap. A yaw of 180 becomes -180 but a yaw
 		// of -180 becomes 180, which the doc comment excludes. The same holds
-		// for a pitch of exactly +/-90. Pinned as-is; decide in stage 1.
+		// for a pitch of exactly +/-90.
 		{Rotation{180, 0}, Rotation{-180, 0}},
 		{Rotation{-180, 0}, Rotation{180, 0}},
 		{Rotation{0, 90}, Rotation{0, -90}},
@@ -87,7 +87,7 @@ func TestRotationAdd(t *testing.T) {
 //
 // PINNED BUG: Neg of a half turn yields a yaw of exactly 180, outside the
 // documented (-180, 180) range, because the negation happens after the last
-// fix. Pinned as-is; decide in stage 1.
+// fix.
 func TestRotationNegDoesNotRenormalise(t *testing.T) {
 	tests := []struct {
 		in, want Rotation
@@ -195,8 +195,7 @@ func TestRotationOrientation(t *testing.T) {
 		{-180, 8},
 		{-11.26, 15},
 		// PINNED BUG: the shift is guarded by yaw < -step/2, so a yaw of
-		// exactly -11.25 misses it and rounds to -1 instead of 15. Pinned
-		// as-is; decide in stage 1.
+		// exactly -11.25 misses it and rounds to -1 instead of 15.
 		{-11.25, -1},
 	}
 	for _, test := range tests {
@@ -223,7 +222,7 @@ func TestRotationVec3(t *testing.T) {
 		{Rotation{0, -45}, mgl64.Vec3{0, math.Sqrt2 / 2, math.Sqrt2 / 2}},
 		// PINNED BUG: at exactly +/-90 the pitch is flipped by fix first, so a
 		// pitch of 90 (documented as looking down) produces a vector pointing
-		// straight up and vice versa. Pinned as-is; decide in stage 1.
+		// straight up and vice versa.
 		{Rotation{0, 90}, mgl64.Vec3{0, 1, 0}},
 		{Rotation{0, -90}, mgl64.Vec3{0, -1, 0}},
 	}

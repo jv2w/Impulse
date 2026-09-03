@@ -148,7 +148,7 @@ func TestCheckCollisionAxisThreshold(t *testing.T) {
 	// into the floor and OnGround stays false, which is the opposite of what the
 	// named constant promises. projectile.go:281 compensates for the same mgl64
 	// behaviour with an explicit square root, so the omission here looks
-	// unintended. Pinned as-is; decide in stage 1.
+	// unintended.
 	tests := []struct {
 		name       string
 		velY       float64
@@ -383,8 +383,7 @@ func TestCheckCollisionNonFiniteVelocity(t *testing.T) {
 	// splits them. The NaN is returned as the movement delta and lands in the
 	// entity position, while the "did this axis get blocked" test reads NaN as a
 	// mismatch and zeroes the velocity. The entity is therefore teleported to a
-	// NaN position and left with a velocity that says nothing happened. Pinned
-	// as-is; decide in stage 1.
+	// NaN position and left with a velocity that says nothing happened.
 	w := syncWorld(t)
 	pos := mgl64.Vec3{0.5, 64, 0.5}
 	handle := world.EntitySpawnOpts{Position: pos}.New(testMovingEntType{}, testMoveConfig{})

@@ -532,7 +532,7 @@ func TestAddSpecificMetadataVisibleEffects(t *testing.T) {
 //
 // PINNED BUG: with ten or more visible effects the packing silently discards
 // the oldest entries, and an ambient tenth-from-last effect leaves its low bit
-// in the sign bit, making the value negative. Pinned as-is; decide in stage 1.
+// in the sign bit, making the value negative.
 func TestAddSpecificMetadataVisibleEffectsOverflow(t *testing.T) {
 	pack := func(t *testing.T, effects []effect.Effect) int64 {
 		t.Helper()
@@ -613,8 +613,7 @@ func TestAddSpecificMetadataSplashPotion(t *testing.T) {
 //
 // PINNED BUG: the tip is computed as a uint8 addition, so potion 255 writes a
 // custom display of 0 rather than 256, and the value written is a uint8 while
-// every other writer of EntityDataKeyCustomDisplay writes an int64. Pinned
-// as-is; decide in stage 1.
+// every other writer of EntityDataKeyCustomDisplay writes an int64.
 func TestAddSpecificMetadataSplashPotionTipWraps(t *testing.T) {
 	s := newStubSession(t, nil)
 	m := protocol.NewEntityMetadata()
@@ -656,7 +655,7 @@ func TestAddSpecificMetadataOwner(t *testing.T) {
 // PINNED BUG: handleRuntimeID logs and returns 0 for an unknown handle, so the
 // owner key is written as runtime ID 0. No entity ever has that ID -- the
 // session's own player is 1 -- so the client is handed a dangling reference
-// rather than the key being left out. Pinned as-is; decide in stage 1.
+// rather than the key being left out.
 func TestAddSpecificMetadataUnknownOwner(t *testing.T) {
 	s := newStubSession(t, nil)
 	owner := newStubEntity(t, stubEntityType{name: "impulse:owner"})

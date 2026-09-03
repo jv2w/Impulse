@@ -337,7 +337,6 @@ func TestUnregisteredLookupsReturnFalse(t *testing.T) {
 // PINNED BUG: RegisterBiome panics on a duplicate ID. The caller of a registry
 // is exactly the third party that must not be able to take the process down,
 // and "this ID is taken" is a condition a caller can act on.
-// Pinned as-is; decide in stage 1.
 func TestDuplicateRegistrationPanics(t *testing.T) {
 	// Ocean is already registered under ID 0, so this panics before it writes
 	// anything and leaves the global registry untouched.
@@ -470,7 +469,7 @@ func TestBiomeDefinitionsInternsEveryStringOnce(t *testing.T) {
 // and the interning order of the string list differ from run to run. The packet
 // stays self-consistent because indices are resolved against the list it ships
 // with, but two servers built from identical code send byte-different packets
-// and the output cannot be diffed or cached. Pinned as-is; decide in stage 1.
+// and the output cannot be diffed or cached.
 //
 // The assertion is a statement about the current behaviour, so it fails once
 // the order is made deterministic. With 88 entries the odds of eight

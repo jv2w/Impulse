@@ -326,8 +326,7 @@ func TestStackToItemUnknownItem(t *testing.T) {
 			}
 			// PINNED BUG: the count and the tags of an unresolvable item are
 			// kept on a stack that reports itself empty, so Count and
-			// CustomName disagree with Empty and Item. Pinned as-is; decide in
-			// stage 1.
+			// CustomName disagree with Empty and Item.
 			if s.Count() != 5 {
 				t.Errorf("count = %v, want 5", s.Count())
 			}
@@ -360,7 +359,7 @@ func TestStackToItemCount(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// PINNED BUG: the network path applies no maximum. A client that
 			// claims 65535 sticks gets a stack of 65535, well past the 64 that
-			// item.Stack.MaxCount reports. Pinned as-is; decide in stage 1.
+			// item.Stack.MaxCount reports.
 			s := stackToItem(br, protocol.ItemStack{
 				ItemType: protocol.ItemType{NetworkID: ridStick},
 				Count:    tc.count,
@@ -388,8 +387,7 @@ func TestStackFromItemCountWraps(t *testing.T) {
 		// PINNED BUG: item.WriteNBT clamps an oversized count to fit the byte
 		// the disk format stores it in, but the network conversion converts
 		// straight to uint16 and wraps. A stack of 65536 is sent as a count of
-		// zero, which reads back as an empty slot. Pinned as-is; decide in
-		// stage 1.
+		// zero, which reads back as an empty slot.
 		{name: "one past the field wraps to zero", count: 65536, want: 0},
 		{name: "well past the field wraps around", count: 70000, want: 4464},
 	}
@@ -584,7 +582,7 @@ func TestStackFromItemUnregisteredItem(t *testing.T) {
 	// PINNED BUG: stackFromItem discards the ok of world.ItemRuntimeID, so an
 	// unregistered item is sent with network ID 0 and the metadata value it
 	// encoded to, indistinguishable from a real item at that ID rather than
-	// reported as unsendable. Pinned as-is; decide in stage 1.
+	// reported as unsendable.
 	got := stackFromItem(br, item.NewStack(unregisteredItem{}, 2))
 	if got.NetworkID != 0 {
 		t.Errorf("NetworkID = %v, want 0", got.NetworkID)

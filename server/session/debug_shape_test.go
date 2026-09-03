@@ -345,8 +345,7 @@ func TestDebugShapeToProtocolText(t *testing.T) {
 //
 // PINNED BUG: an unknown debug.Shape implementation panics rather than being
 // skipped or reported. debug.Shape is an exported single-method interface, so a
-// third-party shape reaching SendDebugShapes takes the session down. Pinned
-// as-is; decide in stage 1.
+// third-party shape reaching SendDebugShapes takes the session down.
 func TestDebugShapeToProtocolUnknownShapePanics(t *testing.T) {
 	defer func() {
 		if recover() == nil {

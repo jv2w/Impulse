@@ -242,7 +242,6 @@ const discCount = 21
 // ("otherside") is the only disc after the C418 block left lowercase while
 // every later one is capitalised. jukebox.go puts this straight into the
 // "Now playing: %v - %v" popup, so the inconsistency is player-visible.
-// Pinned as-is; decide in stage 1.
 func TestDiscGolden(t *testing.T) {
 	if len(discs) != discCount {
 		t.Fatalf("discs holds %d entries, want %d", len(discs), discCount)
@@ -287,7 +286,7 @@ func TestMusicDiscsIsExhaustiveAndOrdered(t *testing.T) {
 // failure. disc is an unexported uint8, but DiscType is exported with an
 // exported zero value, so DiscType{} plus arithmetic on the wrapped value is
 // not the only route -- any future decoder reading a stored uint8 back into a
-// DiscType reaches this. Pinned as-is; decide in stage 1.
+// DiscType reaches this.
 func TestDiscOutOfRangePanics(t *testing.T) {
 	for _, c := range []struct {
 		name string
@@ -371,7 +370,7 @@ func TestHornGolden(t *testing.T) {
 }
 
 // PINNED BUG: goatHornType.Name panics with the literal string "should never
-// happen" for any value above 7. Pinned as-is; decide in stage 1.
+// happen" for any value above 7.
 func TestHornOutOfRangePanics(t *testing.T) {
 	for _, id := range []uint8{hornCount, 100, 255} {
 		func() {

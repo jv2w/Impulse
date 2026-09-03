@@ -453,7 +453,7 @@ func TestMutRemoveItemFuncRejectsNonPositiveCount(t *testing.T) {
 func TestMutRemoveItemFuncRejectingValidatorReportsFalseSuccess(t *testing.T) {
 	// PINNED BUG: RemoveItemFunc returns a nil error while nothing was removed,
 	// because the rejected setItem writes nothing but the count is deducted
-	// regardless. Pinned as-is; decide in stage 1.
+	// regardless.
 	inv, r := mutRecording(t, 2, diamonds(5), diamonds(5))
 	inv.SlotValidatorFunc(mutRejectAll)
 
@@ -469,7 +469,7 @@ func TestMutRemoveItemFuncRejectingValidatorReportsFalseSuccess(t *testing.T) {
 func TestMutContainsItemEmptyStack(t *testing.T) {
 	// PINNED BUG: ContainsItem with an empty stack is always true, including on
 	// a completely empty inventory. The count asked for is 0 and the loop only
-	// has to leave n <= 0. Pinned as-is; decide in stage 1.
+	// has to leave n <= 0.
 	for name, in := range map[string]item.Stack{
 		"zero stack":       {},
 		"count 0 diamonds": diamonds(0),
@@ -886,8 +886,7 @@ func TestMutFirst(t *testing.T) {
 		{
 			// PINNED BUG: First with an empty stack matches the first non-empty
 			// slot instead of finding nothing, because item.Stack.Comparable is
-			// unconditionally true when either stack is empty. Pinned as-is;
-			// decide in stage 1.
+			// unconditionally true when either stack is empty.
 			name: "empty stack matches the first non-empty slot", it: item.Stack{}, wantSlot: 1, wantOk: true,
 		},
 		{name: "count 0 stack behaves the same", it: diamonds(0), wantSlot: 1, wantOk: true},

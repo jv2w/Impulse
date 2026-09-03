@@ -53,7 +53,7 @@ func (Stonecutter) EncodeItem() (name string, meta int16) {
 }
 
 // EncodeBlock ...
-func (s Stonecutter) EncodeBlock() (name string, properties map[string]interface{}) {
+func (s Stonecutter) EncodeBlock() (name string, properties map[string]any) {
 	return "minecraft:stonecutter_block", map[string]any{"minecraft:cardinal_direction": s.Facing.String()}
 }
 

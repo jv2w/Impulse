@@ -126,7 +126,7 @@ func TestExhaustAppliesTheLevelTheHandlerWritesBack(t *testing.T) {
 // which clears the saturation as well as the exhaustion (hunger.go:61). A
 // handler that only meant to keep the food bar where it was destroys the
 // buffer that would have absorbed the next few crossings, so the food point it
-// saved is lost sooner rather than later. Pinned as-is; decide in stage 1.
+// saved is lost sooner rather than later.
 func TestCancellingFoodLossWipesTheSaturationBuffer(t *testing.T) {
 	h := &foodLossHandler{cancel: true}
 	p := newStubPlayer(Config{})

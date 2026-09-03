@@ -186,7 +186,7 @@ func TestPerformAppliesTheEntityFilter(t *testing.T) {
 // TraverseBlocks rather than reporting the mistake as a value.
 //
 // PINNED BUG: a caller whose start and end coincide takes down the world
-// goroutine. Pinned as-is; decide in stage 1.
+// goroutine.
 func TestPerformPanicsOnAZeroLengthRay(t *testing.T) {
 	w := syncWorld(t)
 	mustDo(t, w, func(tx *world.Tx) {

@@ -236,8 +236,7 @@ func TestFixedBoxModels(t *testing.T) {
 		// PINNED BUG: the BrewingStand post box starts at y=-0.125, so the model
 		// sticks a collision box a quarter of the way down into the block below.
 		// ExtendTowards(FaceDown, 0.125) grows downwards; every other model in
-		// this package shrinks with a negative argument. Pinned as-is; decide in
-		// stage 1.
+		// this package shrinks with a negative argument.
 		{"BrewingStand", BrewingStand{}, []cube.BBox{
 			cube.Box(0, 0, 0, 1, 0.125, 1),
 			cube.Box(0.4375, -0.125, 0.4375, 0.5625, 1, 0.5625),
@@ -1019,8 +1018,7 @@ func TestCakeBBox(t *testing.T) {
 		{5, 0.6875},
 		{6, 0.8125},
 		// PINNED BUG: at seven bites the west edge reaches the east edge, so the
-		// box is zero-width and collides with nothing. Pinned as-is; decide in
-		// stage 1.
+		// box is zero-width and collides with nothing.
 		{7, 0.9375},
 	} {
 		t.Run(fmt.Sprintf("bites=%d", c.bites), func(t *testing.T) {
@@ -1077,7 +1075,7 @@ func TestComposterBBox(t *testing.T) {
 		// PINNED BUG: levels 0 and 1 give the same compost height. The
 		// math.Abs around level*0.125-0.0625 folds level 0's -0.0625 up to
 		// +0.0625, so an empty composter has as much compost in it as one with a
-		// single layer. Pinned as-is; decide in stage 1.
+		// single layer.
 		{0, 0.1875},
 		{1, 0.1875},
 		{2, 0.3125},
@@ -1137,7 +1135,6 @@ func TestGrindstoneBBox(t *testing.T) {
 	// PINNED BUG: the base box is 0.125..0.825, not 0.125..0.875. Stretching by
 	// 0.125 therefore reaches 0.95 instead of a full 1, and the box is 0.05
 	// off-centre on both untouched axes. 0.825 reads as a typo for 0.875.
-	// Pinned as-is; decide in stage 1.
 	for _, c := range []struct {
 		axis cube.Axis
 		want cube.BBox
@@ -1257,7 +1254,7 @@ func TestSkullBBox(t *testing.T) {
 		// PINNED BUG: hanging is only meaningful for the four horizontal
 		// directions. With FaceUp the two translations cancel and the box lands
 		// back on the floor; with FaceDown they add and the box is pushed to the
-		// top of the block. Pinned as-is; decide in stage 1.
+		// top of the block.
 		{cube.FaceDown, true, cube.Box(0.25, 0.5, 0.25, 0.75, 1, 0.75)},
 		{cube.FaceUp, true, cube.Box(0.25, 0, 0.25, 0.75, 0.5, 0.75)},
 
@@ -1399,7 +1396,7 @@ func TestBambooBBox(t *testing.T) {
 	// PINNED BUG: the box is not centred on the block. cube.Box(0.5, 0, 0.5,
 	// size, 1, size) puts its minimum exactly at the centre, so before the
 	// random offset the stalk occupies 8/16..10/16 rather than 7/16..9/16 on
-	// both horizontal axes. Pinned as-is; decide in stage 1.
+	// both horizontal axes.
 	for _, c := range []struct {
 		pos   cube.Pos
 		thick bool
@@ -1498,7 +1495,7 @@ func TestOffsetSeedSignSymmetry(t *testing.T) {
 	// the same model offset. Both coordinate multipliers are odd, so each
 	// product keeps its coordinate's trailing-zero count; when the two counts
 	// match, negating both operands complements exactly the same bit range in
-	// each and the XOR cancels the complement. Pinned as-is; decide in stage 1.
+	// each and the XOR cancels the complement.
 	for _, c := range [][2]int32{
 		{1, 1}, {3, 5}, {7, -9}, {-11, 13}, {123457, -654321},
 		{2, 2}, {2, 6}, {4, 12}, {0, 0},

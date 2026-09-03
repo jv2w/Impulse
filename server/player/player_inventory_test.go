@@ -65,7 +65,7 @@ func TestSubtractItemOnlyDeductsOutsideCreative(t *testing.T) {
 // handleUseContext feeds item.UseContext.CountSub straight into subtractItem
 // with no check. Any item whose Use writes a negative CountSub duplicates
 // itself. Inventory.RemoveItemFunc guards the same mistake explicitly
-// (inventory.go:295); this path does not. Pinned as-is; decide in stage 1.
+// (inventory.go:295); this path does not.
 func TestNegativeCountSubDuplicatesTheHeldStack(t *testing.T) {
 	p := newStubPlayer(Config{})
 	if err := p.inv.SetItem(0, apples(10)); err != nil {
@@ -255,7 +255,7 @@ func TestHandleUseContextConsumptionPaths(t *testing.T) {
 // PINNED BUG: when neither the off-hand nor the inventory can satisfy a
 // consumed stack, both RemoveItem calls fail, the second error is discarded at
 // player.go:1741, and the player keeps every item the use was supposed to cost.
-// Consuming is silently free. Pinned as-is; decide in stage 1.
+// Consuming is silently free.
 func TestConsumingMoreThanThePlayerHasCostsNothing(t *testing.T) {
 	p := newStubPlayer(Config{})
 	if err := p.offHand.SetItem(0, apples(1)); err != nil {
@@ -309,7 +309,7 @@ func TestHandleUseContextAppliesEveryFieldInOrder(t *testing.T) {
 // names a slot the inventory does not have gives a player whose main hand is
 // permanently empty and who destroys every item written to it: SetHeldItems
 // discards the ErrSlotOutOfRange at player.go:1477, so handleUseContext loses
-// the item it was holding. Pinned as-is; decide in stage 1.
+// the item it was holding.
 func TestAnOutOfRangeHeldSlotSilentlyDestroysTheHeldItem(t *testing.T) {
 	p := newStubPlayer(Config{HeldSlot: 40})
 

@@ -349,7 +349,7 @@ func TestStackComparable(t *testing.T) {
 // PINNED BUG: Comparable short-circuits to true whenever either stack is
 // empty, so an empty Stack compares equal to every stack in existence. This is
 // the root of item/inventory's First, ContainsItem and RemoveItem accepting a
-// zero Stack as a wildcard. Pinned as-is; decide in stage 1.
+// zero Stack as a wildcard.
 func TestStackComparableEmptyIsWildcard(t *testing.T) {
 	for _, c := range []struct {
 		name  string
@@ -375,8 +375,7 @@ func TestStackComparableEmptyIsWildcard(t *testing.T) {
 
 // PINNED BUG: stack.go:437 spells the lore check as `for !slices.Equal(...)`
 // where an `if` was meant. The body returns unconditionally so the loop can
-// never run twice, but the construct is a trap for anyone editing it. Pinned
-// as-is; decide in stage 1.
+// never run twice, but the construct is a trap for anyone editing it.
 func TestStackComparableLoreLoopTerminates(t *testing.T) {
 	a := NewStack(Stick{}, 1).WithLore("a")
 	b := NewStack(Stick{}, 1).WithLore("b")
@@ -574,7 +573,7 @@ func TestNewEnchantmentPanicsBelowLevelOne(t *testing.T) {
 
 // PINNED BUG: NewEnchantment documents that it panics when the level exceeds
 // EnchantmentType.MaxLevel, but it only rejects levels below 1. Any level above
-// MaxLevel is accepted and stored verbatim. Pinned as-is; decide in stage 1.
+// MaxLevel is accepted and stored verbatim.
 func TestNewEnchantmentIgnoresMaxLevel(t *testing.T) {
 	e := NewEnchantment(enchA, enchA.MaxLevel()+100)
 	if got, want := e.Level(), enchA.MaxLevel()+100; got != want {
@@ -859,7 +858,7 @@ func TestStackWithDurability(t *testing.T) {
 		{"above the max is clamped", 1000, 59, false},
 		// PINNED BUG: a negative durability is neither rejected nor clamped;
 		// the stack ends up reporting a durability below zero while still
-		// being a usable item. Pinned as-is; decide in stage 1.
+		// being a usable item.
 		{"negative is stored verbatim", -5, -5, false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -995,7 +994,6 @@ func TestStackWithItem(t *testing.T) {
 		// PINNED BUG: the unbreakable guard reads s.MaxDurability(), the
 		// durability of the item being replaced, not of the item replacing it.
 		// A stick therefore keeps an unbreakable tag no item type can honour.
-		// Pinned as-is; decide in stage 1.
 		if !got.Unbreakable() {
 			t.Fatal("Unbreakable() = false: WithItem no longer carries the tag onto a non-durable item")
 		}

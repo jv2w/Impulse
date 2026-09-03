@@ -257,7 +257,7 @@ func TestTickEntityChunkTransition(t *testing.T) {
 //
 // PINNED BUG: the entity stays in World.entities forever while its chunk is
 // unloaded, so it neither ticks nor is reachable, and its stale index entry is
-// never reconciled. Pinned as-is; decide in stage 1.
+// never reconciled.
 func TestTickEntityInUnloadedChunkIsSkipped(t *testing.T) {
 	log := &tickEntityLog{}
 	w := tickEntityWorld(t)

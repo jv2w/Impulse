@@ -448,7 +448,7 @@ func TestEntTickFireDecrementsOneTickAndClampsAtZero(t *testing.T) {
 func TestEntTickContinuesAfterTheBehaviourClosesTheEntity(t *testing.T) {
 	// PINNED BUG: Ent.Tick keeps going after the behaviour closed the entity, so
 	// viewers receive a movement for an entity that was just removed and its age
-	// still advances. Pinned as-is; decide in stage 1.
+	// still advances.
 	w := syncWorld(t)
 	log := &entLog{}
 	b := &entBehaviour{log: log, tick: func(_ *entBehaviour, e *Ent, tx *world.Tx) *Movement {
@@ -768,7 +768,7 @@ func TestEntMutatorsAfterClose(t *testing.T) {
 	// PINNED BUG: none of the mutators check whether the entity is still in the
 	// world. They keep writing EntityData and keep resolving tx.Viewers of the
 	// entity's chunk, so viewers that were told to hide the entity by Close then
-	// receive teleports and state updates for it. Pinned as-is; decide in stage 1.
+	// receive teleports and state updates for it.
 	tests := []struct {
 		name       string
 		mutate     func(e *Ent)
@@ -996,7 +996,6 @@ func TestEntBehaviourPanicsWhenDataIsNotABehaviour(t *testing.T) {
 	// PINNED BUG: Ent.Behaviour is an unchecked type assertion on caller-supplied
 	// EntityData, so an EntityConfig that stores anything else takes the world
 	// goroutine down with a type assertion panic the caller cannot prevent.
-	// Pinned as-is; decide in stage 1.
 	tests := []struct {
 		name string
 		data any
@@ -1168,7 +1167,7 @@ func TestStationaryBehaviourClosesOneTickAfterExpiry(t *testing.T) {
 		}
 		// PINNED BUG: Ent.Tick keeps going after the behaviour closed the entity,
 		// so viewers receive a movement for an entity that was just removed and
-		// its age still advances. Pinned as-is; decide in stage 1.
+		// its age still advances.
 		if got, want := e.Age(), 5*entTick; got != want {
 			t.Fatalf("Age() after the closing tick = %v, want %v", got, want)
 		}
@@ -1259,7 +1258,7 @@ func TestPassiveBehaviourPeriodicStateBroadcast(t *testing.T) {
 	t.Run("without an Expire hook it never fires", func(t *testing.T) {
 		// PINNED BUG: Fuse() returns -1 when no Expire is configured, so the
 		// periodic ViewEntityState broadcast never fires for any entity without an
-		// Expire hook. Pinned as-is; decide in stage 1.
+		// Expire hook.
 		//
 		// That covers item entities, experience orbs and falling blocks: none of
 		// them ever broadcasts its state on a timer.

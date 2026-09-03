@@ -64,7 +64,7 @@ func TestHeightMapAtAndSetIndexing(t *testing.T) {
 }
 
 func TestHeightMapAtAndSetDoNotMask(t *testing.T) {
-	// PINNED: neither At nor Set masks x or z to 0-15. The index is computed on uint16, so an out of range z
+	// PINNED BUG: neither At nor Set masks x or z to 0-15. The index is computed on uint16, so an out of range z
 	// bleeds into the row bits and silently aliases another column, while anything that pushes the index to
 	// 256 or beyond panics on the slice.
 	t.Run("out of range z aliases another column", func(t *testing.T) {
@@ -232,7 +232,7 @@ func TestHeightMapHighestNeighbour(t *testing.T) {
 	})
 
 	t.Run("all neighbours at the seed value", func(t *testing.T) {
-		// PINNED: highest starts at math.MinInt16 and the comparison is strictly greater, so neighbours that
+		// PINNED BUG: highest starts at math.MinInt16 and the comparison is strictly greater, so neighbours that
 		// already hold math.MinInt16 never replace it. The seed is returned either way, making the two cases
 		// indistinguishable to a caller.
 		h := make(HeightMap, 256)

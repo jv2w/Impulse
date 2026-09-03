@@ -580,8 +580,7 @@ func TestProjectileSurvivingBlockHitDeflection(t *testing.T) {
 	// but dividing by (1-Drag) also undoes the vertical drag, so Y is restored
 	// to its pre-force value while X and Z keep the drag they were just charged.
 	// The "vertical drag is undone as well" case below is the proof: a pre-force
-	// Y of 0.2 comes back as exactly 0.2 rather than as 0.198. Pinned as-is;
-	// decide in stage 1.
+	// Y of 0.2 comes back as exactly 0.2 rather than as 0.198.
 	//
 	// Geometry: the projectile starts at x = -1.98 with a post-force X velocity
 	// of 3.96, so the west face of the block at {0, 100, 0} is crossed at exactly
@@ -1292,7 +1291,7 @@ func TestProjectileParticleCountWithoutAParticlePanics(t *testing.T) {
 	// Tick loops over ParticleCount without checking Particle, so a config with
 	// a count and no particle reaches World.addParticle with a nil interface and
 	// panics on Particle.Spawn. A library caller can build that config and has
-	// no way to prevent the panic. Pinned as-is; decide in stage 1.
+	// no way to prevent the panic.
 	w := syncWorld(t)
 	mustDo(t, w, func(tx *world.Tx) {
 		tx.SetBlock(cube.Pos{0, 100, 0}, block.Stone{}, nil)
@@ -1438,7 +1437,7 @@ func TestProjectileHitCallbackSkippedOnSurvivedBlockCollision(t *testing.T) {
 	// "either of the type trace.EntityResult or trace.BlockResult", but the
 	// SurviveBlockCollision branch returns before the callback is reached. An
 	// arrow's Hit therefore never sees a block, and the piercing bookkeeping
-	// below it is skipped too. Pinned as-is; decide in stage 1.
+	// below it is skipped too.
 	tests := []struct {
 		name      string
 		survives  bool

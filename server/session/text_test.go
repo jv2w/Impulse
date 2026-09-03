@@ -216,7 +216,7 @@ func TestSendTranslationZeroParameters(t *testing.T) {
 // the count the Translation was declared with, and SendTranslation calls it
 // without checking. A server-side caller with the wrong argument count kills
 // the goroutine rather than getting an error back. Reachable only from server
-// code, not from a packet. Pinned as-is; decide in stage 1.
+// code, not from a packet.
 func TestSendTranslationArgumentCountMismatchPanics(t *testing.T) {
 	tr := chat.Translate(stubTranslationString{}, 2, "%v and %v")
 	s := newStubSession(t, nil)
@@ -475,7 +475,6 @@ func TestSendScoreboardResendSameName(t *testing.T) {
 
 	// PINNED BUG: the same-name path never updates currentLines, so the next
 	// resend still removes two entries even though only one line is displayed.
-	// Pinned as-is; decide in stage 1.
 	if got, want := *s.currentLines.Load(), []string{"a", "b"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("recorded lines = %#v, want the stale %#v this pins", got, want)
 	}

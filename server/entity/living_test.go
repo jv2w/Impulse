@@ -34,15 +34,14 @@ func TestNewHealthManagerClamping(t *testing.T) {
 		{name: "health above the max is clamped down", health: 25, max: 20, wantHealth: 20, wantMax: 20},
 		// PINNED BUG: the constructor clamps health down but never up, so an
 		// entity can be constructed below the floor that AddHealth enforces on
-		// every later write. Pinned as-is; decide in stage 1.
+		// every later write.
 		{name: "negative health is not clamped up to zero", health: -5, max: 20, wantHealth: -5, wantMax: 20},
 		// PINNED BUG: SetMaxHealth replaces a max of 0 with 1, but the
 		// constructor accepts 0 and drags health down with it. The entity is
 		// born dead and AddHealth can never lift it: min(0+n, 0) is 0 forever.
-		// Pinned as-is; decide in stage 1.
 		{name: "a zero max is accepted and pins health at zero", health: 5, max: 0, wantHealth: 0, wantMax: 0},
 		// PINNED BUG: same asymmetry with a negative max, which SetMaxHealth
-		// would also have replaced with 1. Pinned as-is; decide in stage 1.
+		// would also have replaced with 1.
 		{name: "a negative max is accepted and drags health below zero", health: 5, max: -3, wantHealth: -3, wantMax: -3},
 		{name: "health under a negative max is left alone", health: -5, max: -3, wantHealth: -5, wantMax: -3},
 	}
@@ -63,7 +62,6 @@ func TestHealthManagerConstructorAcceptsAMaxTheSetterRejects(t *testing.T) {
 	// PINNED BUG: NewHealthManager and SetMaxHealth disagree about what a valid
 	// max is. The same value is stored verbatim by one and rewritten to 1 by the
 	// other, so an entity's max depends on which door the value came through.
-	// Pinned as-is; decide in stage 1.
 	for _, max := range []float64{0, -3, -1e9} {
 		m := NewHealthManager(20, max)
 		if got := m.MaxHealth(); math.Abs(got-max) > physEpsilon {
@@ -108,8 +106,7 @@ func TestHealthManagerAddHealthClamps(t *testing.T) {
 func TestHealthManagerAddHealthEscapesANonPositiveMax(t *testing.T) {
 	// PINNED BUG: AddHealth is max(min(health+n, max), 0). With a non-positive
 	// max the two clamps disagree and the outer one wins, so health lands on 0 —
-	// which is above the max the manager was built with. Pinned as-is; decide in
-	// stage 1.
+	// which is above the max the manager was built with.
 	m := NewHealthManager(20, -3)
 	if got := m.Health(); math.Abs(got-(-3)) > physEpsilon {
 		t.Fatalf("Health() = %v, want -3 before any AddHealth", got)
@@ -134,7 +131,7 @@ func TestHealthManagerAddHealthNaNPoisonsHealth(t *testing.T) {
 	// the health field through both clamps and can never be cleared: every later
 	// AddHealth folds the stored NaN back into the result. Every threshold test a
 	// caller runs (health <= 0, health < max) then answers false, so the entity is
-	// neither alive nor dead. Pinned as-is; decide in stage 1.
+	// neither alive nor dead.
 	m := NewHealthManager(10, 20)
 	m.AddHealth(math.NaN())
 	if got := m.Health(); !math.IsNaN(got) {
@@ -182,8 +179,7 @@ func TestHealthManagerSetMaxHealth(t *testing.T) {
 func TestHealthManagerSetMaxHealthNaN(t *testing.T) {
 	// PINNED BUG: the `max <= 0` guard is false for NaN, so NaN passes straight
 	// through into the max and then into health via min. The same permanent
-	// poisoning as AddHealth(NaN), reached from the other setter. Pinned as-is;
-	// decide in stage 1.
+	// poisoning as AddHealth(NaN), reached from the other setter.
 	m := NewHealthManager(10, 20)
 	m.SetMaxHealth(math.NaN())
 	if got := m.MaxHealth(); !math.IsNaN(got) {
@@ -417,7 +413,7 @@ func TestEffectIntervalShiftPanicsBelowLevelOne(t *testing.T) {
 	// the entity with a runtime panic. EffectManager.Add rejects such levels, so
 	// the only way in is Apply called directly or a manager whose map was filled
 	// without going through Add — which is exactly what a rewrite of the storage
-	// layer would do. Pinned as-is; decide in stage 1.
+	// layer would do.
 	tests := []struct {
 		name      string
 		eff       effect.Effect
@@ -463,8 +459,7 @@ func TestEffectIntervalShiftPanicsBelowLevelOne(t *testing.T) {
 
 func TestEffectManagerAddPanicsOnInvalidInput(t *testing.T) {
 	// PINNED BUG: EffectManager.Add panics on input a caller cannot always
-	// validate, instead of returning the failure as a value. Pinned as-is;
-	// decide in stage 1.
+	// validate, instead of returning the failure as a value.
 	tests := []struct {
 		name string
 		eff  effect.Effect
@@ -744,7 +739,7 @@ func TestEffectManagerInitialEffectsAreNotAppliedUntilFlushed(t *testing.T) {
 	// PINNED BUG: Effects() reports initial effects without flushing them, so it
 	// lists an effect whose LastingType.Start has never run. A caller reading
 	// Effects() to render or serialise state sees an effect the entity is not
-	// actually under. Pinned as-is; decide in stage 1.
+	// actually under.
 	all := m.Effects()
 	if len(all) != 1 || all[0] != initial {
 		t.Fatalf("Effects() = %v, want exactly the initial effect", all)
@@ -1434,7 +1429,6 @@ func TestHurtEntityHealthConsequencesOfExtremeDamage(t *testing.T) {
 		// HealthManager.AddHealth, where Go's min and max propagate it into the
 		// health field forever. The entity is then permanently neither alive nor
 		// dead: Dead() is health <= 0 and NaN compares false against everything.
-		// Pinned as-is; decide in stage 1.
 		e := newLivingFake(10, 20)
 		HurtEntity(e, math.NaN(), AttackDamageSource{})
 		if !math.IsNaN(e.Health()) {

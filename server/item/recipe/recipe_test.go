@@ -195,8 +195,7 @@ func assertRecipe(t *testing.T, r Recipe, input []Item, output []item.Stack, blo
 
 // PINNED BUG: Input and Output hand out the recipe's own slices. A caller that
 // writes to one edits the registered recipe for every other caller, including
-// the vanilla recipes shared with every session. Pinned as-is; decide in
-// stage 1.
+// the vanilla recipes shared with every session.
 func TestInputAndOutputAliasTheRecipe(t *testing.T) {
 	stick := item.NewStack(item.Stick{}, 1)
 	diamond := item.NewStack(item.Diamond{}, 1)
@@ -300,8 +299,7 @@ func TestItemTagTable(t *testing.T) {
 
 // PINNED BUG: NewItemTag stores the global tag slice by reference, so every tag
 // with the same name shares one backing array and a write through any of them
-// rewrites the embedded table for the rest of the process. Pinned as-is;
-// decide in stage 1.
+// rewrites the embedded table for the rest of the process.
 func TestItemTagAliasesTheGlobalTable(t *testing.T) {
 	a := NewItemTag("minecraft:planks", 1)
 	original := a.items[0]
@@ -493,7 +491,7 @@ func TestPerformPotion(t *testing.T) {
 	// caller's argument list by the position of the output rather than by the
 	// position of the potion. Matching is order-independent, but the metadata
 	// the output inherits is not, so the same two items in the other order
-	// brew the wrong potion. Pinned as-is; decide in stage 1.
+	// brew the wrong potion.
 	t.Run("a container change depends on the argument order", func(t *testing.T) {
 		p, _ := world.ItemByName("minecraft:potion", 31)
 		out, ok := Perform("brewing_stand", gunpowder, p)
@@ -534,8 +532,7 @@ func TestValidBrewingReagent(t *testing.T) {
 		})
 	}
 	// PINNED BUG: the argument is dereferenced without a nil check. Its one
-	// caller happens to guard the call, so nothing reaches this today. Pinned
-	// as-is; decide in stage 1.
+	// caller happens to guard the call, so nothing reaches this today.
 	t.Run("a nil item panics", func(t *testing.T) {
 		defer func() {
 			if recover() == nil {
@@ -627,7 +624,6 @@ func TestItemsAreNotComparable(t *testing.T) {
 // PINNED BUG: Register indexes a Potion's reagent through Input()[1] with no
 // length check and asserts it to an item.Stack with no comma-ok. A Potion built
 // any other way than by NewPotion with two stacks takes the whole process down.
-// Pinned as-is; decide in stage 1.
 func TestRegisterPanicsOnAMalformedPotion(t *testing.T) {
 	for _, c := range []struct {
 		name string

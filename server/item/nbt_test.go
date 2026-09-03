@@ -662,7 +662,7 @@ func TestReadEnchantments(t *testing.T) {
 		{"missing level is raised to one", nil, 1},
 		{"level of the wrong type is raised to one", int32(4), 1},
 		// PINNED BUG: nothing clamps to EnchantmentType.MaxLevel, so a level far
-		// above it survives a save and a load. Pinned as-is; decide in stage 1.
+		// above it survives a save and a load.
 		{"level above MaxLevel is kept", int16(100), 100},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -682,7 +682,7 @@ func TestReadEnchantments(t *testing.T) {
 	// PINNED BUG: an id that is not in the registry is dropped without a trace,
 	// on both the read and the write side. An enchantment removed from or not
 	// yet added to the registry is therefore erased from every item that carries
-	// it the next time the world is saved. Pinned as-is; decide in stage 1.
+	// it the next time the world is saved.
 	t.Run("an unregistered id is dropped on read", func(t *testing.T) {
 		got := read([]map[string]any{{"id": int16(31000), "lvl": int16(1)}})
 		if n := len(got.Enchantments()); n != 0 {

@@ -39,6 +39,20 @@ ctrl+c to shut down.
 go get github.com/jv2w/Impulse
 ```
 
+## Porting code written for dragonfly
+
+Rewrite the module path. A `replace` directive cannot stand in for it, because Impulse's own
+imports carry the new path:
+
+```shell
+find . -name '*.go' -exec sed -i 's#github.com/df-mc/dragonfly#github.com/jv2w/Impulse#g' {} +
+```
+
+Identifiers and package names are dragonfly's. Where dragonfly swallowed a malformed value,
+Impulse reports it, so a few readers return an error dragonfly did not, and calls that used to
+succeed on bad input now fail. Read the doc comment of what you call before relying on the old
+outcome.
+
 ## Licence
 
 MIT, including code derived from [dragonfly](https://github.com/df-mc/dragonfly). Both copyright

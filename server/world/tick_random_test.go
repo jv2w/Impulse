@@ -195,9 +195,8 @@ func TestTickRandomLoaderDistanceSelectsChunks(t *testing.T) {
 
 // TestTickRandomSingleChunkIsReproducibleFromSeed pins that the coordinates
 // picked by the random pass are a pure function of Config.RandSource as long as
-// exactly one chunk is loaded. This is the property stage 2.4 has to preserve:
-// without it there is no way to tell a per-region rewrite from a behaviour
-// change.
+// exactly one chunk is loaded. Without it there is no way to tell a rewrite of
+// the pass from a behaviour change.
 func TestTickRandomSingleChunkIsReproducibleFromSeed(t *testing.T) {
 	want := []cube.Pos{{12, 66, 3}, {4, 67, 11}, {10, 67, 13}, {2, 72, 7}, {12, 77, 6}}
 
@@ -230,7 +229,7 @@ func TestTickRandomSingleChunkIsReproducibleFromSeed(t *testing.T) {
 //
 // PINNED BUG: random block selection is not reproducible from Config.RandSource
 // once two or more chunks are loaded, and the coordinates a chunk receives
-// depend on Go map iteration order. Pinned as-is; decide in stage 1.
+// depend on Go map iteration order.
 func TestTickRandomMultipleChunksAreNotReproducibleFromSeed(t *testing.T) {
 	// Chunk empty holds a non-empty sub chunk of blocks that never tick, so it
 	// consumes one coordinate triple and no more, while chunk full consumes two.

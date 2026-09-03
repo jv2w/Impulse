@@ -120,7 +120,6 @@ func TestFillDefaultsLeavesSetFieldsAlone(t *testing.T) {
 // player who ran the bar down and whose Provider does not persist the food
 // tick, and that player is silently healed to a full bar with five saturation.
 // The shipped playerdb escapes it only because a live foodTick is never 0.
-// Pinned as-is; decide in stage 1.
 func TestAStarvingPlayerWithNoFoodTickIsHealedToFull(t *testing.T) {
 	got := fillDefaults(Config{Food: 0, FoodTick: 0, Exhaustion: 0, Saturation: 0})
 
@@ -132,8 +131,7 @@ func TestAStarvingPlayerWithNoFoodTickIsHealedToFull(t *testing.T) {
 // PINNED BUG: the same guard read the other way. Setting any one companion
 // field skips the whole block, so a caller who asks for a default bar plus some
 // exhaustion gets a player at food 0 who starves immediately. There is no way
-// to express "default food, non-zero exhaustion". Pinned as-is; decide in
-// stage 1.
+// to express "default food, non-zero exhaustion".
 func TestSettingOneHungerFieldLeavesTheBarEmpty(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -155,7 +153,7 @@ func TestSettingOneHungerFieldLeavesTheBarEmpty(t *testing.T) {
 // PINNED BUG: the guards at conf.go:142 and conf.go:145 key on the maximum and
 // overwrite the current value with it. A Provider that stores a drowning or a
 // near-dead player without also storing the maximum hands back a player at full
-// air and full health. Pinned as-is; decide in stage 1.
+// air and full health.
 func TestAirAndHealthAreClobberedWhenOnlyTheMaximumIsMissing(t *testing.T) {
 	got := fillDefaults(Config{AirSupply: 50, Health: 1})
 
@@ -171,7 +169,7 @@ func TestAirAndHealthAreClobberedWhenOnlyTheMaximumIsMissing(t *testing.T) {
 // maximum survives into entity.NewHealthManager, which clamps the health down
 // to it. The result is a player who is dead on arrival and can never be healed.
 // HealthManager.SetMaxHealth guards the same value (entity/health.go:37); the
-// constructor path does not. Pinned as-is; decide in stage 1.
+// constructor path does not.
 func TestANegativeMaxHealthProducesAPermanentlyDeadPlayer(t *testing.T) {
 	pd := applied(Config{MaxHealth: -5})
 
@@ -188,7 +186,7 @@ func TestANegativeMaxHealthProducesAPermanentlyDeadPlayer(t *testing.T) {
 // yields foodTick 0. On the very first tickFood that makes both the % 10 and
 // the % 20 gate true at once, producing a quick regeneration on tick zero, and
 // makes the foodTick == 1 gate false, skipping that tick's starvation check.
-// The counter never returns to 0 afterwards. Pinned as-is; decide in stage 1.
+// The counter never returns to 0 afterwards.
 func TestApplyLeavesTheFoodTickAtZero(t *testing.T) {
 	if got := newHungerManager().foodTick; got != 1 {
 		t.Fatalf("newHungerManager foodTick = %v, want 1", got)
@@ -247,7 +245,6 @@ func TestApplyWritesOnlyNamePositionAndRotation(t *testing.T) {
 
 // PINNED BUG: Config.Velocity is written by Data() and persisted by playerdb,
 // but Apply never reads it. A player's velocity is discarded on every load.
-// Pinned as-is; decide in stage 1.
 func TestApplyIgnoresTheConfiguredVelocity(t *testing.T) {
 	data := &world.EntityData{}
 	Config{Velocity: mgl64.Vec3{1, 2, 3}}.Apply(data)
@@ -259,7 +256,7 @@ func TestApplyIgnoresTheConfiguredVelocity(t *testing.T) {
 
 // PINNED BUG: Apply stores the caller's inventory pointers without cloning
 // them, so applying one Config twice produces two players sharing one bag.
-// inventory.Clone exists and is not used. Pinned as-is; decide in stage 1.
+// inventory.Clone exists and is not used.
 func TestApplyingOneConfigTwiceSharesTheInventories(t *testing.T) {
 	cfg := Config{Inventory: inventory.New(9, nil)}
 
@@ -350,7 +347,6 @@ func TestDataRoundTripsThePersistedFields(t *testing.T) {
 // that field to both the entity name and the name tag. A player whose name tag
 // was changed has their account name overwritten by it on the next load, and
 // the change is permanent. Player.Name carries a TODO acknowledging it.
-// Pinned as-is; decide in stage 1.
 func TestDataReportsTheNameTagAsTheName(t *testing.T) {
 	p := newStubPlayer(Config{Name: "steve"})
 	p.nameTag = "not steve"

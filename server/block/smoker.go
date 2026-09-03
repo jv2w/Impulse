@@ -62,11 +62,11 @@ func (s Smoker) EncodeItem() (name string, meta int16) {
 }
 
 // EncodeBlock ...
-func (s Smoker) EncodeBlock() (name string, properties map[string]interface{}) {
+func (s Smoker) EncodeBlock() (name string, properties map[string]any) {
 	if s.Lit {
-		return "minecraft:lit_smoker", map[string]interface{}{"minecraft:cardinal_direction": s.Facing.String()}
+		return "minecraft:lit_smoker", map[string]any{"minecraft:cardinal_direction": s.Facing.String()}
 	}
-	return "minecraft:smoker", map[string]interface{}{"minecraft:cardinal_direction": s.Facing.String()}
+	return "minecraft:smoker", map[string]any{"minecraft:cardinal_direction": s.Facing.String()}
 }
 
 // UseOnBlock ...
@@ -103,13 +103,13 @@ func (s Smoker) Activate(pos cube.Pos, _ cube.Face, tx *world.Tx, u item.User, _
 }
 
 // EncodeNBT ...
-func (s Smoker) EncodeNBT() map[string]interface{} {
+func (s Smoker) EncodeNBT() map[string]any {
 	if s.smelter == nil {
 		//noinspection GoAssignmentToReceiver
 		s = NewSmoker(s.Facing)
 	}
 	remaining, maximum, cook := s.Durations()
-	return map[string]interface{}{
+	return map[string]any{
 		"BurnTime":     int16(remaining.Milliseconds() / 50),
 		"CookTime":     int16(cook.Milliseconds() / 50),
 		"BurnDuration": int16(maximum.Milliseconds() / 50),
@@ -120,7 +120,7 @@ func (s Smoker) EncodeNBT() map[string]interface{} {
 }
 
 // DecodeNBT ...
-func (s Smoker) DecodeNBT(data map[string]interface{}) interface{} {
+func (s Smoker) DecodeNBT(data map[string]any) any {
 	remaining := nbtconv.TickDuration[int16](data, "BurnTime")
 	maximum := nbtconv.TickDuration[int16](data, "BurnDuration")
 	cook := nbtconv.TickDuration[int16](data, "CookTime")

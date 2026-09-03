@@ -234,7 +234,7 @@ func TestTickProgressRequiredSleepTicksCountdown(t *testing.T) {
 //
 // PINNED BUG: tryAdvanceDay's guards live inside the loop over Sleepers, so a
 // World whose sleepers all left before the countdown expired advances the day
-// unconditionally, at any time of day. Pinned as-is; decide in stage 1.
+// unconditionally, at any time of day.
 func TestTickProgressSleepCountdownAdvancesDayWithoutSleepers(t *testing.T) {
 	w := tickProgressWorld(t, Overworld)
 	w.SetTime(500)

@@ -137,7 +137,7 @@ func TestSetExperienceLevelLandsOnTheLevelAsked(t *testing.T) {
 // PINNED BUG: the level and progress setters panic on an out-of-range argument
 // instead of returning an error. The panic comes
 // from entity.ExperienceManager, but Player is the exported surface that lets a
-// caller reach it. Pinned as-is; decide in stage 1.
+// caller reach it.
 func TestExperienceSettersPanicOutOfRange(t *testing.T) {
 	p := newStubPlayer(Config{})
 	mustPanic(t, "SetExperienceLevel(-1)", func() { p.SetExperienceLevel(-1) })
@@ -147,7 +147,7 @@ func TestExperienceSettersPanicOutOfRange(t *testing.T) {
 
 // PINNED BUG: SetExperienceProgress does not round trip. It converts the
 // fraction into an integer experience total plus a decimal remainder and then
-// solves the level curve backwards, and the two do not cancel out. Pinned as-is
+// solves the level curve backwards, and the two do not cancel out.
 // rather than with a golden number, because the exact error belongs to
 // entity.ExperienceManager and would move with it.
 func TestSetExperienceProgressDoesNotRoundTrip(t *testing.T) {
@@ -269,7 +269,6 @@ func TestMendItemsReturnsTheLeftoverExperience(t *testing.T) {
 // PINNED BUG: a repair of exactly one durability point costs nothing, because
 // the experience is only deducted when the repair is 2 or more (player.go:2575).
 // An item kept one point below full can be topped up for free on every orb.
-// Pinned as-is; decide in stage 1.
 func TestMendItemsRepairsTheLastDurabilityPointForFree(t *testing.T) {
 	p := newStubPlayer(Config{})
 	full := woodPickaxe().MaxDurability()
@@ -323,7 +322,7 @@ func TestMendItemsRepairsArmour(t *testing.T) {
 // and compares by value, so when both hands hold the same damaged mending item
 // the repair always lands in the off-hand. The main hand is never repaired no
 // matter which of the two the random draw picked, and the player is charged for
-// a repair the main hand did not get. Pinned as-is; decide in stage 1.
+// a repair the main hand did not get.
 func TestMendItemsRepairsTheOffHandWhenBothHandsMatch(t *testing.T) {
 	p := newStubPlayer(Config{})
 	damaged := mendingPickaxe(10)

@@ -82,8 +82,7 @@ func testBoxTransforms[T number, V vec3[T]](t *testing.T, epsilon float64) {
 		{"Grow_negative_shrinks", unit.Grow(-0.25), [3]float64{0.25, 0.25, 0.25}, [3]float64{0.75, 0.75, 0.75}},
 		// PINNED BUG: Grow does not renormalise, so shrinking a box by more than
 		// half its size leaves min above max. Every later method (Volume,
-		// IntersectsWith, the offsets) then reads nonsense. Pinned as-is; decide
-		// in stage 1.
+		// IntersectsWith, the offsets) then reads nonsense.
 		{"Grow_negative_past_the_centre_inverts", unit.Grow(-0.75), [3]float64{0.75, 0.75, 0.75}, [3]float64{0.25, 0.25, 0.25}},
 		{"GrowVec3_per_axis", unit.GrowVec3(V{1, 2, 3}), [3]float64{-1, -2, -3}, [3]float64{2, 3, 4}},
 		{"GrowVec3_mixed_signs", unit.GrowVec3(V{-0.1, 0, 0.5}), [3]float64{0.1, 0, -0.5}, [3]float64{0.9, 1, 1.5}},
@@ -130,7 +129,7 @@ func testBoxTransforms[T number, V vec3[T]](t *testing.T, epsilon float64) {
 		{"Mul_two_off_centre", offCentre.Mul(2), [3]float64{2, 2, 2}, [3]float64{4, 4, 4}},
 		{"Mul_zero_collapses_the_box", offCentre.Mul(0), [3]float64{0, 0, 0}, [3]float64{0, 0, 0}},
 		// PINNED BUG: Mul does not renormalise either, so a negative scale
-		// leaves min above max. Pinned as-is; decide in stage 1.
+		// leaves min above max.
 		{"Mul_negative_inverts", offCentre.Mul(-1), [3]float64{-1, -1, -1}, [3]float64{-2, -2, -2}},
 	}
 	for _, test := range tests {
@@ -503,7 +502,6 @@ func TestCornersReturnsAFreshSlice(t *testing.T) {
 //
 // PINNED BUG: a NaN coordinate produces a box that is neither ordered nor
 // detectable as invalid, and every predicate on it silently answers false.
-// Pinned as-is; decide in stage 1.
 func TestBoxDoesNotNormaliseNaN(t *testing.T) {
 	nan := math.NaN()
 	box := Box(1, 0, 0, nan, 1, 1)

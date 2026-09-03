@@ -129,7 +129,7 @@ func TestStubTransactionBoundaries(t *testing.T) {
 // PINNED BUG: four Player methods panic outright when the player has no
 // session, because session.Nop leaves the fields they use nil. A Player is
 // usable without a session everywhere else, so these four are the exception
-// rather than the rule. Pinned as-is; decide in stage 1.
+// rather than the rule.
 func TestSessionlessPlayerPanicsOnFourMessagingMethods(t *testing.T) {
 	p := newStubPlayer(Config{})
 
@@ -169,7 +169,7 @@ func TestStubTransactionSupportsEventContexts(t *testing.T) {
 //
 // PINNED BUG: context.go:19 turns three distinct caller mistakes into one
 // unrecoverable panic with a single message, for a failure the caller could be
-// told about. Pinned as-is; decide in stage 1.
+// told about.
 func TestNewEventContextPanicsOnAForeignTransaction(t *testing.T) {
 	p := newStubPlayer(Config{})
 

@@ -49,7 +49,7 @@ func TestDimensionID(t *testing.T) {
 		{
 			// PINNED BUG: the lookup's ok result is discarded, so an
 			// unregistered dimension is reported as the overworld rather than
-			// refused. Pinned as-is; decide in stage 1.
+			// refused.
 			name: "an unregistered dimension falls back to the overworld",
 			dim:  unregisteredDimension{},
 			want: 0,
@@ -102,7 +102,6 @@ func TestTrackBlob(t *testing.T) {
 // PINNED BUG: the check is `len(s.blobs) > 4096`, so the store is allowed to
 // reach 4097 entries before anything is refused, and the doc comment claims the
 // connection is closed when it is not: trackBlob only logs and returns false.
-// Pinned as-is; decide in stage 1.
 func TestTrackBlobLimit(t *testing.T) {
 	s := newStubSession(t, nil)
 	for i := range uint64(4097) {
@@ -208,7 +207,7 @@ func TestViewChunkWithClientCache(t *testing.T) {
 // PINNED BUG: when trackBlob refuses the biome blob, sendBlobHashes falls
 // through to the full chunk encoding, immediately hits the same limit again and
 // returns having written no packet at all. The chunk is silently dropped and
-// the loader still counts it as sent. Pinned as-is; decide in stage 1.
+// the loader still counts it as sent.
 func TestViewChunkWithClientCacheAtTheBlobLimit(t *testing.T) {
 	s := newStubSession(t, &stubConn{cacheEnabled: true})
 	for i := range uint64(4097) {
