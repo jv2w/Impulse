@@ -35,7 +35,24 @@ func potionSplash(durMul float64, pot potion.Potion, linger bool) func(e *Ent, t
 
 		if len(effects) > 0 {
 			reach := box.GrowVec3(mgl64.Vec3{4.125, 2.125, 4.125})
-			for otherE := range filterLiving(tx.EntitiesWithin(box.GrowVec3(mgl64.Vec3{8.25, 4.25, 8.25}))) {
+			// res never changes while the loop runs and Entity() is a plain field
+			// read, so the hit entity's handle is resolved once instead of once
+			// per entity in reach. The comparison below is the same pointer
+			// comparison it was before.
+			hit, hitEntity := res.(trace.EntityResult)
+			var hitHandle *world.EntityHandle
+			if hitEntity {
+				hitHandle = hit.Entity().H()
+			}
+			// filterLiving allocated an iterator closure and made each entity
+			// cross an extra yield hop only to have Living asserted a second time
+			// in the body. This walks the same entities in the same order and
+			// keeps the Living check first.
+			for otherE := range tx.EntitiesWithin(box.GrowVec3(mgl64.Vec3{8.25, 4.25, 8.25})) {
+				splashed, ok := otherE.(Living)
+				if !ok {
+					continue
+				}
 				otherPos := otherE.Position()
 				if !otherE.H().Type().BBox(otherE).Translate(otherPos).IntersectsWith(reach) {
 					continue
@@ -47,14 +64,18 @@ func potionSplash(durMul float64, pot potion.Potion, linger bool) func(e *Ent, t
 				}
 
 				f := 1 - dist/4
-				if entityResult, ok := res.(trace.EntityResult); ok && entityResult.Entity().H() == otherE.H() {
+				if hitEntity && hitHandle == otherE.H() {
 					f = 1
 				}
 
-				splashed := otherE.(Living)
 				for _, eff := range effects {
-					if _, ok := eff.Type().(effect.LastingType); !ok {
-						splashed.AddEffect(effect.NewInstantWithPotency(eff.Type(), eff.Level(), f))
+					// eff.Type() and the LastingType assertion were both done
+					// twice per effect; the results are identical, so they are
+					// taken once and reused.
+					typ := eff.Type()
+					lasting, ok := typ.(effect.LastingType)
+					if !ok {
+						splashed.AddEffect(effect.NewInstantWithPotency(typ, eff.Level(), f))
 						continue
 					}
 
@@ -62,30 +83,38 @@ func potionSplash(durMul float64, pot potion.Potion, linger bool) func(e *Ent, t
 					if dur < time.Second {
 						continue
 					}
-					splashed.AddEffect(effect.New(eff.Type().(effect.LastingType), eff.Level(), dur))
+					splashed.AddEffect(effect.New(lasting, eff.Level(), dur))
 				}
 			}
 		} else if pot == potion.Water() {
 			switch result := res.(type) {
 			case trace.BlockResult:
-				blockPos := result.BlockPosition().Side(result.Face())
+				// BlockPosition() is a field read of an immutable result, so
+				// reading it once up front gives the same position both uses had.
+				resultPos := result.BlockPosition()
+				blockPos := resultPos.Side(result.Face())
 				if _, ok := tx.Block(blockPos).(block.Fire); ok {
 					tx.SetBlock(blockPos, nil, nil)
 				}
 
 				for _, f := range cube.HorizontalFaces() {
 					h := blockPos.Side(f)
-					if _, ok := tx.Block(h).(block.Fire); ok {
+					// Only the fire branch can change h, so the second read is
+					// now made only there; without it the first read is still
+					// the current block.
+					side := tx.Block(h)
+					if _, ok := side.(block.Fire); ok {
 						tx.SetBlock(h, nil, nil)
+
+						// A second read of h: the fire above may just have been cleared.
+						side = tx.Block(h)
 					}
 
-					// A second read of h: the fire above may just have been cleared.
-					if b, ok := tx.Block(h).(SplashableBlock); ok {
+					if b, ok := side.(SplashableBlock); ok {
 						b.Splash(tx, h)
 					}
 				}
 
-				resultPos := result.BlockPosition()
 				if b, ok := tx.Block(resultPos).(SplashableBlock); ok {
 					b.Splash(tx, resultPos)
 				}
@@ -93,7 +122,13 @@ func potionSplash(durMul float64, pot potion.Potion, linger bool) func(e *Ent, t
 				// TODO: Damage endermen, blazes, striders and snow golems when implemented and rehydrate axolotls.
 			}
 
-			for otherE := range filterLiving(tx.EntitiesWithin(box.GrowVec3(mgl64.Vec3{8.25, 4.25, 8.25}))) {
+			// Same inlining of filterLiving as above: no iterator closure and no
+			// extra yield hop, with the Living check kept ahead of the
+			// SplashableEntity check so the same entities are splashed in order.
+			for otherE := range tx.EntitiesWithin(box.GrowVec3(mgl64.Vec3{8.25, 4.25, 8.25})) {
+				if _, ok := otherE.(Living); !ok {
+					continue
+				}
 				if splashE, ok := otherE.(SplashableEntity); ok {
 					splashE.Splash(tx, otherE.Position())
 				}

@@ -2,11 +2,12 @@ package item
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/gob"
 	"errors"
 	"fmt"
 	"math"
-	"sort"
+	"slices"
 
 	"github.com/jv2w/Impulse/server/world"
 	"github.com/jv2w/Impulse/server/world/chunk"
@@ -17,10 +18,14 @@ import (
 // damage is written and in whether the stack is wrapped with its name and count.
 func WriteNBT(s Stack, disk bool) map[string]any {
 	tag := make(map[string]any)
-	if s.Empty() {
+	// Stack.Item returns nil for exactly the stacks Stack.Empty reports empty,
+	// and it walked Empty itself: taking the item once drops the second walk,
+	// which encoded the item's name all over again.
+	it := s.Item()
+	if it == nil {
 		return tag
 	}
-	if nbt, ok := s.Item().(world.NBTer); ok {
+	if nbt, ok := it.(world.NBTer); ok {
 		for k, v := range nbt.EncodeNBT() {
 			tag[k] = v
 		}
@@ -32,14 +37,15 @@ func WriteNBT(s Stack, disk bool) map[string]any {
 	writeEnchantments(tag, s)
 	writeUnbreakable(tag, s)
 
-	data := make(map[string]any)
-	if disk {
-		writeItemStack(data, tag, s)
-	} else {
-		for k, v := range tag {
-			data[k] = v
-		}
+	if !disk {
+		// The network format handed back a copy of tag. tag is built here and
+		// held by nothing else once this returns, so the copy was a second map
+		// and a full walk of the first that no caller could tell apart from
+		// the map itself. The empty case above already returns tag directly.
+		return tag
 	}
+	data := make(map[string]any)
+	writeItemStack(data, tag, s)
 	return data
 }
 
@@ -98,8 +104,12 @@ func MapNBT(x map[string]any, k string) (Stack, error) {
 
 // writeItemStack writes the name, metadata value, count and NBT of an item to a map ready for NBT encoding.
 func writeItemStack(m, t map[string]any, s Stack) {
-	m["Name"], m["Damage"] = s.Item().EncodeItem()
-	if b, ok := s.Item().(world.Block); ok {
+	// Stack.Item walks Empty, which encodes the item to compare its name, so
+	// the item is taken once and used twice. Nothing runs between the two
+	// reads, and a nil item still panics on the EncodeItem below.
+	it := s.Item()
+	m["Name"], m["Damage"] = it.EncodeItem()
+	if b, ok := it.(world.Block); ok {
 		v := map[string]any{}
 		writeBlock(v, b)
 		m["Block"] = v
@@ -143,8 +153,12 @@ func mapToSlice(m map[string]any) []mapValue {
 	for k, v := range m {
 		values = append(values, mapValue{K: k, V: v})
 	}
-	sort.Slice(values, func(i, j int) bool {
-		return values[i].K < values[j].K
+	// sort.Slice went to slices.SortFunc, which drops the reflect-based swapper
+	// and the boxing of the slice into an any. Both run the same pdqsort over
+	// the same key, and map keys are unique, so no two elements compare equal
+	// and the order is the one order the keys allow.
+	slices.SortFunc(values, func(a, b mapValue) int {
+		return cmp.Compare(a.K, b.K)
 	})
 	return values
 }
@@ -264,9 +278,14 @@ func readDamage(m map[string]any, s *Stack, disk bool) {
 		// Not a Durable item, so there is no damage to restore.
 		return
 	}
-	d := int(nbtInt32(m, "Damage"))
+	// The disk format read the int32 tag first and then threw it away for the
+	// int16 one. Only the width the format actually stores is read now, which
+	// is the value that was kept either way.
+	var d int
 	if disk {
 		d = int(nbtInt16(m, "Damage"))
+	} else {
+		d = int(nbtInt32(m, "Damage"))
 	}
 	// The stored value is restored rather than replayed through Stack.Damage,
 	// which hands back the broken item once the durability reaches zero: a
@@ -307,9 +326,12 @@ func readDisplay(m map[string]any, s *Stack) {
 			// Only add the custom name if actually set.
 			*s = s.WithCustomName(name)
 		}
-		if lore, ok := display["Lore"].([]string); ok {
+		// The Lore entry is read from the map once instead of once per type it
+		// is tried against; the two assertions run on the same value.
+		stored := display["Lore"]
+		if lore, ok := stored.([]string); ok {
 			*s = s.WithLore(lore...)
-		} else if lore, ok := display["Lore"].([]any); ok {
+		} else if lore, ok := stored.([]any); ok {
 			loreLines := make([]string, 0, len(lore))
 			for _, l := range lore {
 				// A line of another type is dropped: the lore around it is
