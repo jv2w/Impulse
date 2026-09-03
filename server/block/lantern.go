@@ -28,7 +28,10 @@ func (l Lantern) Model() world.BlockModel {
 func (l Lantern) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
 	if l.Hanging {
 		up := pos.Side(cube.FaceUp)
-		if _, ok := tx.Block(up).(IronChain); !ok && !tx.Block(up).Model().FaceSolid(up, cube.FaceDown, tx) {
+		// Nothing runs between the two reads of the block above, so one lookup
+		// answers both the type check and the model check.
+		above := tx.Block(up)
+		if _, ok := above.(IronChain); !ok && !above.Model().FaceSolid(up, cube.FaceDown, tx) {
 			breakBlock(l, pos, tx)
 		}
 	} else {
@@ -52,7 +55,10 @@ func (l Lantern) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *worl
 	}
 	if face == cube.FaceDown {
 		upPos := pos.Side(cube.FaceUp)
-		if _, ok := tx.Block(upPos).(IronChain); !ok && !tx.Block(upPos).Model().FaceSolid(upPos, cube.FaceDown, tx) {
+		// Nothing runs between the two reads of the block above, so one lookup
+		// answers both the type check and the model check.
+		upBlock := tx.Block(upPos)
+		if _, ok := upBlock.(IronChain); !ok && !upBlock.Model().FaceSolid(upPos, cube.FaceDown, tx) {
 			face = cube.FaceUp
 		}
 	}
@@ -102,7 +108,10 @@ func (l Lantern) EncodeBlock() (name string, properties map[string]any) {
 
 // allLanterns ...
 func allLanterns() (lanterns []world.Block) {
-	for _, f := range FireTypes() {
+	// Two lanterns are appended per fire type, so the final length is known.
+	types := FireTypes()
+	lanterns = make([]world.Block, 0, len(types)*2)
+	for _, f := range types {
 		lanterns = append(lanterns, Lantern{Hanging: false, Type: f})
 		lanterns = append(lanterns, Lantern{Hanging: true, Type: f})
 	}

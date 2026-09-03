@@ -81,11 +81,14 @@ func (j Jukebox) Activate(pos cube.Pos, _ cube.Face, tx *world.Tx, u item.User, 
 		if m, ok := held.Item().(item.MusicDisc); ok {
 			j.Item = held
 
+			// pos does not change between the two sounds, so its centre is
+			// computed once instead of twice.
+			centre := pos.Vec3Centre()
 			tx.SetBlock(pos, j, nil)
-			tx.PlaySound(pos.Vec3Centre(), sound.MusicDiscEnd{})
+			tx.PlaySound(centre, sound.MusicDiscEnd{})
 			ctx.SubtractFromCount(1)
 
-			tx.PlaySound(pos.Vec3Centre(), sound.MusicDiscPlay{DiscType: m.DiscType})
+			tx.PlaySound(centre, sound.MusicDiscPlay{DiscType: m.DiscType})
 			if u, ok := u.(jukeboxUser); ok {
 				u.SendJukeboxPopup(fmt.Sprintf("Now playing: %v - %v", m.DiscType.Author(), m.DiscType.DisplayName()))
 			}

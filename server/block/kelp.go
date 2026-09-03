@@ -26,7 +26,10 @@ func (k Kelp) SmeltInfo() item.SmeltInfo {
 
 // BoneMeal ...
 func (k Kelp) BoneMeal(pos cube.Pos, tx *world.Tx) item.BoneMealResult {
-	for y := pos.Y(); y <= tx.Range()[1]; y++ {
+	// The world range cannot change while the loop runs, so its top is read
+	// once instead of on every iteration.
+	maxY := tx.Range()[1]
+	for y := pos.Y(); y <= maxY; y++ {
 		currentPos := cube.Pos{pos.X(), y, pos.Z()}
 		block := tx.Block(currentPos)
 		if kelp, ok := block.(Kelp); ok {
@@ -148,6 +151,8 @@ func (k Kelp) RandomTick(pos cube.Pos, tx *world.Tx, r *rand.Rand) {
 
 // allKelp returns all possible states of a kelp block.
 func allKelp() (b []world.Block) {
+	// Ages 0 to 25 give twenty-six states, a length known before the loop.
+	b = make([]world.Block, 0, 26)
 	for i := 0; i < 26; i++ {
 		b = append(b, Kelp{Age: i})
 	}

@@ -73,8 +73,12 @@ func (l Lava) RandomTick(pos cube.Pos, tx *world.Tx, r *rand.Rand) {
 		for j := 0; j < 3; j++ {
 			pos = pos.Add(cube.Pos{r.IntN(3) - 1, 0, r.IntN(3) - 1})
 			if _, ok := tx.Block(pos.Side(cube.FaceUp)).(Air); ok {
-				if flammable, ok := tx.Block(pos).(Flammable); ok && flammable.FlammabilityInfo().LavaFlammable && flammable.FlammabilityInfo().Encouragement > 0 {
-					Fire{}.Start(tx, pos)
+				if flammable, ok := tx.Block(pos).(Flammable); ok {
+					// FlammabilityInfo is a getter of fixed values, so reading it
+					// once gives both fields what the two calls returned.
+					if info := flammable.FlammabilityInfo(); info.LavaFlammable && info.Encouragement > 0 {
+						Fire{}.Start(tx, pos)
+					}
 				}
 			}
 		}
@@ -222,6 +226,8 @@ func (l Lava) EncodeBlock() (name string, properties map[string]any) {
 
 // allLava returns a list of all lava states.
 func allLava() (b []world.Block) {
+	// f appends eight states and is called four times, so the length is known.
+	b = make([]world.Block, 0, 32)
 	f := func(still, falling bool) {
 		b = append(b, Lava{Still: still, Falling: falling, Depth: 8})
 		b = append(b, Lava{Still: still, Falling: falling, Depth: 7})

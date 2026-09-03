@@ -96,7 +96,10 @@ func (l Ladder) Model() world.BlockModel {
 
 // allLadders ...
 func allLadders() (b []world.Block) {
-	for _, f := range append(cube.Directions(), unknownDirection) {
+	// One ladder per direction, so the final length is known before the loop.
+	dirs := append(cube.Directions(), unknownDirection)
+	b = make([]world.Block, 0, len(dirs))
+	for _, f := range dirs {
 		b = append(b, Ladder{Facing: f})
 	}
 	return
