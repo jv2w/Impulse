@@ -134,6 +134,12 @@ func (diskEncoding) decodePalette(buf *bytes.Buffer, blockSize paletteSize, e pa
 		if err := binary.Read(buf, binary.LittleEndian, &paletteCount); err != nil {
 			return nil, fmt.Errorf("error reading palette entry count: %w", err)
 		}
+		// A world file may declare any uint32 here, and the count was previously believed as far as the
+		// make below: four bytes of a corrupt or crafted file asked for up to 16 GiB. blockSize bits can
+		// only index 1<<blockSize entries, so a larger palette is malformed by definition.
+		if paletteCount > 1<<blockSize {
+			return nil, fmt.Errorf("invalid palette entry count: found %v, but palette with %v bits per block can hold at most %v values", paletteCount, blockSize, uint32(1)<<blockSize)
+		}
 	}
 
 	var err error
@@ -170,6 +176,12 @@ func (networkEncoding) decodePalette(buf *bytes.Buffer, blockSize paletteSize, _
 		}
 		if paletteCount <= 0 {
 			return nil, fmt.Errorf("invalid palette entry count %v", paletteCount)
+		}
+		// The same unbounded count as in diskEncoding.decodePalette, reached from the wire through the
+		// exported NetworkDecode: a varint32 of 50 million made a 190 MiB slice before the stream was
+		// found to be empty. 1<<blockSize is the largest palette the indices can reach.
+		if paletteCount > 1<<blockSize {
+			return nil, fmt.Errorf("invalid palette entry count %v: palette with %v bits per block can hold at most %v values", paletteCount, blockSize, int32(1)<<blockSize)
 		}
 	}
 

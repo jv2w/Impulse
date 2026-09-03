@@ -35,10 +35,12 @@ type Skin struct {
 	Animations []Animation
 }
 
-// New creates a new skin using the width and height passed. The dimensions passed must be either 64x32,
-// 64x64 or 128x128. An error is returned if other dimensions are used.
-// The skin pixels are initialised for the skin, and a random skin ID is picked. The model name and model is
-// left empty.
+// New creates a new skin using the width and height passed. The skin pixels are allocated for exactly those
+// dimensions. The skin ID, the model name and the model are left empty.
+// New neither validates nor clamps the dimensions and returns no error: any width and height are accepted,
+// including sizes other than the 64x32, 64x64 and 128x128 the client uses. Callers that take the dimensions
+// from external input, such as a client's login skin data, are the trust boundary and have to check them
+// before calling.
 func New(width, height int) Skin {
 	return Skin{
 		w:   width,

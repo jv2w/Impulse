@@ -698,14 +698,3 @@ func TestVersionKeyLengthsMatchIteratorAssumption(t *testing.T) {
 		}
 	}
 }
-
-// errString renders a recovered panic value for comparison.
-func errString(v any) string {
-	if err, ok := v.(error); ok {
-		return err.Error()
-	}
-	if s, ok := v.(string); ok {
-		return s
-	}
-	return ""
-}

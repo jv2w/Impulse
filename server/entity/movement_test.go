@@ -549,15 +549,6 @@ func assertVec3(t *testing.T, name string, got, want mgl64.Vec3) {
 	}
 }
 
-func finite(v mgl64.Vec3) bool {
-	for axis := range 3 {
-		if math.IsNaN(v[axis]) || math.IsInf(v[axis], 0) {
-			return false
-		}
-	}
-	return true
-}
-
 // syncWorld returns a Synchronous world that is closed when the test ends.
 // Synchronous worlds load chunks on the calling goroutine and only tick on
 // AdvanceTick, so every test using one is deterministic.

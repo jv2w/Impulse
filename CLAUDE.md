@@ -1,173 +1,182 @@
 # CLAUDE.md
 
-이 문서는 코드를 **어떻게** 쓰는지만 정한다. **무엇을** 할지는 사용자 지시를 따른다.
-전역 지침(`~/.claude/CLAUDE.md`)과 겹치거나 충돌하면 이 문서가 이긴다.
+This document defines **how** code is written in this repository. **What** to build comes from the user's instructions.
+Where this document overlaps or conflicts with the global instructions (`~/.claude/CLAUDE.md`), this document wins.
+
+**Everything below is binding, not advice.** It applies to every change in this repository, in every session, no matter how small the change is.
+
+- "Do not X" means never X. Not "prefer not to", not "avoid when convenient". A one-line edit is still a change.
+- No rule here carries an implicit exception for urgency, tidiness, consistency, "it was already broken", "it is obviously better", or "the user probably wants it".
+- The only thing that overrides a rule is an **explicit instruction from the user in the current conversation**, and only for the specific rule it names. Silence is not an instruction. Inferred intent is not an instruction. A rule you did not read is still in force.
+- When a rule blocks the task, stop and report to the user. Do not route around it, do not comply partially and hope, do not leave a TODO in the code in place of reporting.
+- "Report" means writing it in your reply to the user. A code comment, a commit message, or an unwritten thought is not a report.
+- If you cannot show that you complied, you did not comply. Say so instead of claiming completion.
 
 ---
 
-## 1. 프로젝트
+## 1. Project
 
-Impulse는 Go로 쓴 Minecraft: Bedrock Edition 서버 구동기다. 모듈 경로는 `github.com/jv2w/Impulse`.
+Impulse is a Minecraft: Bedrock Edition server runtime written in Go. The module path is `github.com/jv2w/Impulse`.
 
-- Bedrock 프로토콜은 `gophertunnel`이 담당한다. 프로토콜 대응을 내부에서 재구현하지 않는다.
-- 성능은 병렬화가 아니라 **핫패스에서 낭비를 제거해서** 얻는다.
-- 저장 포맷에 박힌 이름은 바꾸지 않는다. NBT 키 `dragonflyData`(`server/item/nbt.go`)와 엔티티 식별자 `dragonfly:text`(`server/entity/text.go`)가 그런 이름이다. 옛 이름처럼 보여도 바꾸면 기존 월드와 아이템을 못 읽는다.
-- 라이선스는 MIT. `LICENSE`의 기존 저작권 줄은 삭제하지 않는다.
+- `gophertunnel` owns the Bedrock protocol. Never reimplement protocol handling inside this repository.
+- Performance is won by **removing waste on the hot path**, never by parallelizing.
+- Never change a name that is baked into the storage format. The NBT key `dragonflyData` (`server/item/nbt.go`) and the entity identifier `dragonfly:text` (`server/entity/text.go`) are such names. They look like legacy names, but changing them makes existing worlds and items unreadable.
+- The license is MIT. Never delete the existing copyright lines in `LICENSE`.
 
 ---
 
-## 2. 코드 규약
+## 2. Code rules
 
-### 2.1 최소 변경
+### 2.1 Minimal change
 
-- 인접 코드를 개선하지 않는다. 필요하면 보고만 한다.
-- 이름을 바꾸지 않는다. 주석을 다시 쓰지 않는다.
-- 공개 시그니처를 바꿔야 하면 **먼저 보고**하고, 호출부를 전부 따라 고친다.
+- Never improve adjacent code. Report it instead, and only if it matters.
+- Never rename anything. Never rewrite an existing comment.
+- If a public signature has to change, **report first**, then fix every call site to match.
 
-### 2.2 결과 무결성
+### 2.2 Result integrity
 
-바닐라와 일치해야 하는 동작은 최적화나 단순화의 대상이 아니다. 결과를 바꿔야 한다면 먼저 보고한다.
+Behavior that must match vanilla is never a target for optimization or simplification. If a result has to change, report before changing it.
 
-### 2.3 외부 입력은 신뢰하지 않는다
+### 2.3 External input is not trusted
 
-**외부 입력(클라이언트 패킷, 월드 파일, 플레이어 데이터)에서 도달하는 경로에서만** 강제한다.
+Enforce this **only on paths reachable from external input (client packets, world files, player data)**.
 
-- 값은 검증한다. 타입 단언은 콤마-ok를 쓴다. 슬라이스 인덱싱은 길이를 확인한다.
-- `panic` 대신 `(T, bool)` 또는 `(T, error)`로 반환한다.
-- 서드파티 구현이 패닉할 수 있는 경계에서는 `recover`가 정당하다. 무엇을 삼키는지 주석에 적는다.
+- Validate values. Use comma-ok for type assertions. Check the length before indexing a slice.
+- Return `(T, bool)` or `(T, error)` instead of `panic`.
+- `recover` is legitimate at a boundary where a third-party implementation may panic. Write down in a comment what is being swallowed.
 
-내부 호출만 도달하는 `panic`은 **건드리지 않는다.** 저자의 실수를 빨리 드러내는 장치다.
+A `panic` reachable only from internal calls **must be left alone.** It is the device that surfaces the author's mistake fast.
 
 ### 2.4 unsafe
 
-- `unsafe`를 새로 도입하지 않는다.
-- `uintptr` 산술 금지. 포인터 오프셋이 필요하면 `unsafe.Add`를 쓴다.
-- 슬라이스 데이터 포인터를 구조체 필드에 캐시하지 않는다. 동기화를 강제할 방법이 없다.
+- Never introduce new `unsafe`.
+- `uintptr` arithmetic is forbidden. Use `unsafe.Add` when a pointer offset is needed.
+- Never cache a slice data pointer in a struct field. There is no way to enforce synchronization on it.
 
-### 2.5 주석
+### 2.5 Comments
 
-내가 건드린 코드에는 아래를 적는다.
+In code you touched, write the following.
 
-- 결함을 고쳤다면 **어떤 입력이 문제였는지**
-- 최적화라면 **왜 동작이 동일한지**
-- 동시성 계약·소유권·반환값 별칭 여부가 자명하지 않으면 적는다
+- If you fixed a defect — **which input was the problem**
+- If it is an optimization — **why the behavior is identical**
+- The concurrency contract, ownership, and whether the return value aliases — write these down whenever they are not self-evident
 
-### 2.6 오류
+### 2.6 Errors
 
-- 오류 문자열은 소문자로 시작하고 마침표로 끝내지 않는다.
-- 감싸는 오류는 `%w`를 쓴다. `%v`로 원인을 삼키지 않는다.
-- 호출자가 분기해야 하는 오류는 sentinel(`ErrXxx`)이나 오류 타입으로 노출한다.
-- 오류를 `_`로 버리지 않는다. 버려야 한다면 **왜 안전한지** 주석으로 남긴다.
-
----
-
-## 3. 성능
-
-### 3.1 최적화의 조건은 동작 동일성이다
-
-문턱은 벤치마크 수치가 아니라 **동작이 한 치도 안 바뀌는 것**이다.
-
-- 반환값과 오류가 같다
-- 부수효과가 같다 — 콜백 호출 횟수와 순서까지
-- **별칭 여부가 같다** — 복사본을 주던 함수가 내부 슬라이스를 주거나, 인자를 복사해 두던 함수가 인자를 그대로 붙들기 시작하면 안 된다
-- 순회 순서가 관측되던 곳은 순서까지 같다
-- **부동소수 결과가 비트 단위로 같다** — 연산 순서를 바꾸면 재결합으로 값이 달라진다
-
-**동일성을 눈으로 증명할 수 없으면 하지 않는다.** 애매하면 안 건드린다.
-
-**자료구조를 바꾸지 않는다.** 맵↔슬라이스 교체는 순회 순서를 바꾸므로 동작 변경이다.
-
-핫패스를 건드렸으면 벤치마크를 붙인다. `-benchmem`의 `allocs/op`가 주 지표다.
-
-### 3.2 핫패스 규칙
-
-틱 루프, 블록 설정, 엔티티 순회, 패킷 처리 경로에서는:
-
-- 호출당 힙 할당을 만들지 않는다. 함수 밖으로 나가지 않는 `slices.Clone`, 빈 옵션 구조체 할당, 불필요한 클로저 캡처, 인터페이스 박싱을 피한다.
-- 재사용 버퍼는 인스턴스 필드에 두거나 호출자 소유로 넘긴다. `sync.Pool`은 마지막 수단이다.
-- 루프 불변식을 루프 밖으로 뺀다. 같은 조회를 한 함수에서 두 번 하지 않는다.
-- 문자열 비교로 타입을 판별하지 않는다. 타입 스위치나 사전 계산된 플래그를 쓴다.
-- 맵 전순회로 필터링하지 않는다. 필요한 축의 인덱스를 유지한다.
-
-### 3.3 틱 예산
-
-틱은 50ms 안에 끝나야 한다.
-
-- 틱 루프에서 블로킹 I/O를 기다리지 않는다. 청크 로드·세이브는 워커에 넘기고 결과만 받는다.
-- 락을 잡은 채 청크를 로드하지 않는다. 잡은 락은 그 안의 계산이 끝나면 바로 놓는다.
-- 요청당 큐 왕복을 늘리지 않는다. 패킷 하나가 큐를 두 번 통과하면 그건 회귀다.
-- 틱당 작업량이 로드된 청크 수에 선형으로 붙는 코드를 새로 만들지 않는다.
+- Error strings start lowercase and do not end with a period.
+- Wrapping errors use `%w`. Never swallow the cause with `%v`.
+- An error the caller must branch on is exposed as a sentinel (`ErrXxx`) or an error type.
+- Never discard an error into `_`. If you must discard one, leave a comment saying **why it is safe**.
 
 ---
 
-## 4. 검증
+## 3. Performance
 
-### 4.1 통과 기준
+### 3.1 The precondition for optimizing is behavioral identity
 
-모든 변경은 아래를 전부 통과한 뒤에 완료로 보고한다. 하나라도 실패하면 실패 사실과 출력을 그대로 보고한다.
+The threshold is not a benchmark number. It is **behavior not changing by one bit**.
+
+- Return values and errors are the same
+- Side effects are the same — down to the number and order of callback invocations
+- **Aliasing is the same** — a function that handed out a copy must not start handing out an internal slice, and a function that copied its argument must not start holding onto the argument itself
+- Where iteration order was observable, the order is the same too
+- **Floating-point results are bit-identical** — reordering operations changes the value through reassociation
+
+**If you cannot prove identity by eye, do not do it.** When it is ambiguous, leave it alone.
+
+**Never change a data structure.** Swapping map↔slice changes iteration order, so it is a behavior change.
+
+If you touched the hot path, attach a benchmark. `allocs/op` from `-benchmem` is the primary metric.
+
+### 3.2 Hot path rules
+
+On the tick loop, block setting, entity iteration, and packet handling paths:
+
+- Do not create a heap allocation per call. Avoid a `slices.Clone` that never escapes the function, allocating empty option structs, unnecessary closure captures, and interface boxing.
+- Put reusable buffers in an instance field or hand ownership to the caller. `sync.Pool` is the last resort.
+- Hoist loop invariants out of the loop. Never do the same lookup twice in one function.
+- Never determine a type by string comparison. Use a type switch or a precomputed flag.
+- Never filter by iterating a whole map. Maintain an index on the axis you need.
+
+### 3.3 Tick budget
+
+A tick must finish within 50ms.
+
+- Never wait on blocking I/O in the tick loop. Hand chunk loads and saves to a worker and take only the result.
+- Never load a chunk while holding a lock. Release a held lock the moment the computation inside it finishes.
+- Do not increase queue round-trips per request. One packet passing through the queue twice is a regression.
+- Do not write new code whose per-tick work scales linearly with the number of loaded chunks.
+
+---
+
+## 4. Verification
+
+### 4.1 Pass criteria
+
+Report a change complete only after all of the below pass. If even one fails, report the failure and its output verbatim.
 
 ```
-gofmt -l .          # 출력 없어야 함
-go vet ./...        # 출력 없어야 함
+gofmt -l .          # must print nothing
+go vet ./...        # must print nothing
 go build ./...
 go test -race ./...
 ```
 
-버퍼 재사용이나 전역 상태를 건드렸으면 `-count=5` 이상으로 반복 실행한다. 상태가 새는 버그는 반복에서만 드러난다.
+If you touched buffer reuse or global state, run repeatedly with `-count=5` or more. Bugs that leak state only show up on repeats.
 
-손대려다 만 것은 **왜 안 했는지 보고한다.**
+Anything you started to touch and backed away from — **report why you did not do it.**
 
-### 4.2 테스트
+### 4.2 Tests
 
-테스트는 아래 둘에만 쓴다. 커버리지를 늘리려고 쓰지 않는다.
+Tests are written for the two purposes below only. Never write one to raise coverage.
 
-- **버그 수정** — 재현 테스트를 먼저 쓰고, 실패하는 것을 실제로 확인한 뒤 고친다. 실패를 못 본 테스트는 아무것도 증명하지 않는다.
-- **결과 무결성이 걸린 코드** — 직렬화, 팔레트 저장소, 인벤토리, 패킷 핸들러. 테스트 없이 수정하지 않는다.
+- **Bug fixes** — write the reproduction test first, actually watch it fail, then fix. A test you never saw fail proves nothing.
+- **Code where result integrity is at stake** — serialization, palette storage, inventory, packet handlers. Never modify these without a test.
 
-쓸 때는:
+When you write one:
 
-- **"패닉 안 난다"만 확인하는 테스트는 안전망이 아니다.** 관측 가능한 값을 단언한다.
-- 읽기·쓰기가 같은 인코딩을 쓰는 곳에서는 라운드트립만으로 부족하다. **키와 필드 이름을 골든 값으로 직접 단언한다.** 양쪽을 같이 바꾸면 라운드트립은 통과한다.
+- **A test that only checks "it does not panic" is not a safety net.** Assert observable values.
+- Where reading and writing use the same encoding, a round-trip alone is not enough. **Assert keys and field names directly as golden values.** If both sides change together, the round-trip still passes.
 
-### 4.3 PINNED 마커
+### 4.3 PINNED markers
 
-테스트의 `PINNED` 주석은 "옳은 동작"이 아니라 **"현재 동작"** 을 일부러 고정한 것이다.
+A `PINNED` comment in a test deliberately pins **"current behavior"**, not "correct behavior".
 
 ```go
-// PINNED BUG: <무엇이 잘못됐는지>
-// PINNED SCOPE: <의도적으로 없는 기능>
-// PINNED CONSTRAINT: <테스트 환경의 제약>
+// PINNED BUG: <what is wrong>
+// PINNED SCOPE: <a feature that is intentionally absent>
+// PINNED CONSTRAINT: <a limitation of the test environment>
 ```
 
-기존 마커 뒤의 `Pinned as-is; decide in stage 1`과 `CLAUDE.md N.N` 참조는 폐기된 계획의 흔적이다. 따르지 않고, 새 마커에 옮기지 않는다.
+The `Pinned as-is; decide in stage 1` text and the `CLAUDE.md N.N` references trailing existing markers are residue of an abandoned plan. Do not follow them, and do not carry them into new markers.
 
-| 작업 | 마커가 깨지면 |
+| Task | If a marker breaks |
 |---|---|
-| **결함 수정** | 그 마커가 고정하던 게 방금 고친 버그라면 테스트를 갱신하고 마커를 지우고 **왜인지 보고한다** |
-| **성능 최적화** | **최적화가 틀린 것이다.** 마커가 아니라 최적화를 되돌린다 |
+| **Defect fix** | If what that marker pinned is the very bug you just fixed, update the test, delete the marker, and **report why** |
+| **Performance optimization** | **The optimization is wrong.** Revert the optimization, not the marker |
 
-**판단 없이 기대값만 새 출력에 맞추지 않는다.** 그건 검증을 버리는 짓이다. 내 변경과 무관한 마커는 건드리지 않는다.
+**Never fit expectations to the new output without judgment.** That is throwing verification away. Never touch a marker unrelated to your change.
 
-### 4.4 결함 주입
+### 4.4 Fault injection
 
-결과 무결성 테스트를 새로 썼으면 **프로덕션에 결함을 일부러 넣어 그 테스트가 잡는지 확인한다.** 확인 뒤 전부 되돌리고 `git status`가 깨끗한 것을 본다.
+If you wrote a new result-integrity test, **deliberately inject a defect into the production code and confirm the test catches it.** After confirming, revert everything and see that `git status` is clean.
 
-의도한 결함이 안 잡히면 테스트에 구멍이 있는 것이다. 테스트를 고쳐라.
+If the intended defect is not caught, the test has a hole. Fix the test.
 
 ---
 
-## 5. 저장소 위생
+## 5. Repository hygiene
 
-- 작업이 끝나면 **묻지 않고 커밋한다.**
-- **푸시하지 않는다.** 푸시는 사용자가 한다.
-- **트레일러를 붙이지 않는다.** `Co-Authored-By`, `Generated with` 전부 포함이다.
-- 변경 하나에 커밋 하나. 여러 개를 섞으면 회귀가 났을 때 원인을 못 찾는다.
+- When the work is done, **commit without asking.**
+- **Never push.** The user pushes.
+- **Never attach trailers.** That includes `Co-Authored-By` and `Generated with`.
+- One commit per change. Mixing several makes the cause untraceable when a regression appears.
 
-여러 세션이 같은 저장소에서 동시에 작업할 수 있다. **`git add -A`를 쓰지 않는다.** 경로를 지정한다.
+Multiple sessions may work in the same repository at once. **Never use `git add -A`.** Specify paths.
 
 ```
-git add <새 파일>
-git commit -m "메시지" -- <경로>
+git add <new file>
+git commit -m "message" -- <path>
 ```
 
-`git commit -- <경로> -m "메시지"`는 `-m`을 경로로 해석해 실패한다.
+`git commit -- <path> -m "message"` fails because `-m` is interpreted as a path.
