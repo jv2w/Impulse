@@ -30,12 +30,19 @@ func NewMenu(submittable MenuSubmittable, title ...any) Menu {
 
 // MarshalJSON ...
 func (m Menu) MarshalJSON() ([]byte, error) {
-	return json.Marshal(map[string]any{
-		"type":     "form",
-		"title":    m.title,
-		"content":  m.body,
-		"elements": m.Elements(),
-	})
+	// encoding/json writes map keys in ascending order, so a struct with the
+	// fields declared in that order writes the same bytes without the
+	// temporary map and its four boxed values.
+	return json.Marshal(menuForm{Content: m.body, Elements: m.Elements(), Title: m.title, Type: "form"})
+}
+
+// menuForm is the JSON shape of a Menu form. The field order matches the
+// ascending key order encoding/json used for the map it replaces.
+type menuForm struct {
+	Content  string        `json:"content"`
+	Elements []MenuElement `json:"elements"`
+	Title    string        `json:"title"`
+	Type     string        `json:"type"`
 }
 
 // WithBody creates a copy of the Menu form and changes its body to the body passed, after which the new Menu
@@ -101,8 +108,10 @@ func (m Menu) Buttons() []Button {
 	v := reflect.New(reflect.TypeOf(m.submittable)).Elem()
 	v.Set(reflect.ValueOf(m.submittable))
 
+	// The field count cannot change while the value is read, so it is asked
+	// for once instead of once per iteration.
 	buttons := make([]Button, 0)
-	for i := 0; i < v.NumField(); i++ {
+	for i, n := 0, v.NumField(); i < n; i++ {
 		field := v.Field(i)
 		if !field.CanSet() {
 			continue
@@ -125,8 +134,11 @@ func (m Menu) Elements() []MenuElement {
 	v := reflect.New(reflect.TypeOf(m.submittable)).Elem()
 	v.Set(reflect.ValueOf(m.submittable))
 
-	elements := make([]MenuElement, 0, v.NumField()+len(m.elements))
-	for i := 0; i < v.NumField(); i++ {
+	// The field count is read once and reused for both the capacity and the
+	// loop bound; it cannot change while the value is read.
+	n := v.NumField()
+	elements := make([]MenuElement, 0, n+len(m.elements))
+	for i := 0; i < n; i++ {
 		field := v.Field(i)
 		if !field.CanSet() {
 			continue
@@ -164,11 +176,14 @@ func (m Menu) SubmitJSON(b []byte, submitter Submitter, tx *world.Tx) error {
 func (m Menu) verify() {
 	v := reflect.New(reflect.TypeOf(m.submittable)).Elem()
 	v.Set(reflect.ValueOf(m.submittable))
-	for i := 0; i < v.NumField(); i++ {
-		if !v.Field(i).CanSet() {
+	// The field count and the field value are each fetched once per iteration
+	// instead of twice; neither can change while the value is read.
+	for i, n := 0, v.NumField(); i < n; i++ {
+		field := v.Field(i)
+		if !field.CanSet() {
 			continue
 		}
-		if _, ok := v.Field(i).Interface().(MenuElement); !ok {
+		if _, ok := field.Interface().(MenuElement); !ok {
 			panic("all exported fields must implement form.MenuElement")
 		}
 	}

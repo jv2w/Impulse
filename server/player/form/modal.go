@@ -41,13 +41,30 @@ func NoButton() Button {
 
 // MarshalJSON ...
 func (m Modal) MarshalJSON() ([]byte, error) {
-	return json.Marshal(map[string]any{
-		"type":    "modal",
-		"title":   m.title,
-		"content": m.body,
-		"button1": m.Buttons()[0].Text,
-		"button2": m.Buttons()[1].Text,
+	// Buttons walks the submittable by reflection and allocates a slice, and
+	// nothing between the two old calls could change its result, so it runs
+	// once. encoding/json writes map keys in ascending order, so a struct with
+	// the fields declared in that order writes the same bytes without the
+	// temporary map and its five boxed values. An index out of range still
+	// panics on the same short button list.
+	buttons := m.Buttons()
+	return json.Marshal(modalForm{
+		Button1: buttons[0].Text,
+		Button2: buttons[1].Text,
+		Content: m.body,
+		Title:   m.title,
+		Type:    "modal",
 	})
+}
+
+// modalForm is the JSON shape of a Modal form. The field order matches the
+// ascending key order encoding/json used for the map it replaces.
+type modalForm struct {
+	Button1 string `json:"button1"`
+	Button2 string `json:"button2"`
+	Content string `json:"content"`
+	Title   string `json:"title"`
+	Type    string `json:"type"`
 }
 
 // WithBody creates a copy of the Modal form and changes its body to the body passed, after which the new Modal
@@ -94,8 +111,11 @@ func (m Modal) Buttons() []Button {
 	v := reflect.New(reflect.TypeOf(m.submittable)).Elem()
 	v.Set(reflect.ValueOf(m.submittable))
 
-	buttons := make([]Button, 0, v.NumField())
-	for i := 0; i < v.NumField(); i++ {
+	// The field count is read once and reused for both the capacity and the
+	// loop bound; it cannot change while the value is read.
+	n := v.NumField()
+	buttons := make([]Button, 0, n)
+	for i := 0; i < n; i++ {
 		field := v.Field(i)
 		if !field.CanSet() {
 			continue
@@ -114,11 +134,14 @@ func (m Modal) verify() {
 	v := reflect.New(reflect.TypeOf(m.submittable)).Elem()
 	v.Set(reflect.ValueOf(m.submittable))
 
-	for i := 0; i < v.NumField(); i++ {
-		if !v.Field(i).CanSet() {
+	// The field count and the field value are each fetched once per iteration
+	// instead of twice; neither can change while the value is read.
+	for i, n := 0, v.NumField(); i < n; i++ {
+		field := v.Field(i)
+		if !field.CanSet() {
 			continue
 		}
-		if _, ok := v.Field(i).Interface().(Button); !ok {
+		if _, ok := field.Interface().(Button); !ok {
 			panic("both exported fields must be of the type form.Button")
 		}
 		count++

@@ -23,16 +23,28 @@ type DisplaySettings struct {
 func (d DisplaySettings) MarshalJSON() ([]byte, error) {
 	// Yaw and pitch are swapped in this display.
 	d.EntityRotation[0], d.EntityRotation[1] = d.EntityRotation[1], d.EntityRotation[0]-32
-	m := map[string]any{
+	// encoding/json writes map keys in ascending order, so a struct with the
+	// fields declared in that order writes the same bytes without the
+	// temporary map and its boxed values. A mgl64.Vec3 encodes exactly like
+	// the [3]float64 the default scale used.
+	s := displayJSON{
+		// Entity is rotated by 32 degrees by default.
+		Rotate: d.EntityRotation,
+		Scale:  mgl64.Vec3{1, 1, 1},
 		// Translate needs to be multiplied by -32 to get a rough block
 		// equivalent.
-		"translate": d.EntityOffset.Mul(-32),
-		// Entity is rotated by 32 degrees by default.
-		"rotate": d.EntityRotation,
-		"scale":  [3]float64{1, 1, 1},
+		Translate: d.EntityOffset.Mul(-32),
 	}
 	if (d.EntityScale != mgl64.Vec3{}) {
-		m["scale"] = d.EntityScale
+		s.Scale = d.EntityScale
 	}
-	return json.Marshal(m)
+	return json.Marshal(s)
+}
+
+// displayJSON is the JSON shape of DisplaySettings. The field order matches
+// the ascending key order encoding/json used for the map it replaces.
+type displayJSON struct {
+	Rotate    mgl64.Vec3 `json:"rotate"`
+	Scale     mgl64.Vec3 `json:"scale"`
+	Translate mgl64.Vec3 `json:"translate"`
 }

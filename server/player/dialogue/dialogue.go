@@ -82,8 +82,10 @@ func (m Dialogue) Buttons() []Button {
 	v := reflect.New(reflect.TypeOf(m.submittable)).Elem()
 	v.Set(reflect.ValueOf(m.submittable))
 
+	// The field count cannot change while the value is read, so it is asked
+	// for once instead of once per iteration.
 	buttons := make([]Button, 0)
-	for i := 0; i < v.NumField(); i++ {
+	for i, n := 0, v.NumField(); i < n; i++ {
 		field := v.Field(i)
 		if !field.CanSet() {
 			continue
@@ -120,12 +122,15 @@ func (m Dialogue) Close(submitter Submitter, tx *world.Tx) {
 func (m Dialogue) verify() {
 	v := reflect.New(reflect.TypeOf(m.submittable)).Elem()
 	v.Set(reflect.ValueOf(m.submittable))
+	// The field count and the field value are each fetched once per iteration
+	// instead of twice; neither can change while the value is read.
 	var buttons int
-	for i := 0; i < v.NumField(); i++ {
-		if !v.Field(i).CanSet() {
+	for i, n := 0, v.NumField(); i < n; i++ {
+		field := v.Field(i)
+		if !field.CanSet() {
 			continue
 		}
-		if _, ok := v.Field(i).Interface().(Button); !ok {
+		if _, ok := field.Interface().(Button); !ok {
 			panic("all exported fields must be of the type dialogue.Button")
 		}
 		buttons++
