@@ -41,6 +41,9 @@ type Session struct {
 	conn     Conn
 	handlers map[uint32]packetHandler
 	packets  chan packet.Packet
+	// overflowed is set by writePacket when packets has no room left, so that
+	// only the first overflow starts the goroutine closing the session.
+	overflowed atomic.Bool
 
 	currentScoreboard atomic.Pointer[string]
 	currentLines      atomic.Pointer[[]string]
@@ -659,6 +662,19 @@ func (s *Session) writePacket(pk packet.Packet) {
 	select {
 	case s.packets <- pk:
 	case <-s.closeBackground:
+	default:
+		// The writer goroutine is stuck and the buffer is full. writePacket is
+		// called from the world goroutine while broadcasting, so waiting here
+		// stops every player on the server and not just this one. The session
+		// is closed instead, and this packet and the ones behind it are
+		// dropped: the connection is going away, so there is no client state
+		// left to keep in step with.
+		//
+		// The close runs on its own goroutine because Conn.Close flushes the
+		// connection first, which is the write that is already blocked.
+		if s.overflowed.CompareAndSwap(false, true) {
+			go s.CloseConnection()
+		}
 	}
 }
 
