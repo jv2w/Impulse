@@ -69,7 +69,10 @@ func (e EndRod) EncodeBlock() (string, map[string]any) {
 
 // allEndRods ...
 func allEndRods() (b []world.Block) {
-	for _, f := range cube.Faces() {
+	// One rod per face, so the final length is known and the list is allocated once.
+	faces := cube.Faces()
+	b = make([]world.Block, 0, len(faces))
+	for _, f := range faces {
 		b = append(b, EndRod{Facing: f})
 	}
 	return

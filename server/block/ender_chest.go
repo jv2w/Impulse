@@ -132,7 +132,10 @@ func (c EnderChest) EncodeBlock() (name string, properties map[string]any) {
 
 // allEnderChests ...
 func allEnderChests() (chests []world.Block) {
-	for _, direction := range cube.Directions() {
+	// One chest per direction, so the final length is known and the list is allocated once.
+	directions := cube.Directions()
+	chests = make([]world.Block, 0, len(directions))
+	for _, direction := range directions {
 		chests = append(chests, EnderChest{Facing: direction})
 	}
 	return

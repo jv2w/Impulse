@@ -29,8 +29,11 @@ func (d DragonEgg) SideClosed(cube.Pos, cube.Pos, *world.Tx) bool {
 
 // teleport ...
 func (d DragonEgg) teleport(pos cube.Pos, tx *world.Tx) {
+	// The world range and the Y of pos are the same on every attempt. Reading them draws no
+	// randomness, so the three rand calls keep their order and their values.
+	r, y := tx.Range(), pos.Y()
 	for i := 0; i < 1000; i++ {
-		newPos := pos.Add(cube.Pos{rand.IntN(31) - 15, max(tx.Range()[0]-pos.Y(), min(tx.Range()[1]-pos.Y(), rand.IntN(15)-7)), rand.IntN(31) - 15})
+		newPos := pos.Add(cube.Pos{rand.IntN(31) - 15, max(r[0]-y, min(r[1]-y, rand.IntN(15)-7)), rand.IntN(31) - 15})
 
 		if _, ok := tx.Block(newPos).(Air); ok {
 			tx.SetBlock(newPos, d, nil)

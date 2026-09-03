@@ -141,10 +141,12 @@ func (c ExplosionConfig) Explode(tx *world.Tx, src world.ExplosionSource) {
 				} else if _, ok = currentBlock.(Air); !ok {
 					info.flags = explosionBlockStopsRay
 				}
-				blockCache[current] = info
 			}
 			if info.flags&explosionBlockStopsRay != 0 {
 				// Completely stop the ray if the current block is not air and unbreakable.
+				if !ok {
+					blockCache[current] = info
+				}
 				break
 			}
 
@@ -153,10 +155,15 @@ func (c ExplosionConfig) Explode(tx *world.Tx, src world.ExplosionSource) {
 			if info.flags&explosionBlockResists != 0 {
 				blastForce -= (info.resistance + 0.3) * 0.3
 			}
+			// A block first seen on this step used to be stored twice, once as it was read and once
+			// with the affected flag added. Every path below stores it once and leaves the cache
+			// holding the same entry it held before.
 			if blastForce > 0 && info.flags&explosionBlockAffected == 0 {
 				info.flags |= explosionBlockAffected
 				blockCache[current] = info
 				affectedBlocks = append(affectedBlocks, current)
+			} else if !ok {
+				blockCache[current] = info
 			}
 		}
 	}
@@ -201,8 +208,13 @@ func (c ExplosionConfig) Explode(tx *world.Tx, src world.ExplosionSource) {
 				info.BreakHandler(pos, tx, nil)
 			}
 			if itemDropChance > r.Float64() {
-				for _, drop := range info.Drops(item.ToolNone{}, nil) {
-					dropItem(tx, drop, pos.Vec3Centre())
+				// Every drop of this block lands on the same centre, so it is worked out once,
+				// and only when there is a drop to place.
+				if drops := info.Drops(item.ToolNone{}, nil); len(drops) > 0 {
+					centre := pos.Vec3Centre()
+					for _, drop := range drops {
+						dropItem(tx, drop, centre)
+					}
 				}
 			}
 			removeDependents(pos, tx, blast)
@@ -241,11 +253,15 @@ func (c ExplosionConfig) exposure(tx *world.Tx, origin mgl64.Vec3, e world.Entit
 
 	var checks, misses float64
 	for x := 0.0; x <= 1.0; x += step[0] {
+		// The X and Y terms do not depend on the inner loops. They are the same expressions on the
+		// same operands, only evaluated once per level, so every point stays bit identical.
+		pointX := lerp(x, boxMin[0], boxMax[0]) + xOffset
 		for y := 0.0; y <= 1.0; y += step[1] {
+			pointY := lerp(y, boxMin[1], boxMax[1])
 			for z := 0.0; z <= 1.0; z += step[2] {
 				point := mgl64.Vec3{
-					lerp(x, boxMin[0], boxMax[0]) + xOffset,
-					lerp(y, boxMin[1], boxMax[1]),
+					pointX,
+					pointY,
 					lerp(z, boxMin[2], boxMax[2]) + zOffset,
 				}
 				var collided bool

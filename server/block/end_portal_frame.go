@@ -79,9 +79,13 @@ func (f EndPortalFrame) InsertEndPortalEye() (world.Block, bool) {
 
 // allEndPortalFrames returns every state combination of EndPortalFrame for registration.
 func allEndPortalFrames() []world.Block {
-	frames := make([]world.Block, 0, len(cube.Directions())*2)
-	for _, dir := range cube.Directions() {
-		for _, eye := range []bool{false, true} {
+	// The direction list is read once instead of twice and the eye list is an array outside the
+	// loop, so the same frames come out in the same order.
+	directions := cube.Directions()
+	eyes := [...]bool{false, true}
+	frames := make([]world.Block, 0, len(directions)*len(eyes))
+	for _, dir := range directions {
+		for _, eye := range eyes {
 			frames = append(frames, EndPortalFrame{Facing: dir, Eye: eye})
 		}
 	}
