@@ -77,13 +77,15 @@ func (l *sessionList) sendSessionTo(s, to *Session) {
 	to.entities[runtimeID] = s.ent
 	to.entityMutex.Unlock()
 
+	// IdentityData returns its data by value, so it is read once here instead of twice.
+	identity := s.conn.IdentityData()
 	to.writePacket(&packet.PlayerList{
 		Entries: []protocol.PlayerListEntry{{
 			ActionType:     protocol.PlayerListActionAdd,
 			UUID:           s.ent.UUID(),
 			EntityUniqueID: int64(runtimeID),
-			Username:       s.conn.IdentityData().DisplayName,
-			XUID:           s.conn.IdentityData().XUID,
+			Username:       identity.DisplayName,
+			XUID:           identity.XUID,
 			BuildPlatform:  int32(protocol.DeviceUnknown),
 			Skin:           skinToProtocol(s.joinSkin),
 		}},
@@ -107,10 +109,18 @@ func (l *sessionList) unsendSessionFrom(s, from *Session) {
 // skinToProtocol converts a skin to its protocol representation.
 func skinToProtocol(s skin.Skin) protocol.Skin {
 	var animations []protocol.SkinAnimation
+	if len(s.Animations) > 0 {
+		// The final length is known, so the slice is allocated once instead of grown. A skin without
+		// animations still leaves the field nil, exactly as the plain append did.
+		animations = make([]protocol.SkinAnimation, 0, len(s.Animations))
+	}
 	for _, animation := range s.Animations {
+		// Bounds has a value receiver, so it copied the whole animation twice per iteration. It only reads
+		// the stored width and height, so one call yields both.
+		animBounds := animation.Bounds()
 		protocolAnim := protocol.SkinAnimation{
-			ImageWidth:  uint32(animation.Bounds().Max.X),
-			ImageHeight: uint32(animation.Bounds().Max.Y),
+			ImageWidth:  uint32(animBounds.Max.X),
+			ImageHeight: uint32(animBounds.Max.Y),
 			ImageData:   animation.Pix,
 			FrameCount:  float32(animation.FrameCount),
 		}
@@ -134,15 +144,19 @@ func skinToProtocol(s skin.Skin) protocol.Skin {
 	if len(model) == 0 {
 		model = []byte("{}")
 	}
+	// Bounds has a value receiver on both the skin and the cape, so each call copied the whole struct. Both
+	// only read the stored width and height and neither has a side effect, so one call each yields the same
+	// numbers and the uuid.New calls below still run in the same order.
+	skinBounds, capeBounds := s.Bounds(), s.Cape.Bounds()
 	return protocol.Skin{
 		PlayFabID:                 s.PlayFabID,
 		SkinID:                    uuid.New().String(),
 		SkinResourcePatch:         s.ModelConfig.Encode(),
-		SkinImageWidth:            uint32(s.Bounds().Max.X),
-		SkinImageHeight:           uint32(s.Bounds().Max.Y),
+		SkinImageWidth:            uint32(skinBounds.Max.X),
+		SkinImageHeight:           uint32(skinBounds.Max.Y),
 		SkinData:                  s.Pix,
-		CapeImageWidth:            uint32(s.Cape.Bounds().Max.X),
-		CapeImageHeight:           uint32(s.Cape.Bounds().Max.Y),
+		CapeImageWidth:            uint32(capeBounds.Max.X),
+		CapeImageHeight:           uint32(capeBounds.Max.Y),
 		CapeData:                  s.Cape.Pix,
 		SkinGeometry:              model,
 		PersonaSkin:               s.Persona,

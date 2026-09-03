@@ -50,7 +50,10 @@ func (b Bone) EncodeBlock() (name string, properties map[string]any) {
 
 // allBoneBlock ...
 func allBoneBlock() (boneBlocks []world.Block) {
-	for _, axis := range cube.Axes() {
+	axes := cube.Axes()
+	// The count is known before the loop, so the list is sized once instead of grown.
+	boneBlocks = make([]world.Block, 0, len(axes))
+	for _, axis := range axes {
 		boneBlocks = append(boneBlocks, Bone{Axis: axis})
 	}
 	return

@@ -141,7 +141,10 @@ func (b BlastFurnace) DecodeNBT(data map[string]any) any {
 
 // allBlastFurnaces ...
 func allBlastFurnaces() (furnaces []world.Block) {
-	for _, face := range cube.Directions() {
+	dirs := cube.Directions()
+	// The count is known before the loop, so the list is sized once instead of grown.
+	furnaces = make([]world.Block, 0, len(dirs)*2)
+	for _, face := range dirs {
 		furnaces = append(furnaces, BlastFurnace{Facing: face})
 		furnaces = append(furnaces, BlastFurnace{Facing: face, Lit: true})
 	}

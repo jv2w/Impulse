@@ -17,9 +17,14 @@ type Blackstone struct {
 	Type BlackstoneType
 }
 
+// gildedNuggetChances holds the chance of gilded blackstone dropping gold nuggets for fortune
+// levels 0 to 3. The list was built again on every drop; the constants are the same, so the
+// chances are bit for bit what they were. It never leaves this file.
+var gildedNuggetChances = [4]float64{0.1, 1.0 / 7.0, 0.25, 1.0}
+
 // BreakInfo ...
 func (b Blackstone) BreakInfo() BreakInfo {
-	drops := oneOf(b)
+	var drops func(item.Tool, []item.Enchantment) []item.Stack
 	hardness := 1.5
 
 	switch b.Type {
@@ -28,14 +33,18 @@ func (b Blackstone) BreakInfo() BreakInfo {
 			if hasSilkTouch(enchantments) {
 				return []item.Stack{item.NewStack(b, 1)}
 			}
-			nuggetChances := []float64{0.1, 1.0 / 7.0, 0.25, 1.0}
-			if rand.Float64() < nuggetChances[min(fortuneLevel(enchantments), 3)] {
+			if rand.Float64() < gildedNuggetChances[min(fortuneLevel(enchantments), 3)] {
 				return []item.Stack{item.NewStack(item.GoldNugget{}, rand.IntN(4)+2)}
 			}
 			return []item.Stack{item.NewStack(b, 1)}
 		}
 	case PolishedBlackstone():
 		hardness = 2
+	}
+	if drops == nil {
+		// oneOf boxes the block and builds a closure, so it is only built for the types that
+		// reach it. Gilded blackstone threw the result away before.
+		drops = oneOf(b)
 	}
 
 	return newBreakInfo(hardness, pickaxeHarvestable, pickaxeEffective, drops).withBlastResistance(6)
@@ -56,7 +65,10 @@ func (b Blackstone) EncodeBlock() (string, map[string]any) {
 
 // allBlackstone returns a list of all blackstone block variants.
 func allBlackstone() (s []world.Block) {
-	for _, t := range BlackstoneTypes() {
+	types := BlackstoneTypes()
+	// The count is known before the loop, so the list is sized once instead of grown.
+	s = make([]world.Block, 0, len(types))
+	for _, t := range types {
 		s = append(s, Blackstone{Type: t})
 	}
 	return

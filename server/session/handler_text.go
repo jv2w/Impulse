@@ -16,10 +16,13 @@ func (TextHandler) Handle(p packet.Packet, s *Session, _ *world.Tx, c Controllab
 	if pk.TextType != packet.TextTypeChat {
 		return fmt.Errorf("TextType should always be Chat (%v), but got %v", packet.TextTypeChat, pk.TextType)
 	}
-	if pk.SourceName != s.conn.IdentityData().DisplayName {
+	// IdentityData returns its data by value, so reading it once instead of twice saves a copy of the whole
+	// struct. Nothing between the two checks can change what the connection reports.
+	identity := s.conn.IdentityData()
+	if pk.SourceName != identity.DisplayName {
 		return fmt.Errorf("SourceName must be equal to DisplayName")
 	}
-	if pk.XUID != s.conn.IdentityData().XUID {
+	if pk.XUID != identity.XUID {
 		return fmt.Errorf("XUID must be equal to player's XUID")
 	}
 	c.Chat(pk.Message)
