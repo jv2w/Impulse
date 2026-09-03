@@ -245,10 +245,12 @@ func (br *BasicBlockRegistry) Clone() *BasicBlockRegistry {
 	if br.finalized {
 		br2.hashes = intintmap.New(len(br.blocks), 0.999)
 		for rid, b := range br2.blocks {
-			if _, hash := b.Hash(); hash == math.MaxUint64 {
+			// Hash is asked once instead of twice; BlockHash only recombines the same pair as base | hash<<bitSize.
+			base, hash := b.Hash()
+			if hash == math.MaxUint64 {
 				continue
 			}
-			br2.hashes.Put(int64(br2.BlockHash(b)), int64(rid))
+			br2.hashes.Put(int64(base|(hash<<uint64(br2.bitSize))), int64(rid))
 		}
 		br2.networkhashToRids = make(map[uint32]uint32, len(br.networkhashToRids))
 		maps.Copy(br2.networkhashToRids, br.networkhashToRids)
@@ -284,7 +286,10 @@ func (br *BasicBlockRegistry) RegisterBlock(b Block) {
 		panic("BlockRegistry.RegisterBlock called on finalized BlockRegistry")
 	}
 	name, properties := b.EncodeBlock()
-	if _, ok := b.(CustomBlock); ok {
+	// The CustomBlock assertion is done once instead of twice; b does not change in between, so both branches
+	// still run for exactly the same blocks.
+	c, custom := b.(CustomBlock)
+	if custom {
 		br.registerBlockStateLocked(BlockState{Name: name, Properties: properties})
 	}
 	rid, ok := br.stateRuntimeID(name, properties)
@@ -297,7 +302,7 @@ func (br *BasicBlockRegistry) RegisterBlock(b Block) {
 		panic(fmt.Sprintf("block with name and properties %v {%#v} already registered", name, properties))
 	}
 	br.blocks[rid] = b
-	if c, ok := b.(CustomBlock); ok {
+	if custom {
 		if _, ok := br.customBlocks[name]; !ok {
 			br.customBlocks[name] = c
 		}
@@ -392,10 +397,13 @@ func (br *BasicBlockRegistry) Finalize() {
 
 		var info blockInfo
 		// Default to fully opaque. Blocks that implement lightDiffuser may override this (e.g., air -> 0, leaves -> 1-14).
-		info.setLightFilter(15)
+		// The field is written once instead of twice; the first write was always overwritten for a diffuser, so the
+		// stored value is the same.
+		filter := uint8(15)
 		if diffuser, ok := b.(lightDiffuser); ok {
-			info.setLightFilter(diffuser.LightDiffusionLevel())
+			filter = diffuser.LightDiffusionLevel()
 		}
+		info.setLightFilter(filter)
 		if emitter, ok := b.(lightEmitter); ok {
 			info.setLight(emitter.LightEmissionLevel())
 		}
@@ -413,8 +421,9 @@ func (br *BasicBlockRegistry) Finalize() {
 		}
 		br.blockInfos[rid] = info
 
-		if _, hash := b.Hash(); hash != math.MaxUint64 {
-			h := int64(br.BlockHash(b))
+		// Hash is asked once instead of twice; BlockHash only recombines the same pair as base | hash<<bitSize.
+		if base, hash := b.Hash(); hash != math.MaxUint64 {
+			h := int64(base | (hash << uint64(br.bitSize)))
 			if other, ok := br.hashes.Get(h); ok {
 				panic(fmt.Sprintf("block %#v with hash %v already registered by %#v", b, h, br.blocks[other]))
 			}
@@ -495,9 +504,11 @@ func (br *BasicBlockRegistry) BlockRuntimeID(b Block) uint32 {
 	if b == nil {
 		return br.airRID
 	}
-	if _, hash := b.Hash(); hash != math.MaxUint64 {
+	// Hash is asked once instead of twice: the value the second call fed to BlockHash is the pair already read
+	// here, and BlockHash is exactly base | hash<<bitSize.
+	if base, hash := b.Hash(); hash != math.MaxUint64 {
 		// b is not an unknownBlock.
-		if rid, ok := br.hashes.Get(int64(br.BlockHash(b))); ok {
+		if rid, ok := br.hashes.Get(int64(base | (hash << uint64(br.bitSize)))); ok {
 			return uint32(rid)
 		}
 		panic(fmt.Sprintf("cannot find block by non-0 hash of block %#v", b))

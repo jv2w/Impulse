@@ -28,8 +28,12 @@ func (w *World) blocksWithin(pos cube.Pos, radius int, blocks ...Block) iter.Seq
 		minChunk := chunkPosFromBlockPos(cube.Pos{minX, 0, minZ})
 		maxChunk := chunkPosFromBlockPos(cube.Pos{maxX - 1, 0, maxZ - 1})
 		var logged bool
-		for chunkX := minChunk.X(); chunkX <= maxChunk.X(); chunkX++ {
-			for chunkZ := minChunk.Z(); chunkZ <= maxChunk.Z(); chunkZ++ {
+		// The chunk bounds are read once instead of once per loop step. minChunk and maxChunk are local values
+		// that nothing in the loop writes to, so the same chunks are visited in the same order.
+		maxChunkX, maxChunkZ := maxChunk.X(), maxChunk.Z()
+		minChunkZ := minChunk.Z()
+		for chunkX := minChunk.X(); chunkX <= maxChunkX; chunkX++ {
+			for chunkZ := minChunkZ; chunkZ <= maxChunkZ; chunkZ++ {
 				chunkPos := ChunkPos{chunkX, chunkZ}
 				var c *chunk.Chunk
 				if col, ok := w.chunks[chunkPos]; ok {
@@ -94,7 +98,9 @@ func yieldMatchingBlocks(yield func(cube.Pos) bool, chunkPos ChunkPos, c *chunk.
 // matchingPaletteIndices returns the indices in the palette that hold one of the target runtime IDs.
 func matchingPaletteIndices(palette *chunk.Palette, targets []uint32) []uint16 {
 	var indices []uint16
-	for i := 0; i < palette.Len(); i++ {
+	// The palette length is read once instead of once per step; the loop does not modify the palette, so the
+	// same indices are collected in the same order.
+	for i, n := 0, palette.Len(); i < n; i++ {
 		if slices.Contains(targets, palette.Value(uint16(i))) {
 			indices = append(indices, uint16(i))
 		}

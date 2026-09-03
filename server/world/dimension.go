@@ -93,13 +93,16 @@ func (reg *dimensionRegistry) RegisterDimension(id int, name string, dim Dimensi
 		return fmt.Errorf("custom dimension must not be nil")
 	}
 	r := dim.Range()
-	if r.Min() > r.Max() {
+	// The bounds are read once instead of three times each. r is a local copy that nothing below writes to, so
+	// every guard still sees the same two numbers in the same order.
+	rMin, rMax := r.Min(), r.Max()
+	if rMin > rMax {
 		return fmt.Errorf("custom dimension range must not be empty")
 	}
-	if r.Min()%16 != 0 || (r.Max()+1)%16 != 0 {
+	if rMin%16 != 0 || (rMax+1)%16 != 0 {
 		return fmt.Errorf("custom dimension range must align with 16-block sub-chunks")
 	}
-	if r.Min() < math.MinInt16 || r.Max() > math.MaxInt16 {
+	if rMin < math.MinInt16 || rMax > math.MaxInt16 {
 		return fmt.Errorf("custom dimension range must be between %d and %d", math.MinInt16, math.MaxInt16)
 	}
 	if _, ok := reg.dimensions[id]; ok {

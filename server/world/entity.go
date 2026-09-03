@@ -560,7 +560,10 @@ func (reg EntityRegistry) Types() []EntityType {
 }
 
 func readVec3(x map[string]any, k string) mgl64.Vec3 {
-	if i, ok := x[k].([]any); ok {
+	// The map is read once instead of twice: the two assertions become one type switch over the same value, so
+	// each case still matches exactly the type it matched before and returns the same vector.
+	switch i := x[k].(type) {
+	case []any:
 		if len(i) != 3 {
 			return mgl64.Vec3{}
 		}
@@ -570,7 +573,7 @@ func readVec3(x map[string]any, k string) mgl64.Vec3 {
 			v[index] = float64(f32)
 		}
 		return v
-	} else if i, ok := x[k].([]float32); ok {
+	case []float32:
 		if len(i) != 3 {
 			return mgl64.Vec3{}
 		}

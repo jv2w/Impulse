@@ -95,6 +95,9 @@ func (l *Loader) Move(tx *Tx, pos mgl64.Vec3) {
 // the background. The Viewer's ViewChunk is called for each chunk once ready, which may be after Load
 // returns. Load does nothing for n <= 0.
 func (l *Loader) Load(tx *Tx, n int) {
+	// The world of tx is read once instead of once per iteration. tx never changes world during a
+	// transaction, so every iteration used to see this same value.
+	w := tx.World()
 	for i := 0; i < n; i++ {
 		l.mu.Lock()
 		if l.closed || l.w == nil {
@@ -106,7 +109,6 @@ func (l *Loader) Load(tx *Tx, n int) {
 			break
 		}
 		pos := l.loadQueue[0]
-		w := tx.World()
 		l.pending[pos] = struct{}{}
 
 		// Shift the first element from the load queue off so that we can take a new one during the next
@@ -249,9 +251,13 @@ func (l *Loader) populateLoadQueue() {
 		l.loadRings[i] = l.loadRings[i][:0]
 	}
 
+	// The centre is read once and the X of the candidate is formed once per column instead of once per cell.
+	// l.pos does not change inside the loops, so the same positions are produced in the same order.
+	centreX, centreZ := l.pos[0], l.pos[1]
 	for x := -r; x <= r; x++ {
+		posX := x + centreX
 		for z := -r; z <= r; z++ {
-			pos := ChunkPos{x + l.pos[0], z + l.pos[1]}
+			pos := ChunkPos{posX, z + centreZ}
 			dist := chunkDistance(pos, l.pos)
 			if dist > r {
 				// The chunk was outside the chunk radius.
