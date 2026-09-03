@@ -31,7 +31,9 @@ func Perform(start, end mgl64.Vec3, tx *world.Tx, box cube.BBox, filter EntityFi
 		// Check if we collide with the block's model.
 		if result, ok := BlockIntercept(pos, tx, b, start, end); ok {
 			hit = result
-			end = hit.Position()
+			// hit holds result, so reading the concrete value skips an
+			// interface dispatch for the same vector.
+			end = result.Position()
 			return false
 		}
 		return true

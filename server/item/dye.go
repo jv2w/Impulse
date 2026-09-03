@@ -31,7 +31,22 @@ type dyeable interface {
 	Dye(pos cube.Pos, userPos mgl64.Vec3, c Colour) (world.Block, bool)
 }
 
+// dyeNames holds the encoded name of every dye colour, in colour ID order.
+var dyeNames = [...]string{
+	"minecraft:white_dye", "minecraft:orange_dye", "minecraft:magenta_dye", "minecraft:light_blue_dye",
+	"minecraft:yellow_dye", "minecraft:lime_dye", "minecraft:pink_dye", "minecraft:gray_dye",
+	"minecraft:light_gray_dye", "minecraft:cyan_dye", "minecraft:purple_dye", "minecraft:blue_dye",
+	"minecraft:brown_dye", "minecraft:green_dye", "minecraft:red_dye", "minecraft:black_dye",
+}
+
 // EncodeItem ...
 func (d Dye) EncodeItem() (name string, meta int16) {
+	// The table holds exactly what the join produced for every colour ID it
+	// covers, so a covered colour skips the string join and its allocation. An
+	// ID outside the table still goes through the join, which Colour.String
+	// answers with "white" as before.
+	if c := d.Colour.Uint8(); int(c) < len(dyeNames) {
+		return dyeNames[c], 0
+	}
 	return "minecraft:" + d.Colour.String() + "_dye", 0
 }

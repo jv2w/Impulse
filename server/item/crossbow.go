@@ -22,7 +22,6 @@ func (c Crossbow) Charge(releaser Releaser, _ *world.Tx, ctx *UseContext, durati
 		return false
 	}
 
-	creative := releaser.GameMode().CreativeInventory()
 	held, left := releaser.HeldItems()
 
 	if chargeDuration, _ := c.chargeDuration(held); duration < chargeDuration {
@@ -33,7 +32,10 @@ func (c Crossbow) Charge(releaser Releaser, _ *world.Tx, ctx *UseContext, durati
 		return false
 	}
 	c.Item = projectileItem.Grow(-projectileItem.Count() + 1)
-	if !creative {
+	// The game mode read moved below the two guards. It only reads a field and
+	// the mode answers with a constant, so leaving it out of the early returns
+	// drops two calls without changing what the surviving path sees.
+	if !releaser.GameMode().CreativeInventory() {
 		ctx.Consume(c.Item)
 	}
 
@@ -79,8 +81,11 @@ func (c Crossbow) chargeDuration(s Stack) (dur time.Duration, quickChargeLvl int
 	dur, lvl := time.Duration(1.25*float64(time.Second)), 0
 	for _, enchant := range s.Enchantments() {
 		if q, ok := enchant.Type().(interface{ ChargeDuration(int) time.Duration }); ok {
-			dur = min(dur, q.ChargeDuration(enchant.Level()))
-			lvl = enchant.Level()
+			// Level only reads a field of the Enchantment value, so reading it
+			// once hands both uses the same number the two reads gave before.
+			l := enchant.Level()
+			dur = min(dur, q.ChargeDuration(l))
+			lvl = l
 		}
 	}
 	return dur, lvl
@@ -93,8 +98,12 @@ func (c Crossbow) chargeDuration(s Stack) (dur time.Duration, quickChargeLvl int
 // anywhere in the inventory.
 func (c Crossbow) findProjectile(r Releaser, ctx *UseContext) (Stack, bool) {
 	_, left := r.HeldItems()
-	_, isFirework := left.Item().(Firework)
-	_, isArrow := left.Item().(Arrow)
+	// Item re-runs Stack.Empty, which encodes the item, on every call. The
+	// stack does not change in between, so one read gives both checks the same
+	// item the two reads gave before.
+	leftItem := left.Item()
+	_, isFirework := leftItem.(Firework)
+	_, isArrow := leftItem.(Arrow)
 	if isFirework || isArrow {
 		return left, true
 	}
@@ -123,10 +132,13 @@ func (c Crossbow) ReleaseCharge(releaser Releaser, tx *world.Tx, ctx *UseContext
 
 	pierceLevel, multishot := 0, false
 	for _, enchant := range held.Enchantments() {
-		if _, ok := enchant.Type().(interface{ MultipleProjectiles() bool }); ok {
+		// Type only reads a field of the Enchantment value, so one read gives
+		// both assertions the same type the two reads gave before.
+		t := enchant.Type()
+		if _, ok := t.(interface{ MultipleProjectiles() bool }); ok {
 			multishot = true
 		}
-		if _, ok := enchant.Type().(interface{ Pierces() bool }); ok {
+		if _, ok := t.(interface{ Pierces() bool }); ok {
 			pierceLevel = enchant.Level()
 		}
 	}
@@ -165,7 +177,10 @@ func (c Crossbow) shoot(releaser Releaser, tx *world.Tx, offsetAngle float64, ar
 	rot := releaser.Rotation()
 	dirVec := cube.Rotation{rot[0] + offsetAngle, rot[1]}.Vec3()
 
-	if firework, ok := c.Item.Item().(Firework); ok {
+	// Item re-runs Stack.Empty, which encodes the item, on every call. c.Item
+	// does not change here, so both branches use the same item as before.
+	loaded := c.Item.Item()
+	if firework, ok := loaded.(Firework); ok {
 		createFirework := tx.World().EntityRegistry().Config().Firework
 		projectile := createFirework(world.EntitySpawnOpts{
 			Position: torsoPosition(releaser),
@@ -175,7 +190,7 @@ func (c Crossbow) shoot(releaser Releaser, tx *world.Tx, offsetAngle float64, ar
 		tx.AddEntity(projectile)
 	} else {
 		createArrow := tx.World().EntityRegistry().Config().Arrow
-		arrowConf.Tip = c.Item.Item().(Arrow).Tip
+		arrowConf.Tip = loaded.(Arrow).Tip
 		arrow := createArrow(world.EntitySpawnOpts{
 			Position: torsoPosition(releaser),
 			Velocity: dirVec.Mul(5.15),
@@ -204,7 +219,9 @@ func (Crossbow) MaxCount() int {
 func (Crossbow) DurabilityInfo() DurabilityInfo {
 	return DurabilityInfo{
 		MaxDurability: 464,
-		BrokenItem:    simpleItem(Stack{}),
+		// The shared value replaces a closure built on every call; it only
+		// returns the zero Stack it captured, exactly as the old one did.
+		BrokenItem: brokenIntoNothing,
 	}
 }
 
