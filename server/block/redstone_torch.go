@@ -59,7 +59,10 @@ func (t RedstoneTorch) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx
 	if _, ok := tx.Block(pos).(world.Liquid); ok {
 		return false
 	}
-	if !tx.Block(pos.Side(face.Opposite())).Model().FaceSolid(pos.Side(face.Opposite()), face, tx) {
+	// pos.Side(face.Opposite()) is a pure computation that was evaluated twice; one value is used
+	// for both the lookup and the face check.
+	attached := pos.Side(face.Opposite())
+	if !tx.Block(attached).Model().FaceSolid(attached, face, tx) {
 		fallbackFace, ok := findTorchPlacementFace(pos, tx)
 		if !ok {
 			return false
@@ -80,7 +83,9 @@ func (t RedstoneTorch) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx
 // NeighbourUpdateTick breaks unsupported torches and otherwise schedules inverse-state refreshes.
 func (t RedstoneTorch) NeighbourUpdateTick(pos, changed cube.Pos, tx *world.Tx) {
 	facing := t.facing()
-	if !tx.Block(pos.Side(facing)).Model().FaceSolid(pos.Side(facing), facing.Opposite(), tx) {
+	// pos.Side(facing) is a pure computation that was evaluated twice; one value serves both uses.
+	attached := pos.Side(facing)
+	if !tx.Block(attached).Model().FaceSolid(attached, facing.Opposite(), tx) {
 		tx.Redstone().Torch(pos).ClearBurnout()
 		breakBlock(t, pos, tx)
 		return
@@ -222,13 +227,17 @@ func (t RedstoneTorch) changeTouchesRecoveryArea(pos, changed cube.Pos, tx *worl
 			return true
 		}
 	}
-	for _, face := range cube.HorizontalFaces() {
+	// The horizontal face list is the same slice on every call and face.Opposite() does not change
+	// inside the inner loop, so both are read once. The same faces are visited in the same order.
+	hFaces := cube.HorizontalFaces()
+	for _, face := range hFaces {
 		neighbour := pos.Side(face)
 		if _, ok := tx.Block(neighbour).(RedstoneWire); !ok {
 			continue
 		}
-		for _, wireFace := range cube.HorizontalFaces() {
-			if wireFace == face || wireFace == face.Opposite() {
+		opposite := face.Opposite()
+		for _, wireFace := range hFaces {
+			if wireFace == face || wireFace == opposite {
 				continue
 			}
 			if changed == neighbour.Side(wireFace) {
@@ -283,7 +292,9 @@ var redstoneTorchFallbackSides = [...]cube.Face{
 // findTorchPlacementFace finds a valid face for placing a redstone torch on a non-solid block.
 func findTorchPlacementFace(pos cube.Pos, tx *world.Tx) (cube.Face, bool) {
 	for _, side := range redstoneTorchFallbackSides {
-		if tx.Block(pos.Side(side)).Model().FaceSolid(pos.Side(side), side.Opposite(), tx) {
+		// pos.Side(side) is pure and was computed twice per iteration; one value serves both uses.
+		neighbour := pos.Side(side)
+		if tx.Block(neighbour).Model().FaceSolid(neighbour, side.Opposite(), tx) {
 			return side.Opposite(), true
 		}
 	}
@@ -291,7 +302,11 @@ func findTorchPlacementFace(pos cube.Pos, tx *world.Tx) (cube.Face, bool) {
 }
 
 func allRedstoneTorches() (all []world.Block) {
-	for _, face := range cube.Faces() {
+	// Two torches per face, so the slice is presized to its final length and grows without
+	// reallocating. The same blocks are appended in the same order.
+	faces := cube.Faces()
+	all = make([]world.Block, 0, 2*len(faces))
+	for _, face := range faces {
 		if face == cube.FaceUp {
 			face = unknownFace
 		}

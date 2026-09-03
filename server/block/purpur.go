@@ -67,8 +67,12 @@ func (p PurpurPillar) EncodeBlock() (name string, properties map[string]any) {
 
 // allPurpurs ...
 func allPurpurs() (purpur []world.Block) {
+	// The final count is known, so the slice is presized and grows without reallocating. The same
+	// blocks are appended in the same order into a slice still built fresh per call.
+	axes := cube.Axes()
+	purpur = make([]world.Block, 0, 1+len(axes))
 	purpur = append(purpur, Purpur{})
-	for _, axis := range cube.Axes() {
+	for _, axis := range axes {
 		purpur = append(purpur, PurpurPillar{Axis: axis})
 	}
 	return

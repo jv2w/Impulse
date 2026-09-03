@@ -64,8 +64,14 @@ func (r RedstoneOre) light(pos cube.Pos, tx *world.Tx) {
 
 // emitParticles emits the red particles produced when redstone ore is disturbed.
 func (RedstoneOre) emitParticles(pos cube.Pos, tx *world.Tx) {
+	// The block corner and the dust particle are the same on every one of the five iterations, so
+	// both are computed once. Boxing the Dust once hands AddParticle an interface holding an equal
+	// Dust value the same five times, dropping four heap allocations, and the random offsets are
+	// still drawn once per particle in the same order.
+	base := pos.Vec3()
+	var dust world.Particle = particle.Dust{Colour: redstoneOreParticleColour}
 	for range 5 {
-		tx.AddParticle(pos.Vec3().Add(redstoneOreParticleOffset()), particle.Dust{Colour: redstoneOreParticleColour})
+		tx.AddParticle(base.Add(redstoneOreParticleOffset()), dust)
 	}
 }
 

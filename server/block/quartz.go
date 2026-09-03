@@ -106,10 +106,14 @@ func (q QuartzPillar) EncodeBlock() (name string, properties map[string]any) {
 
 // allQuartz ...
 func allQuartz() (quartz []world.Block) {
+	// The final count is known, so the slice is presized and grows without reallocating. The same
+	// blocks are appended in the same order into a slice still built fresh per call.
+	axes := cube.Axes()
+	quartz = make([]world.Block, 0, 3+len(axes))
 	quartz = append(quartz, Quartz{})
 	quartz = append(quartz, Quartz{Smooth: true})
 	quartz = append(quartz, ChiseledQuartz{})
-	for _, a := range cube.Axes() {
+	for _, a := range axes {
 		quartz = append(quartz, QuartzPillar{Axis: a})
 	}
 	return

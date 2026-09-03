@@ -120,6 +120,8 @@ func (RedstoneWire) MaterialColour() string {
 }
 
 func allRedstoneWires() (all []world.Block) {
+	// The final count is known, so the slice is presized and grows without reallocating.
+	all = make([]world.Block, 0, 16)
 	for i := range 16 {
 		all = append(all, RedstoneWire{Power: i})
 	}
@@ -166,15 +168,18 @@ func redstoneWirePowersHorizontalFace(pos cube.Pos, tx *world.Tx, face cube.Face
 
 // redstoneWirePoweredHorizontalFaces returns the horizontal faces connected by the wire shape.
 func redstoneWirePoweredHorizontalFaces(pos cube.Pos, tx *world.Tx) map[cube.Face]bool {
-	connections := make(map[cube.Face]bool, len(cube.HorizontalFaces()))
-	for _, face := range cube.HorizontalFaces() {
+	// The horizontal face list is the same slice on every call, so it is read once instead of three
+	// times. The same faces are visited in the same order.
+	hFaces := cube.HorizontalFaces()
+	connections := make(map[cube.Face]bool, len(hFaces))
+	for _, face := range hFaces {
 		if len(redstoneWireHorizontalConnectionPositions(pos, tx, face)) != 0 {
 			connections[face] = true
 		}
 	}
 	switch len(connections) {
 	case 0:
-		for _, face := range cube.HorizontalFaces() {
+		for _, face := range hFaces {
 			connections[face] = true
 		}
 	case 1:
@@ -191,22 +196,35 @@ func redstoneWireHorizontalConnectionPositions(pos cube.Pos, tx *world.Tx, face 
 	if side.OutOfBounds(tx.Range()) {
 		return nil
 	}
-	positions := make([]cube.Pos, 0, 3)
+	// The at most three connections are collected in a stack array first. The same checks run in
+	// the same order; only the result slice changes, from an always allocated three-element buffer
+	// to nil when nothing connects and an exactly sized fresh copy otherwise. The function already
+	// returned nil above, and both callers only read len or append the contents.
+	var found [3]cube.Pos
+	n := 0
 	if redstoneWireDirectConnectionLoaded(tx, side, face.Opposite()) {
-		positions = append(positions, side)
+		found[n] = side
+		n++
 	}
 
 	above := pos.Side(cube.FaceUp)
 	sideAbove := side.Side(cube.FaceUp)
 	if !redstoneWireBlocksConnectionLoaded(tx, above, cube.FaceDown) && redstoneWireAtLoaded(tx, sideAbove) && redstoneWireSupportedLoaded(tx, sideAbove) {
-		positions = append(positions, sideAbove)
+		found[n] = sideAbove
+		n++
 	}
 	if !redstoneWireBlocksConnectionLoaded(tx, side, cube.FaceUp) {
 		down := side.Side(cube.FaceDown)
 		if !down.OutOfBounds(tx.Range()) && redstoneWireAtLoaded(tx, down) && redstoneWireCanTransmitDown(tx, pos) {
-			positions = append(positions, down)
+			found[n] = down
+			n++
 		}
 	}
+	if n == 0 {
+		return nil
+	}
+	positions := make([]cube.Pos, n)
+	copy(positions, found[:n])
 	return positions
 }
 
@@ -217,14 +235,21 @@ func redstoneWireCanTransmitDown(tx *world.Tx, pos cube.Pos) bool {
 		return false
 	}
 	support, ok := tx.BlockLoaded(supportPos)
-	if !ok || !support.Model().FaceSolid(supportPos, cube.FaceUp, tx) {
+	if !ok {
+		return false
+	}
+	// support.Model() returned the same model on each of the up to seven calls, and building it
+	// could box a model value every time, so it is taken once and reused. The same FaceSolid calls
+	// happen on the same faces in the same order.
+	model := support.Model()
+	if !model.FaceSolid(supportPos, cube.FaceUp, tx) {
 		return false
 	}
 	if stepDowner, ok := support.(RedstoneWireStepDowner); ok {
 		return stepDowner.CanRedstoneWireStepDown(supportPos, pos, tx)
 	}
 	for _, face := range cube.Faces() {
-		if !support.Model().FaceSolid(supportPos, face, tx) {
+		if !model.FaceSolid(supportPos, face, tx) {
 			return false
 		}
 	}
