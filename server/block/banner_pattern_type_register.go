@@ -1,8 +1,10 @@
 package block
 
+// The init below registers 42 patterns, so both maps are sized for that up front and are not
+// grown and rehashed while they fill. Same keys, same values.
 var (
-	bannerPatternsMap = map[string]BannerPatternType{}
-	bannerPatternIDs  = map[BannerPatternType]string{}
+	bannerPatternsMap = make(map[string]BannerPatternType, 42)
+	bannerPatternIDs  = make(map[BannerPatternType]string, 42)
 )
 
 // init initialises all default banner patterns to the registry.

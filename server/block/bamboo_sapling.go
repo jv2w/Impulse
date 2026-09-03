@@ -79,6 +79,8 @@ func (b BambooSapling) grow(pos cube.Pos, tx *world.Tx) bool {
 
 // allBambooSaplings ...
 func allBambooSaplings() (saplings []world.Block) {
+	// Two entries are appended, so the list is sized once instead of grown twice.
+	saplings = make([]world.Block, 0, 2)
 	saplings = append(saplings, BambooSapling{Ready: false})
 	saplings = append(saplings, BambooSapling{Ready: true})
 	return

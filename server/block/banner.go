@@ -128,14 +128,24 @@ func invertColour(c item.Colour) int16 {
 	return ^int16(c.Uint8()) & 0xf
 }
 
+// coloursByID holds the sixteen colours indexed by their ID. item.Colours() returns a freshly
+// built slice on every call, so the list is built once here. Only element values are read from it
+// and the slice never leaves this file, so nothing can observe that it is shared.
+var coloursByID = item.Colours()
+
 // invertColourID converts the int16 passed the returns the item.Colour inverted.
 func invertColourID(id int16) item.Colour {
-	return item.Colours()[uint8(^id&0xf)]
+	// The mask keeps the index inside the sixteen entries, so the value read is the same one
+	// item.Colours() would have handed back.
+	return coloursByID[uint8(^id&0xf)]
 }
 
 // allBanners returns all possible banners.
 func allBanners() (banners []world.Block) {
-	for _, d := range cube.Directions() {
+	dirs := cube.Directions()
+	// The count is known before the loops, so the list is sized once instead of grown.
+	banners = make([]world.Block, 0, len(dirs)+16)
+	for _, d := range dirs {
 		banners = append(banners, Banner{Attach: WallAttachment(d)})
 	}
 	for o := cube.Orientation(0); o <= 15; o++ {

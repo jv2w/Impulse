@@ -9,7 +9,6 @@ import (
 	"github.com/jv2w/Impulse/server/world"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"math"
-	"slices"
 )
 
 // handleCraft handles the CraftRecipe request action.
@@ -37,6 +36,11 @@ func (h *ItemStackRequestHandler) handleCraft(a *protocol.CraftRecipeStackReques
 	offset := s.craftingOffset()
 	consumed := make([]bool, size)
 	for _, expected := range craft.Input() {
+		// expected does not change while the slots are scanned, so these two
+		// interface calls returned the same values on every slot. Empty walks
+		// into the item, so both are asked once per recipe item now.
+		expectedEmpty, expectedNeed := expected.Empty(), expected.Count()*timesCrafted
+
 		var processed bool
 		for slot := offset; slot < offset+size; slot++ {
 			if consumed[slot-offset] {
@@ -44,7 +48,7 @@ func (h *ItemStackRequestHandler) handleCraft(a *protocol.CraftRecipeStackReques
 				continue
 			}
 			has, _ := s.ui.Item(int(slot))
-			if has.Empty() != expected.Empty() || has.Count() < expected.Count()*timesCrafted {
+			if has.Empty() != expectedEmpty || has.Count() < expectedNeed {
 				// We can't process this item, as it's not a part of the recipe.
 				continue
 			}
@@ -53,7 +57,9 @@ func (h *ItemStackRequestHandler) handleCraft(a *protocol.CraftRecipeStackReques
 				continue
 			}
 			processed, consumed[slot-offset] = true, true
-			st := has.Grow(-expected.Count() * timesCrafted)
+			// -expected.Count() * timesCrafted is -(count * timesCrafted), which
+			// is the amount already worked out above, wrapping the same way.
+			st := has.Grow(-expectedNeed)
 			h.setItemInSlot(protocol.StackRequestSlotInfo{
 				Container: protocol.FullContainerName{ContainerID: protocol.ContainerCraftingInput},
 				Slot:      byte(slot),
@@ -88,29 +94,51 @@ func (h *ItemStackRequestHandler) handleAutoCraft(a *protocol.AutoCraftRecipeSta
 		return fmt.Errorf("times crafted must be at least 1")
 	}
 
-	flattenedInputs := make([]recipe.Item, 0, len(craft.Input()))
-	for _, i := range craft.Input() {
+	// Input goes through the Recipe interface and hands back the same slice on
+	// every call, so it is asked once for both the size and the walk.
+	craftInput := craft.Input()
+	flattenedInputs := make([]recipe.Item, 0, len(craftInput))
+	for _, i := range craftInput {
 		if i.Empty() {
 			// We don't actually need this item - it's empty, so avoid putting it in our flattened inputs.
 			continue
 		}
 
-		if ind := slices.IndexFunc(flattenedInputs, func(it recipe.Item) bool {
-			return matchingStacks(it, i)
-		}); ind >= 0 {
+		// IndexFunc walks the list in order and stops at the first element the
+		// function accepts, which is what this loop does, without building a
+		// closure over i for every input.
+		ind := -1
+		for k, it := range flattenedInputs {
+			if matchingStacks(it, i) {
+				ind = k
+				break
+			}
+		}
+		if ind >= 0 {
 			flattenedInputs[ind] = grow(i, flattenedInputs[ind].Count())
 			continue
 		}
 		flattenedInputs = append(flattenedInputs, i)
 	}
 
+	// The two inventories never change while the inputs are consumed, so the
+	// map holds the same pairs on every pass and is built once instead of once
+	// per input. Ranging over a map picks a fresh random start each time the
+	// range runs, so the order the inventories are visited in is drawn exactly
+	// as it was before. With no inputs the loop never ran, so nothing is built
+	// there either.
+	var inventories map[byte]*inventory.Inventory
+	if len(flattenedInputs) > 0 {
+		inventories = map[byte]*inventory.Inventory{
+			protocol.ContainerCraftingInput:              s.ui,
+			protocol.ContainerCombinedHotBarAndInventory: s.inv,
+		}
+	}
+
 	for _, expected := range flattenedInputs {
 		remaining := expected.Count() * timesCrafted
 
-		for id, inv := range map[byte]*inventory.Inventory{
-			protocol.ContainerCraftingInput:              s.ui,
-			protocol.ContainerCombinedHotBarAndInventory: s.inv,
-		} {
+		for id, inv := range inventories {
 			for slot, has := range inv.Slots() {
 				if has.Empty() {
 					// We don't have this item, skip it.
@@ -163,10 +191,13 @@ func (h *ItemStackRequestHandler) handleCreativeCraft(a *protocol.CraftCreativeS
 	// and indexed creative.Items() out of range below. On a 64-bit build int
 	// held the wrapped value exactly, so the comparison, the item selected and
 	// the error string are all unchanged there.
-	if uint64(index) >= uint64(len(creative.Items())) {
+	// Items hands back the registry slice itself, and nothing registers an item
+	// between the bound check and the index, so one read serves both.
+	items := creative.Items()
+	if uint64(index) >= uint64(len(items)) {
 		return fmt.Errorf("creative item with network ID %v does not exist", index)
 	}
-	it := creative.Items()[index].Stack
+	it := items[index].Stack
 	it = it.Grow(it.MaxCount() - 1)
 	return h.createResults(s, tx, it)
 }

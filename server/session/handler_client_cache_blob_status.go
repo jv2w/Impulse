@@ -14,11 +14,17 @@ type ClientCacheBlobStatusHandler struct {
 func (c *ClientCacheBlobStatusHandler) Handle(p packet.Packet, s *Session, _ *world.Tx, _ Controllable) error {
 	pk := p.(*packet.ClientCacheBlobStatus)
 
-	resp := &packet.ClientCacheMissResponse{Blobs: make([]protocol.CacheBlob, 0, len(pk.MissHashes))}
+	// The response is only built when a blob is actually going to be sent. The
+	// blob list is collected the same way either way, so the packet carries
+	// the same slice it did; the run that sends nothing now allocates no
+	// packet at all.
+	blobs := make([]protocol.CacheBlob, 0, len(pk.MissHashes))
 
 	s.blobMu.Lock()
 	for _, hit := range pk.HitHashes {
-		delete(s.blobs, hit)
+		// resolveBlob ends with the same delete on the same hash, and a delete
+		// of a key that is already gone does nothing, so dropping the one here
+		// leaves the map in the same state.
 		c.resolveBlob(hit, s)
 	}
 	for _, miss := range pk.MissHashes {
@@ -29,13 +35,13 @@ func (c *ClientCacheBlobStatusHandler) Handle(p packet.Packet, s *Session, _ *wo
 			// actually aid in terms of information.
 			continue
 		}
-		resp.Blobs = append(resp.Blobs, protocol.CacheBlob{Hash: miss, Payload: blob})
+		blobs = append(blobs, protocol.CacheBlob{Hash: miss, Payload: blob})
 		c.resolveBlob(miss, s)
 	}
 	s.blobMu.Unlock()
 
-	if len(resp.Blobs) > 0 {
-		s.writePacket(resp)
+	if len(blobs) > 0 {
+		s.writePacket(&packet.ClientCacheMissResponse{Blobs: blobs})
 	}
 	return nil
 }
