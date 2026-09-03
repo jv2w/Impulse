@@ -81,13 +81,16 @@ func (s *Session) ViewEntity(e world.Entity) {
 	id := t.EncodeEntity()
 	switch v := e.(type) {
 	case Controllable:
-		_, actualPlayer := sessions.Lookup(v.UUID())
+		// The UUID and the name are read once each instead of up to four and two times. Both only report
+		// identity that is fixed for the entity, so every packet below carries the same values.
+		uid, username := v.UUID(), v.Name()
+		_, actualPlayer := sessions.Lookup(uid)
 		if !actualPlayer {
 			s.writePacket(&packet.PlayerList{Entries: []protocol.PlayerListEntry{{
 				ActionType:     protocol.PlayerListActionAdd,
-				UUID:           v.UUID(),
+				UUID:           uid,
 				EntityUniqueID: int64(runtimeID),
-				Username:       v.Name(),
+				Username:       username,
 				BuildPlatform:  int32(protocol.DeviceUnknown),
 				Skin:           skinToProtocol(v.Skin()),
 			}}})
@@ -100,8 +103,8 @@ func (s *Session) ViewEntity(e world.Entity) {
 			HeadYaw:         float32(yaw),
 			Pitch:           float32(pitch),
 			Position:        vec64To32(e.Position()),
-			UUID:            v.UUID(),
-			Username:        v.Name(),
+			UUID:            uid,
+			Username:        username,
 			Yaw:             float32(yaw),
 			BuildPlatform:   int32(protocol.DeviceUnknown),
 			AbilityData: protocol.AbilityData{
@@ -115,7 +118,7 @@ func (s *Session) ViewEntity(e world.Entity) {
 		if !actualPlayer {
 			s.writePacket(&packet.PlayerList{Entries: []protocol.PlayerListEntry{{
 				ActionType: protocol.PlayerListActionRemove,
-				UUID:       v.UUID(),
+				UUID:       uid,
 			}}})
 		} else {
 			s.ViewSkin(e)
@@ -183,10 +186,13 @@ func (s *Session) HideEntity(e world.Entity) {
 		return
 	}
 
+	// The handle is resolved once, outside the lock: it is the same handle for both map operations, so the
+	// same entry is looked up and deleted as before.
+	h := e.H()
 	s.entityMutex.Lock()
-	id, ok := s.entityRuntimeIDs[e.H()]
+	id, ok := s.entityRuntimeIDs[h]
 	if _, controllable := e.(Controllable); !controllable {
-		delete(s.entityRuntimeIDs, e.H())
+		delete(s.entityRuntimeIDs, h)
 		delete(s.entities, id)
 	}
 	s.entityMutex.Unlock()
@@ -381,21 +387,24 @@ func (s *Session) ViewSleepingPlayers(sleeping, max int) {
 func (s *Session) ViewParticle(pos mgl64.Vec3, p world.Particle) {
 	switch pa := p.(type) {
 	case particle.DragonEggTeleport:
+		// The three offsets are read once each instead of twice. They are plain integer components, so the
+		// signs and the packed event data below are computed from exactly the same values.
+		diffX, diffY, diffZ := pa.Diff.X(), pa.Diff.Y(), pa.Diff.Z()
 		xSign, ySign, zSign := 0, 0, 0
-		if pa.Diff.X() < 0 {
+		if diffX < 0 {
 			xSign = 1 << 24
 		}
-		if pa.Diff.Y() < 0 {
+		if diffY < 0 {
 			ySign = 1 << 25
 		}
-		if pa.Diff.Z() < 0 {
+		if diffZ < 0 {
 			zSign = 1 << 26
 		}
 
 		s.writePacket(&packet.LevelEvent{
 			EventType: packet.LevelEventParticlesDragonEgg,
 			Position:  vec64To32(pos),
-			EventData: int32((((((abs(pa.Diff.X()) << 16) | (abs(pa.Diff.Y()) << 8)) | abs(pa.Diff.Z())) | xSign) | ySign) | zSign),
+			EventData: int32((((((abs(diffX) << 16) | (abs(diffY) << 8)) | abs(diffZ)) | xSign) | ySign) | zSign),
 		})
 	case particle.Note:
 		s.writePacket(&packet.BlockEvent{
@@ -1028,12 +1037,15 @@ func (s *Session) ViewEntityAction(e world.Entity, a world.EntityAction) {
 	switch act := a.(type) {
 	case entity.SwingArmAction:
 		if _, ok := e.(Controllable); ok {
-			if s.entityRuntimeID(e) == selfEntityRuntimeID && s.swingingArm.Load() {
+			// The runtime ID is looked up once instead of twice: only an atomic read sits between the two
+			// uses, so the entity map cannot have changed in between.
+			id := s.entityRuntimeID(e)
+			if id == selfEntityRuntimeID && s.swingingArm.Load() {
 				return
 			}
 			s.writePacket(&packet.Animate{
 				ActionType:      packet.AnimateActionSwingArm,
-				EntityRuntimeID: s.entityRuntimeID(e),
+				EntityRuntimeID: id,
 			})
 			return
 		}
@@ -1425,10 +1437,13 @@ func (s *Session) entityRuntimeID(e world.Entity) uint64 {
 }
 
 func (s *Session) handleRuntimeID(e *world.EntityHandle) uint64 {
+	// The lock only guards the map read, so it is released before the miss is logged instead of being held
+	// across the log handler. The map read cannot panic, so the unlock needs no defer frame. The result is
+	// the value read under the lock either way, and the log line reports the same handle.
 	s.entityMutex.RLock()
-	defer s.entityMutex.RUnlock()
-
-	if id, ok := s.entityRuntimeIDs[e]; ok {
+	id, ok := s.entityRuntimeIDs[e]
+	s.entityMutex.RUnlock()
+	if ok {
 		return id
 	}
 	s.conf.Log.Debug("entity runtime ID not found", "UUID", e.UUID().String())
