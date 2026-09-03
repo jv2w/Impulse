@@ -16,24 +16,34 @@ type FireworkExplosion struct {
 	Trail bool
 }
 
+// fireworkShapes holds the same shapes FireworkShapes returns, in the same order and with the
+// same length, so a lookup by ID does not have to build the slice first.
+var fireworkShapes = [5]FireworkShape{FireworkShapeSmallSphere(), FireworkShapeHugeSphere(), FireworkShapeStar(), FireworkShapeCreeperHead(), FireworkShapeBurst()}
+
 // EncodeNBT ...
 func (f FireworkExplosion) EncodeNBT() map[string]any {
-	data := map[string]any{
+	// The fade is picked before the map is built, so the fading case no longer
+	// stores the empty array and then overwrites it. Both cases end up with the
+	// same value under the same key.
+	var fade any = [0]uint8{}
+	if f.Fades {
+		fade = [1]uint8{uint8(invertColour(f.Fade))}
+	}
+	return map[string]any{
 		"FireworkType":    f.Shape.Uint8(),
 		"FireworkColor":   [1]uint8{uint8(invertColour(f.Colour))},
-		"FireworkFade":    [0]uint8{},
+		"FireworkFade":    fade,
 		"FireworkFlicker": boolByte(f.Twinkle),
 		"FireworkTrail":   boolByte(f.Trail),
 	}
-	if f.Fades {
-		data["FireworkFade"] = [1]uint8{uint8(invertColour(f.Fade))}
-	}
-	return data
 }
 
 // DecodeNBT ...
 func (f FireworkExplosion) DecodeNBT(data map[string]any) any {
-	f.Shape = FireworkShapes()[data["FireworkType"].(uint8)]
+	// The shared table has the same contents and length as the slice
+	// FireworkShapes built here on every call, so an out of range ID still
+	// panics the same way and the slice allocation is gone.
+	f.Shape = fireworkShapes[data["FireworkType"].(uint8)]
 	f.Twinkle = data["FireworkFlicker"].(uint8) == 1
 	f.Trail = data["FireworkTrail"].(uint8) == 1
 

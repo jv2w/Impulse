@@ -38,9 +38,12 @@ func (EnderEye) UseOnBlock(pos cube.Pos, _ cube.Face, _ mgl64.Vec3, tx *world.Tx
 		return false
 	}
 	tx.SetBlock(pos, updated, nil)
-	tx.PlaySound(pos.Vec3Centre(), sound.EnderEyePlaced{})
+	// The centre is plain arithmetic on pos, which does not change here, so one
+	// computation serves both sounds.
+	centre := pos.Vec3Centre()
+	tx.PlaySound(centre, sound.EnderEyePlaced{})
 	if portal.ActivateEndPortal(tx, pos) {
-		tx.PlaySound(pos.Vec3Centre(), sound.EndPortalCreated{})
+		tx.PlaySound(centre, sound.EndPortalCreated{})
 	}
 	ctx.SubtractFromCount(1)
 	return true

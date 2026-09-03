@@ -1,10 +1,9 @@
 package item
 
 import (
+	"cmp"
 	"github.com/jv2w/Impulse/server/world"
-	"maps"
 	"slices"
-	"sort"
 )
 
 // Enchantment is an enchantment that can be applied to a Stack. It holds an EnchantmentType and level that influences
@@ -88,11 +87,18 @@ func EnchantmentID(e EnchantmentType) (int, bool) {
 
 // Enchantments returns a slice of all registered enchantments.
 func Enchantments() []EnchantmentType {
-	e := slices.Collect(maps.Values(enchantmentsMap))
-	sort.Slice(e, func(i, j int) bool {
-		id1, _ := EnchantmentID(e[i])
-		id2, _ := EnchantmentID(e[j])
-		return id1 < id2
+	// The map is walked into a slice presized to its length, so the collector's
+	// regrowth is gone. sort.Slice went to slices.SortFunc, which drops the
+	// reflect-based swapper: both run the same pdqsort over the same key, and
+	// the only elements that can compare equal are the same value twice.
+	e := make([]EnchantmentType, 0, len(enchantmentsMap))
+	for _, enchantment := range enchantmentsMap {
+		e = append(e, enchantment)
+	}
+	slices.SortFunc(e, func(a, b EnchantmentType) int {
+		id1, _ := EnchantmentID(a)
+		id2, _ := EnchantmentID(b)
+		return cmp.Compare(id1, id2)
 	})
 	return e
 }

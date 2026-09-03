@@ -16,7 +16,9 @@ func (Elytra) DurabilityInfo() DurabilityInfo {
 	return DurabilityInfo{
 		MaxDurability: 433,
 		Persistent:    true,
-		BrokenItem:    simpleItem(Stack{}),
+		// The shared value replaces a closure built on every call; it only
+		// returns the zero Stack it captured, exactly as the old one did.
+		BrokenItem: brokenIntoNothing,
 	}
 }
 

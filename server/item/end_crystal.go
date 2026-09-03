@@ -23,11 +23,20 @@ func (e EndCrystal) UseOnBlock(pos cube.Pos, _ cube.Face, _ mgl64.Vec3, tx *worl
 		return false
 	}
 
-	above, twoAbove := pos.Side(cube.FaceUp), pos.Side(cube.FaceUp).Side(cube.FaceUp)
-	if above.OutOfBounds(tx.Range()) || twoAbove.OutOfBounds(tx.Range()) {
+	// The block above is stepped up from once instead of being recomputed for
+	// the second step and again for the spawn position: pos.Side is pure.
+	above := pos.Side(cube.FaceUp)
+	twoAbove := above.Side(cube.FaceUp)
+	// Range only reads the world's stored range, so both bounds checks share
+	// one call.
+	r := tx.Range()
+	if above.OutOfBounds(r) || twoAbove.OutOfBounds(r) {
 		return false
 	}
-	if tx.Block(above) != air() || tx.Block(twoAbove) != air() {
+	// air() looks the block up by name every call and always answers the same
+	// block, so the two comparisons share one lookup.
+	a := air()
+	if tx.Block(above) != a || tx.Block(twoAbove) != a {
 		return false
 	}
 
@@ -41,7 +50,7 @@ func (e EndCrystal) UseOnBlock(pos cube.Pos, _ cube.Face, _ mgl64.Vec3, tx *worl
 		}
 	}
 
-	opts := world.EntitySpawnOpts{Position: pos.Side(cube.FaceUp).Vec3Middle()}
+	opts := world.EntitySpawnOpts{Position: above.Vec3Middle()}
 	tx.AddEntity(tx.World().EntityRegistry().Config().EndCrystal(opts))
 	ctx.SubtractFromCount(1)
 	return true
