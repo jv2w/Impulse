@@ -22,7 +22,9 @@ func (f FlintAndSteel) MaxCount() int {
 func (f FlintAndSteel) DurabilityInfo() DurabilityInfo {
 	return DurabilityInfo{
 		MaxDurability: 65,
-		BrokenItem:    simpleItem(Stack{}),
+		// The shared value replaces a closure built on every call; it only
+		// returns the zero Stack it captured, exactly as the old one did.
+		BrokenItem: brokenIntoNothing,
 	}
 }
 

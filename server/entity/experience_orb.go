@@ -6,7 +6,6 @@ import (
 	"github.com/jv2w/Impulse/server/internal/nbtconv"
 	"github.com/jv2w/Impulse/server/world"
 	"math/rand/v2"
-	"slices"
 )
 
 // orbSplitSizes contains split sizes used for dropping experience orbs.
@@ -16,9 +15,18 @@ var orbSplitSizes = []int{2477, 1237, 617, 307, 149, 73, 37, 17, 7, 3, 1}
 // a slice of the created orbs.
 func NewExperienceOrbs(pos mgl64.Vec3, amount int) (orbs []*world.EntityHandle) {
 	for amount > 0 {
-		size := orbSplitSizes[slices.IndexFunc(orbSplitSizes, func(value int) bool {
-			return amount >= value
-		})]
+		// The predicate handed to slices.IndexFunc captured amount, which the
+		// loop writes, so a closure was built on every pass. The scan below picks
+		// the same first index and keeps the same out-of-range panic on -1 if
+		// nothing matches.
+		idx := -1
+		for i, value := range orbSplitSizes {
+			if amount >= value {
+				idx = i
+				break
+			}
+		}
+		size := orbSplitSizes[idx]
 
 		orbs = append(orbs, NewExperienceOrb(world.EntitySpawnOpts{Position: pos}, size))
 		amount -= size

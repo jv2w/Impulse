@@ -108,27 +108,15 @@ func (a *AreaEffectCloudBehaviour) Tick(e *Ent, tx *world.Tx) *Movement {
 			delete(a.targets, target)
 		}
 	}
-	if a.applyEffects(pos, e, a.filter(tx.EntitiesWithin(e.H().Type().BBox(e).Translate(pos)))) {
+	// The filter wrapper allocated one iterator closure per sweep and made every
+	// entity pass through an extra yield hop; applyEffects now applies the same
+	// two tests itself, in the same order relative to its writes to a.targets.
+	if a.applyEffects(pos, e, tx.EntitiesWithin(e.H().Type().BBox(e).Translate(pos))) {
 		for _, v := range tx.Viewers(pos) {
 			v.ViewEntityState(e)
 		}
 	}
 	return nil
-}
-
-func (a *AreaEffectCloudBehaviour) filter(seq iter.Seq[world.Entity]) iter.Seq[world.Entity] {
-	return func(yield func(world.Entity) bool) {
-		for e := range seq {
-			_, target := a.targets[e.H()]
-			_, living := e.(Living)
-			if !living || target {
-				continue
-			}
-			if !yield(e) {
-				return
-			}
-		}
-	}
 }
 
 // applyEffects applies the effects of an area effect cloud at pos to all
@@ -141,10 +129,18 @@ func (a *AreaEffectCloudBehaviour) applyEffects(pos mgl64.Vec3, ent *Ent, entiti
 	// every one, and not at all for a sweep that reaches nobody.
 	var effects []effect.Effect
 	for e := range entities {
+		// Living first, then the cooldown map: both tests are pure, so ordering
+		// them this way skips the map lookup for entities that cannot be hit.
+		l, living := e.(Living)
+		if !living {
+			continue
+		}
+		if _, target := a.targets[e.H()]; target {
+			continue
+		}
 		delta := e.Position().Sub(pos)
 		delta[1] = 0
 		if delta.Len() <= a.radius {
-			l := e.(Living)
 			if effects == nil {
 				effects = a.Effects()
 			}

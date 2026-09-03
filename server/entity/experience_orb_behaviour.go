@@ -109,7 +109,11 @@ func (exp *ExperienceOrbBehaviour) moveToTarget(e *Ent, target experienceCollect
 	}
 	diff := dst.Sub(pos).Mul(0.125)
 	if dist := diff.LenSqr(); dist < 1 {
-		e.SetVelocity(e.Velocity().Add(diff.Normalize().Mul(0.2 * math.Pow(1-math.Sqrt(dist), 2))))
+		// Normalize divides by diff.Len(), which is math.Sqrt over the very same
+		// sum LenSqr just produced, so s is that length bit for bit and 1/s scales
+		// exactly as Normalize does. Only the repeated sum and root are dropped.
+		s := math.Sqrt(dist)
+		e.SetVelocity(e.Velocity().Add(diff.Mul(1 / s).Mul(0.2 * math.Pow(1-s, 2))))
 	}
 
 	if e.H().Type().BBox(e).Translate(pos).IntersectsWith(target.H().Type().BBox(target).Translate(tpos)) && target.CollectExperience(exp.conf.Experience) {
