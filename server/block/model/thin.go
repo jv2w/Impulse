@@ -17,11 +17,29 @@ const (
 // BBox returns a slice of physics.BBox that depends on the blocks surrounding the Thin block. Thin blocks can connect
 // to any other Thin block, wall or solid faces of other blocks.
 func (t Thin) BBox(pos cube.Pos, s world.BlockSource) []cube.BBox {
-	boxes := make([]cube.BBox, 0, 2)
-
 	// Check if we have any connections on the Z axis
 	connectWest, connectEast := t.checkConnection(pos, cube.FaceWest, s), t.checkConnection(pos, cube.FaceEast, s)
-	if connectWest || connectEast {
+	// Check if we have any connections on the X axis
+	connectNorth, connectSouth := t.checkConnection(pos, cube.FaceNorth, s), t.checkConnection(pos, cube.FaceSouth, s)
+
+	// At most one box per axis, or a single centre post when neither axis connects,
+	// so this capacity is exactly the length the appends reach. The checks only read
+	// neighbouring blocks, so grouping them keeps the same results in the same order,
+	// and the slice returned is still allocated fresh on every call.
+	connectZ, connectX := connectWest || connectEast, connectNorth || connectSouth
+	n := 0
+	if connectZ {
+		n++
+	}
+	if connectX {
+		n++
+	}
+	if n == 0 {
+		n = 1
+	}
+	boxes := make([]cube.BBox, 0, n)
+
+	if connectZ {
 		box := cube.Box(0, 0, 0, 1, thinHeight, 1).Stretch(cube.Z, -thinInset)
 		if !connectWest {
 			box = box.ExtendTowards(cube.FaceWest, -thinInset)
@@ -31,9 +49,7 @@ func (t Thin) BBox(pos cube.Pos, s world.BlockSource) []cube.BBox {
 		boxes = append(boxes, box)
 	}
 
-	// Check if we have any connections on the X axis
-	connectNorth, connectSouth := t.checkConnection(pos, cube.FaceNorth, s), t.checkConnection(pos, cube.FaceSouth, s)
-	if connectNorth || connectSouth {
+	if connectX {
 		box := cube.Box(0, 0, 0, 1, thinHeight, 1).Stretch(cube.X, -thinInset)
 		if !connectNorth {
 			box = box.ExtendTowards(cube.FaceNorth, -thinInset)
@@ -60,7 +76,12 @@ func (t Thin) FaceSolid(_ cube.Pos, face cube.Face, _ world.BlockSource) bool {
 func (t Thin) checkConnection(pos cube.Pos, face cube.Face, s world.BlockSource) bool {
 	sidePos := pos.Side(face)
 	sideModel := s.Block(sidePos).Model()
-	_, isThin := sideModel.(Thin)
-	_, isWall := sideModel.(Wall)
-	return isThin || isWall || sideModel.FaceSolid(sidePos, face.Opposite(), s)
+	// The switch stops at the first matching type, so a Thin neighbour no longer
+	// costs the second assertion. The result is the same boolean and FaceSolid is
+	// still only reached when the model is neither a Thin nor a Wall.
+	switch sideModel.(type) {
+	case Thin, Wall:
+		return true
+	}
+	return sideModel.FaceSolid(sidePos, face.Opposite(), s)
 }

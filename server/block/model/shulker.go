@@ -26,7 +26,10 @@ func (s Shulker) BBox(cube.Pos, world.BlockSource) []cube.BBox {
 // quickly and settles.
 func ShulkerPhysicalPeak(progress int32) float64 {
 	t := float64(progress) / 10.0
-	return (1.0 - (1.0-t)*(1.0-t)*(1.0-t)) * 0.5
+	// (1.0-t) was computed three times; binding it once multiplies the exact same
+	// value in the same left to right order, so the result is bit-identical.
+	u := 1.0 - t
+	return (1.0 - u*u*u) * 0.5
 }
 
 // FaceSolid always returns false.

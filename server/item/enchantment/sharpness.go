@@ -45,5 +45,11 @@ func (sharpness) CompatibleWithEnchantment(item.EnchantmentType) bool {
 // CompatibleWithItem ...
 func (sharpness) CompatibleWithItem(i world.Item) bool {
 	t, ok := i.(item.Tool)
-	return ok && (t.ToolType() == item.TypeSword || t.ToolType() == item.TypeAxe)
+	if !ok {
+		return false
+	}
+	// ToolType is a constant accessor, so reading it once yields the same two
+	// comparisons as the two reads it replaces.
+	typ := t.ToolType()
+	return typ == item.TypeSword || typ == item.TypeAxe
 }

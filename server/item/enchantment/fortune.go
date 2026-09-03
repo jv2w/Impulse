@@ -39,5 +39,11 @@ func (fortune) CompatibleWithEnchantment(t item.EnchantmentType) bool {
 // CompatibleWithItem ...
 func (fortune) CompatibleWithItem(i world.Item) bool {
 	t, ok := i.(item.Tool)
-	return ok && (t.ToolType() == item.TypePickaxe || t.ToolType() == item.TypeShovel || t.ToolType() == item.TypeAxe || t.ToolType() == item.TypeHoe)
+	if !ok {
+		return false
+	}
+	// ToolType is a constant accessor, so reading it once yields the same
+	// comparisons as the up to four reads it replaces.
+	typ := t.ToolType()
+	return typ == item.TypePickaxe || typ == item.TypeShovel || typ == item.TypeAxe || typ == item.TypeHoe
 }
