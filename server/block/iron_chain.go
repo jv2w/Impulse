@@ -56,7 +56,10 @@ func (c IronChain) Model() world.BlockModel {
 
 // allIronChains ...
 func allIronChains() (chains []world.Block) {
-	for _, axis := range cube.Axes() {
+	// One chain per axis, so the final length is known before the loop.
+	axes := cube.Axes()
+	chains = make([]world.Block, 0, len(axes))
+	for _, axis := range axes {
 		chains = append(chains, IronChain{Axis: axis})
 	}
 	return

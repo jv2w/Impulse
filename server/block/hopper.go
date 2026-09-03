@@ -288,7 +288,10 @@ func (h Hopper) DecodeNBT(data map[string]any) any {
 
 // allHoppers ...
 func allHoppers() (hoppers []world.Block) {
-	for _, f := range cube.Faces() {
+	// Two hoppers are appended per face, so the final length is known.
+	faces := cube.Faces()
+	hoppers = make([]world.Block, 0, len(faces)*2)
+	for _, f := range faces {
 		hoppers = append(hoppers, Hopper{Facing: f})
 		hoppers = append(hoppers, Hopper{Facing: f, Powered: true})
 	}

@@ -46,7 +46,10 @@ func (i InfestedDeepslate) EncodeBlock() (string, map[string]any) {
 
 // allInfestedDeepslate ...
 func allInfestedDeepslate() (s []world.Block) {
-	for _, axis := range cube.Axes() {
+	// One block per axis, so the final length is known before the loop.
+	axes := cube.Axes()
+	s = make([]world.Block, 0, len(axes))
+	for _, axis := range axes {
 		s = append(s, InfestedDeepslate{Axis: axis})
 	}
 	return

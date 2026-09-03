@@ -55,15 +55,18 @@ func (i ItemFrame) Punch(pos cube.Pos, _ cube.Face, tx *world.Tx, u item.User) {
 		return
 	}
 
+	// pos does not change, and the sound below always plays, so the centre is
+	// computed once for both uses instead of twice.
+	centre := pos.Vec3Centre()
 	if g, ok := u.(interface {
 		GameMode() world.GameMode
 	}); ok {
 		if rand.Float64() <= i.DropChance && !g.GameMode().CreativeInventory() {
-			dropItem(tx, i.Item, pos.Vec3Centre())
+			dropItem(tx, i.Item, centre)
 		}
 	}
 	i.Item, i.Rotations = item.Stack{}, 0
-	tx.PlaySound(pos.Vec3Centre(), sound.ItemFrameRemove{})
+	tx.PlaySound(centre, sound.ItemFrameRemove{})
 	tx.SetBlock(pos, i, nil)
 }
 
@@ -163,7 +166,10 @@ func (i ItemFrame) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
 
 // allItemFrames ...
 func allItemFrames() (frames []world.Block) {
-	for _, f := range cube.Faces() {
+	// Two frames are appended per face, so the final length is known.
+	faces := cube.Faces()
+	frames = make([]world.Block, 0, len(faces)*2)
+	for _, f := range faces {
 		frames = append(frames, ItemFrame{Facing: f, Glowing: true})
 		frames = append(frames, ItemFrame{Facing: f, Glowing: false})
 	}

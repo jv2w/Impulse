@@ -19,19 +19,29 @@ func (i InfestedStoneBricks) BreakInfo() BreakInfo {
 	return newBreakInfo(0.75, pickaxeHarvestable, pickaxeEffective, silkTouchOnlyDrop(i)).withBlastResistance(0.75)
 }
 
+// infestedStoneBricksName gives the encoded name of infested stone bricks of a type.
+var infestedStoneBricksName = enumNamer(StoneBricksTypes(), func(t StoneBricksType) string {
+	return "infested_" + t.String()
+})
+
 // EncodeItem ...
 func (i InfestedStoneBricks) EncodeItem() (name string, meta int16) {
-	return "minecraft:infested_" + i.Type.String(), 0
+	// enumNamer prepends "minecraft:" to the same suffix the concatenation built,
+	// so the name is unchanged; it is now looked up instead of joined per call.
+	return infestedStoneBricksName(i.Type), 0
 }
 
 // EncodeBlock ...
 func (i InfestedStoneBricks) EncodeBlock() (string, map[string]any) {
-	return "minecraft:infested_" + i.Type.String(), nil
+	return infestedStoneBricksName(i.Type), nil
 }
 
 // allInfestedStoneBricks returns a list of all infested stone bricks variants.
 func allInfestedStoneBricks() (s []world.Block) {
-	for _, t := range StoneBricksTypes() {
+	// One block per type, so the final length is known before the loop.
+	types := StoneBricksTypes()
+	s = make([]world.Block, 0, len(types))
+	for _, t := range types {
 		s = append(s, InfestedStoneBricks{Type: t})
 	}
 	return
