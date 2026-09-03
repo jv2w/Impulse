@@ -90,6 +90,9 @@ func (p Pumpkin) EncodeBlock() (name string, properties map[string]any) {
 }
 
 func allPumpkins() (pumpkins []world.Block) {
+	// Four directions with two carved states each, so the slice is presized to its final length
+	// and grows without reallocating. The same blocks are appended in the same order.
+	pumpkins = make([]world.Block, 0, 8)
 	for i := cube.Direction(0); i <= 3; i++ {
 		pumpkins = append(pumpkins, Pumpkin{Facing: i})
 		pumpkins = append(pumpkins, Pumpkin{Facing: i, Carved: true})

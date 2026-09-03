@@ -109,6 +109,9 @@ func (p PumpkinSeeds) EncodeBlock() (name string, properties map[string]any) {
 
 // allPumpkinStems
 func allPumpkinStems() (stems []world.Block) {
+	// Eight growth stages times six faces, so the slice is presized to its final length and grows
+	// without reallocating. The same blocks are appended in the same order.
+	stems = make([]world.Block, 0, 8*6)
 	for i := 0; i <= 7; i++ {
 		for j := cube.Face(0); j <= 5; j++ {
 			stems = append(stems, PumpkinSeeds{Direction: j, crop: crop{Growth: i}})

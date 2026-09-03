@@ -109,6 +109,8 @@ func (p Potato) EncodeBlock() (name string, properties map[string]any) {
 
 // allPotato ...
 func allPotato() (potato []world.Block) {
+	// The final count is known, so the slice is presized and grows without reallocating.
+	potato = make([]world.Block, 0, 8)
 	for i := 0; i <= 7; i++ {
 		potato = append(potato, Potato{crop{Growth: i}})
 	}
