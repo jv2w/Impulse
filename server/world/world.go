@@ -225,45 +225,51 @@ func (tx *Tx) block(pos cube.Pos) Block {
 
 // blockLoaded reads a block from a position only if its chunk is already loaded.
 func (w *World) blockLoaded(pos cube.Pos) (Block, bool) {
+	// The registry is taken out of the config once instead of on every branch. conf.Blocks is fixed for the
+	// World's lifetime, so the same registry answers the same questions.
+	blocks := w.conf.Blocks
 	if pos.OutOfBounds(w.ra) {
-		return w.conf.Blocks.Air(), false
+		return blocks.Air(), false
 	}
 	c, ok := w.chunks[chunkPosFromBlockPos(pos)]
 	if !ok {
-		return w.conf.Blocks.Air(), false
+		return blocks.Air(), false
 	}
 	rid := c.Block(uint8(pos[0]), int16(pos[1]), uint8(pos[2]), 0)
-	if w.conf.Blocks.NBTBlock(rid) {
+	if blocks.NBTBlock(rid) {
 		if b, ok := c.BlockEntities[pos]; ok {
 			return b, true
 		}
 	}
-	return w.conf.Blocks.BlockByRuntimeIDOrAir(rid), true
+	return blocks.BlockByRuntimeIDOrAir(rid), true
 }
 
 // blockInChunk reads a block from a chunk at the position passed. The block
 // is assumed to be within the chunk passed.
 func (w *World) blockInChunk(c *Column, pos cube.Pos) Block {
+	// The registry is taken out of the config once instead of on every branch. conf.Blocks is fixed for the
+	// World's lifetime, so the same registry answers the same questions.
+	blocks := w.conf.Blocks
 	if pos.OutOfBounds(w.ra) {
 		// Fast way out.
-		return w.conf.Blocks.Air()
+		return blocks.Air()
 	}
 	rid := c.Block(uint8(pos[0]), int16(pos[1]), uint8(pos[2]), 0)
-	if w.conf.Blocks.NBTBlock(rid) {
+	if blocks.NBTBlock(rid) {
 		// The block was also a block entity, so we look it up in the block entity map.
 		if b, ok := c.BlockEntities[pos]; ok {
 			return b
 		}
 		// Despite being a block with NBT, the block didn't actually have any
 		// stored NBT yet. We add it here and update the block.
-		nbtB := w.conf.Blocks.BlockByRuntimeIDOrAir(rid).(NBTer).DecodeNBT(map[string]any{}).(Block)
+		nbtB := blocks.BlockByRuntimeIDOrAir(rid).(NBTer).DecodeNBT(map[string]any{}).(Block)
 		c.BlockEntities[pos] = nbtB
 		for _, v := range c.viewers {
 			v.ViewBlockUpdate(pos, nbtB, 0)
 		}
 		return nbtB
 	}
-	return w.conf.Blocks.BlockByRuntimeIDOrAir(rid)
+	return blocks.BlockByRuntimeIDOrAir(rid)
 }
 
 // biome reads the Biome at the position passed. If a chunk is not yet loaded
@@ -311,14 +317,17 @@ func (tx *Tx) highestBlock(x, z int) int {
 func (tx *Tx) highestObstructingBlock(x, z int) int {
 	yHigh := tx.highestBlock(x, z)
 	src := worldSource{tx: tx}
-	for y := yHigh; y >= tx.Range()[0]; y-- {
+	// The lower bound is read once instead of once per column step; the range cannot change during a
+	// transaction, so the scan covers the same Y values and returns the same floor.
+	minY := tx.Range()[0]
+	for y := yHigh; y >= minY; y-- {
 		pos := cube.Pos{x, y, z}
 		m := tx.block(pos).Model()
 		if m.FaceSolid(pos, cube.FaceUp, src) || m.FaceSolid(pos, cube.FaceDown, src) {
 			return y
 		}
 	}
-	return tx.Range()[0]
+	return minY
 }
 
 // SetOpts holds several parameters that may be set to disable updates in the
@@ -355,7 +364,10 @@ type SetOpts struct {
 // instead.
 func (tx *Tx) setBlock(pos cube.Pos, b Block, opts *SetOpts) {
 	w := tx.World()
-	if pos.OutOfBounds(w.Range()) {
+	// The registry and the range are each read once instead of a dozen and two times. conf.Blocks and the
+	// range are fixed for the World's lifetime, so every use below sees exactly what it saw before.
+	blocks, r := w.conf.Blocks, w.Range()
+	if pos.OutOfBounds(r) {
 		// Fast way out.
 		return
 	}
@@ -366,10 +378,10 @@ func (tx *Tx) setBlock(pos cube.Pos, b Block, opts *SetOpts) {
 	x, y, z := uint8(pos[0]), int16(pos[1]), uint8(pos[2])
 	c := tx.chunk(chunkPosFromBlockPos(pos))
 
-	rid := w.conf.Blocks.BlockRuntimeID(b)
+	rid := blocks.BlockRuntimeID(b)
 	// BlockRuntimeID has already rejected a registry that is not finalised, so
 	// the air ID can be resolved once here for every branch that needs it.
-	airRID := w.conf.Blocks.AirRuntimeID()
+	airRID := blocks.AirRuntimeID()
 	redstoneAfterRelevant := isRedstoneRelevant(b)
 	needOldBlock := !opts.DisableRedstoneUpdates || !redstoneAfterRelevant
 	displacing := rid != airRID && !opts.DisableLiquidDisplacement
@@ -381,8 +393,8 @@ func (tx *Tx) setBlock(pos cube.Pos, b Block, opts *SetOpts) {
 	}
 	var oldBlock Block
 	if needOldBlock {
-		oldBlock = w.conf.Blocks.BlockByRuntimeIDOrAir(oldRID)
-		if w.conf.Blocks.NBTBlock(oldRID) {
+		oldBlock = blocks.BlockByRuntimeIDOrAir(oldRID)
+		if blocks.NBTBlock(oldRID) {
 			if blockEntity, ok := c.BlockEntities[pos]; ok {
 				oldBlock = blockEntity
 			}
@@ -396,7 +408,7 @@ func (tx *Tx) setBlock(pos cube.Pos, b Block, opts *SetOpts) {
 
 	c.modified = true
 	c.SetBlock(x, y, z, 0, rid)
-	if w.conf.Blocks.NBTBlock(rid) {
+	if blocks.NBTBlock(rid) {
 		c.BlockEntities[pos] = b
 	} else {
 		delete(c.BlockEntities, pos)
@@ -411,12 +423,12 @@ func (tx *Tx) setBlock(pos cube.Pos, b Block, opts *SetOpts) {
 			if li := c.Block(x, y, z, 1); li != airRID {
 				c.SetBlock(x, y, z, 0, li)
 				c.SetBlock(x, y, z, 1, airRID)
-				secondLayer = w.conf.Blocks.Air()
-				b = w.conf.Blocks.BlockByRuntimeIDOrAir(li)
+				secondLayer = blocks.Air()
+				b = blocks.BlockByRuntimeIDOrAir(li)
 			}
-		} else if w.conf.Blocks.LiquidDisplacingBlock(rid) {
-			if w.conf.Blocks.LiquidBlock(before) {
-				l := w.conf.Blocks.BlockByRuntimeIDOrAir(before)
+		} else if blocks.LiquidDisplacingBlock(rid) {
+			if blocks.LiquidBlock(before) {
+				l := blocks.BlockByRuntimeIDOrAir(before)
 				if b.(LiquidDisplacer).CanDisplace(l.(Liquid)) {
 					c.SetBlock(x, y, z, 1, before)
 					secondLayer = l
@@ -424,7 +436,7 @@ func (tx *Tx) setBlock(pos cube.Pos, b Block, opts *SetOpts) {
 			}
 		} else if li := c.Block(x, y, z, 1); li != airRID {
 			c.SetBlock(x, y, z, 1, airRID)
-			secondLayer = w.conf.Blocks.Air()
+			secondLayer = blocks.Air()
 		}
 
 		if secondLayer != nil {
@@ -446,7 +458,7 @@ func (tx *Tx) setBlock(pos cube.Pos, b Block, opts *SetOpts) {
 		w.doBlockUpdatesAround(pos)
 	}
 	if !opts.DisableRedstoneUpdates {
-		w.redstone.invalidateAroundBlockChange(pos, oldBlock, b, RedstoneUpdateCauseBlockUpdate, w.Range())
+		w.redstone.invalidateAroundBlockChange(pos, oldBlock, b, RedstoneUpdateCauseBlockUpdate, r)
 	}
 }
 
@@ -459,8 +471,10 @@ func (tx *Tx) setBlockEntity(pos cube.Pos, b Block) {
 	}
 	c := tx.chunk(chunkPosFromBlockPos(pos))
 
-	rid := w.conf.Blocks.BlockRuntimeID(b)
-	if !w.conf.Blocks.NBTBlock(rid) || c.Block(uint8(pos[0]), int16(pos[1]), uint8(pos[2]), 0) != rid {
+	// The registry is read once instead of twice; conf.Blocks is fixed for the World's lifetime.
+	blocks := w.conf.Blocks
+	rid := blocks.BlockRuntimeID(b)
+	if !blocks.NBTBlock(rid) || c.Block(uint8(pos[0]), int16(pos[1]), uint8(pos[2]), 0) != rid {
 		tx.setBlock(pos, b, nil)
 		return
 	}
@@ -496,19 +510,26 @@ func (tx *Tx) buildStructure(pos cube.Pos, s Structure) {
 	f := func(x, y, z int) Block {
 		return tx.block(cube.Pos{pos[0] + x, pos[1] + y, pos[2] + z})
 	}
+	// The registry, the world range and the chunk bounds are each read once instead of once per sub chunk,
+	// Y layer or block. conf.Blocks and the range are fixed for the World's lifetime and pos, maxX and maxZ
+	// do not change, so every block placed is placed exactly where it was before.
+	blocks, r := w.conf.Blocks, w.Range()
+	rMin, rMax := r[0], r[1]
+	subYBase := rMin >> 4
+	maxChunkX, maxChunkZ := maxX>>4, maxZ>>4
 
 	// We approach this on a per-chunk basis, so that we can keep only one chunk
 	// in memory at a time while not needing to acquire a new chunk lock for
 	// every block. This also allows us not to send block updates, but instead
 	// send a single chunk update once.
-	for chunkX := pos[0] >> 4; chunkX <= maxX>>4; chunkX++ {
-		for chunkZ := pos[2] >> 4; chunkZ <= maxZ>>4; chunkZ++ {
+	for chunkX := pos[0] >> 4; chunkX <= maxChunkX; chunkX++ {
+		for chunkZ := pos[2] >> 4; chunkZ <= maxChunkZ; chunkZ++ {
 			chunkPos := ChunkPos{int32(chunkX), int32(chunkZ)}
 			c := tx.chunk(chunkPos)
 
 			baseX, baseZ := chunkX<<4, chunkZ<<4
 			for i, sub := range c.Sub() {
-				baseY := (i + (w.Range()[0] >> 4)) << 4
+				baseY := (i + subYBase) << 4
 				if baseY>>4 < pos[1]>>4 {
 					continue
 				} else if baseY >= maxY {
@@ -517,10 +538,10 @@ func (tx *Tx) buildStructure(pos cube.Pos, s Structure) {
 
 				for localY := 0; localY < 16; localY++ {
 					yOffset := baseY + localY
-					if yOffset > w.Range()[1] || yOffset >= maxY {
+					if yOffset > rMax || yOffset >= maxY {
 						// We've hit the height limit for blocks.
 						break
-					} else if yOffset < w.Range()[0] || yOffset < pos[1] {
+					} else if yOffset < rMin || yOffset < pos[1] {
 						// We've got a block below the minimum, but other blocks might still reach above
 						// it, so don't break but continue.
 						continue
@@ -537,20 +558,20 @@ func (tx *Tx) buildStructure(pos cube.Pos, s Structure) {
 							}
 							b, liq := s.At(xOffset-pos[0], yOffset-pos[1], zOffset-pos[2], f)
 							if b != nil {
-								rid := w.conf.Blocks.BlockRuntimeID(b)
+								rid := blocks.BlockRuntimeID(b)
 								sub.SetBlock(uint8(xOffset), uint8(yOffset), uint8(zOffset), 0, rid)
 
 								nbtPos := cube.Pos{xOffset, yOffset, zOffset}
-								if w.conf.Blocks.NBTBlock(rid) {
+								if blocks.NBTBlock(rid) {
 									c.BlockEntities[nbtPos] = b
 								} else {
 									delete(c.BlockEntities, nbtPos)
 								}
 							}
 							if liq != nil {
-								sub.SetBlock(uint8(xOffset), uint8(yOffset), uint8(zOffset), 1, w.conf.Blocks.BlockRuntimeID(liq))
+								sub.SetBlock(uint8(xOffset), uint8(yOffset), uint8(zOffset), 1, blocks.BlockRuntimeID(liq))
 							} else if len(sub.Layers()) > 1 {
-								sub.SetBlock(uint8(xOffset), uint8(yOffset), uint8(zOffset), 1, w.conf.Blocks.AirRuntimeID())
+								sub.SetBlock(uint8(xOffset), uint8(yOffset), uint8(zOffset), 1, blocks.AirRuntimeID())
 							}
 						}
 					}
@@ -580,8 +601,10 @@ func (tx *Tx) liquid(pos cube.Pos) (Liquid, bool) {
 	c := tx.chunk(chunkPosFromBlockPos(pos))
 	x, y, z := uint8(pos[0]), int16(pos[1]), uint8(pos[2])
 
+	// The registry is read once instead of twice; conf.Blocks is fixed for the World's lifetime.
+	blocks := w.conf.Blocks
 	id := c.Block(x, y, z, 0)
-	b, ok := w.conf.Blocks.BlockByRuntimeID(id)
+	b, ok := blocks.BlockByRuntimeID(id)
 	if !ok {
 		w.conf.Log.Error("Liquid: no block with runtime ID", "ID", id)
 		return nil, false
@@ -591,7 +614,7 @@ func (tx *Tx) liquid(pos cube.Pos) (Liquid, bool) {
 	}
 	id = c.Block(x, y, z, 1)
 
-	b, ok = w.conf.Blocks.BlockByRuntimeID(id)
+	b, ok = blocks.BlockByRuntimeID(id)
 	if !ok {
 		w.conf.Log.Error("Liquid: no block with runtime ID", "ID", id)
 		return nil, false
@@ -608,7 +631,9 @@ func (tx *Tx) liquid(pos cube.Pos) (Liquid, bool) {
 // will be removed.
 func (tx *Tx) setLiquid(pos cube.Pos, b Liquid) {
 	w := tx.World()
-	if pos.OutOfBounds(w.Range()) {
+	// The range is read once instead of twice; it is fixed for the World's lifetime.
+	r := w.Range()
+	if pos.OutOfBounds(r) {
 		// Fast way out.
 		return
 	}
@@ -617,7 +642,7 @@ func (tx *Tx) setLiquid(pos cube.Pos, b Liquid) {
 	if b == nil {
 		w.removeLiquids(c, pos)
 		w.doBlockUpdatesAround(pos)
-		w.redstone.invalidateAround(pos, pos, RedstoneUpdateCauseBlockUpdate, w.Range())
+		w.redstone.invalidateAround(pos, pos, RedstoneUpdateCauseBlockUpdate, r)
 		return
 	}
 	x, y, z := uint8(pos[0]), int16(pos[1]), uint8(pos[2])
@@ -641,7 +666,7 @@ func (tx *Tx) setLiquid(pos cube.Pos, b Liquid) {
 	c.modified = true
 
 	w.doBlockUpdatesAround(pos)
-	w.redstone.invalidateAround(pos, pos, RedstoneUpdateCauseBlockUpdate, w.Range())
+	w.redstone.invalidateAround(pos, pos, RedstoneUpdateCauseBlockUpdate, r)
 }
 
 // removeLiquids removes any liquid blocks that may be present at a specific
@@ -671,10 +696,12 @@ func (w *World) removeLiquids(c *Column, pos cube.Pos) bool {
 // removeLiquidOnLayer removes a liquid block from a specific layer in the
 // chunk passed, returning true if successful.
 func (w *World) removeLiquidOnLayer(c *chunk.Chunk, x uint8, y int16, z, layer uint8) (bool, bool) {
+	// The registry is read once instead of twice; conf.Blocks is fixed for the World's lifetime.
+	blocks := w.conf.Blocks
 	id := c.Block(x, y, z, layer)
-	airRID := w.conf.Blocks.AirRuntimeID()
+	airRID := blocks.AirRuntimeID()
 
-	b, ok := w.conf.Blocks.BlockByRuntimeID(id)
+	b, ok := blocks.BlockByRuntimeID(id)
 	if !ok {
 		w.conf.Log.Error("removeLiquidOnLayer: no block with runtime ID", "ID", id)
 		return false, false
@@ -969,9 +996,11 @@ func (w *World) Spawn() cube.Pos {
 		return cube.Pos{}
 	}
 
-	if w.Dimension() == End {
+	// The dimension is read once instead of twice; it is fixed for the World's lifetime.
+	dim := w.Dimension()
+	if dim == End {
 		return cube.Pos{100, 50}
-	} else if w.Dimension() == Nether {
+	} else if dim == Nether {
 		return cube.Pos{}
 	}
 
@@ -988,7 +1017,9 @@ func (w *World) SetSpawn(pos cube.Pos) {
 	}
 
 	// nether has no spawn point and end spawn point is always 100 50 0.
-	if w.Dimension() == Nether || w.Dimension() == End {
+	// The dimension is read once instead of twice; it is fixed for the World's lifetime.
+	dim := w.Dimension()
+	if dim == Nether || dim == End {
 		return
 	}
 
@@ -1119,7 +1150,12 @@ func (w *World) scheduleBlockUpdate(pos cube.Pos, b Block, delay time.Duration) 
 // doBlockUpdatesAround schedules block updates directly around and on the
 // position passed.
 func (w *World) doBlockUpdatesAround(pos cube.Pos) {
-	if w == nil || pos.OutOfBounds(w.Range()) {
+	if w == nil {
+		return
+	}
+	// The range is read once instead of twice; the nil check still runs first, so a nil World never reads it.
+	r := w.Range()
+	if pos.OutOfBounds(r) {
 		return
 	}
 	changed := pos
@@ -1127,7 +1163,7 @@ func (w *World) doBlockUpdatesAround(pos cube.Pos) {
 	w.updateNeighbour(pos, changed)
 	pos.Neighbours(func(pos cube.Pos) {
 		w.updateNeighbour(pos, changed)
-	}, w.Range())
+	}, r)
 }
 
 // neighbourUpdate represents a position that needs to be updated because of a
@@ -1557,8 +1593,11 @@ func (w *World) columnTo(col *Column, pos ChunkPos) *chunk.Column {
 	for pos, be := range col.BlockEntities {
 		c.BlockEntities = append(c.BlockEntities, chunk.BlockEntity{Pos: pos, Data: be.(NBTer).EncodeNBT()})
 	}
+	// The registry is read once instead of once per scheduled block; conf.Blocks is fixed for the World's
+	// lifetime, so the same runtime IDs are written.
+	blocks := w.conf.Blocks
 	for _, t := range scheduled {
-		c.ScheduledBlocks = append(c.ScheduledBlocks, chunk.ScheduledBlockUpdate{Pos: t.pos, Block: w.conf.Blocks.BlockRuntimeID(t.b), Tick: t.t})
+		c.ScheduledBlocks = append(c.ScheduledBlocks, chunk.ScheduledBlockUpdate{Pos: t.pos, Block: blocks.BlockRuntimeID(t.b), Tick: t.t})
 	}
 	return c
 }
@@ -1584,9 +1623,12 @@ func (w *World) columnFrom(c *chunk.Column, _ ChunkPos) *Column {
 		}
 		col.Entities = append(col.Entities, entityFromData(t, e.ID, e.Data))
 	}
+	// The registry is read once instead of once per block entity and scheduled block; conf.Blocks is fixed
+	// for the World's lifetime, so the same blocks are decoded.
+	blocks := w.conf.Blocks
 	for _, be := range c.BlockEntities {
 		rid := c.Chunk.Block(uint8(be.Pos[0]), int16(be.Pos[1]), uint8(be.Pos[2]), 0)
-		b, ok := w.conf.Blocks.BlockByRuntimeID(rid)
+		b, ok := blocks.BlockByRuntimeID(rid)
 		if !ok {
 			w.conf.Log.Error("read column: no block with runtime ID", "ID", rid)
 			continue
@@ -1600,11 +1642,11 @@ func (w *World) columnFrom(c *chunk.Column, _ ChunkPos) *Column {
 	}
 	scheduled, savedTick := make([]scheduledTick, 0, len(c.ScheduledBlocks)), c.Tick
 	for _, t := range c.ScheduledBlocks {
-		bl := w.conf.Blocks.BlockByRuntimeIDOrAir(t.Block)
+		bl := blocks.BlockByRuntimeIDOrAir(t.Block)
 		scheduled = append(scheduled, scheduledTick{
 			pos:   t.Pos,
 			b:     bl,
-			bhash: w.conf.Blocks.BlockHash(bl),
+			bhash: blocks.BlockHash(bl),
 			t:     w.scheduledUpdates.currentTick + (t.Tick - savedTick),
 		})
 	}

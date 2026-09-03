@@ -142,10 +142,16 @@ func decodeSubChunk(buf *bytes.Buffer, c *Chunk, index *byte, e Encoding) (*SubC
 		}
 		sub.storages = make([]*PalettedStorage, storageCount)
 
-		for i := byte(0); i < storageCount; i++ {
-			sub.storages[i], err = decodePalettedStorage(buf, e, BlockPaletteEncoding{Blocks: c.br})
-			if err != nil {
-				return nil, err
+		if storageCount != 0 {
+			// One boxed palette encoding for the whole sub chunk instead of one per layer: the value is
+			// the same for every layer, and decodePalettedStorage only calls methods on it and prints its
+			// type, which does not change either.
+			pe := paletteEncoding(BlockPaletteEncoding{Blocks: c.br})
+			for i := byte(0); i < storageCount; i++ {
+				sub.storages[i], err = decodePalettedStorage(buf, e, pe)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 	}

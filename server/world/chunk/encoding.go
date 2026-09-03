@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 
 	"github.com/df-mc/worldupgrader/blockupgrader"
 	"github.com/sandertv/gophertunnel/minecraft/nbt"
@@ -40,11 +41,20 @@ var (
 type biomePaletteEncoding struct{}
 
 func (biomePaletteEncoding) encode(buf *bytes.Buffer, v uint32) {
-	_ = binary.Write(buf, binary.LittleEndian, v)
+	// These are the same four little endian bytes binary.Write writes for a uint32, without boxing v into
+	// an any and walking the type switch inside binary.Write. bytes.Buffer.Write never returns an error.
+	var b [4]byte
+	binary.LittleEndian.PutUint32(b[:], v)
+	_, _ = buf.Write(b[:])
 }
 func (biomePaletteEncoding) decode(buf *bytes.Buffer) (uint32, error) {
-	var v uint32
-	return v, binary.Read(buf, binary.LittleEndian, &v)
+	// binary.Read of a uint32 is exactly this io.ReadFull followed by a little endian decode, so the same
+	// io.EOF or io.ErrUnexpectedEOF is returned with a zero value, and &v is no longer boxed into an any.
+	var b [4]byte
+	if _, err := io.ReadFull(buf, b[:]); err != nil {
+		return 0, err
+	}
+	return binary.LittleEndian.Uint32(b[:]), nil
 }
 
 // BlockPaletteEncoding implements the encoding of block palettes to disk. It requires a BlockRegistry for converting
@@ -122,7 +132,11 @@ type diskEncoding struct{}
 func (diskEncoding) network() byte { return 0 }
 func (diskEncoding) encodePalette(buf *bytes.Buffer, p *Palette, e paletteEncoding) {
 	if p.size != 0 {
-		_ = binary.Write(buf, binary.LittleEndian, uint32(p.Len()))
+		// Same four little endian bytes as binary.Write for a uint32, without the any boxing and the type
+		// switch inside it. bytes.Buffer.Write never returns an error.
+		var b [4]byte
+		binary.LittleEndian.PutUint32(b[:], uint32(p.Len()))
+		_, _ = buf.Write(b[:])
 	}
 	for _, v := range p.values {
 		e.encode(buf, v)
@@ -131,9 +145,13 @@ func (diskEncoding) encodePalette(buf *bytes.Buffer, p *Palette, e paletteEncodi
 func (diskEncoding) decodePalette(buf *bytes.Buffer, blockSize paletteSize, e paletteEncoding) (*Palette, error) {
 	paletteCount := uint32(1)
 	if blockSize != 0 {
-		if err := binary.Read(buf, binary.LittleEndian, &paletteCount); err != nil {
+		// binary.Read of a uint32 is this io.ReadFull plus a little endian decode, so the same error
+		// reaches the wrap below and paletteCount no longer has to be boxed into an any.
+		var b [4]byte
+		if _, err := io.ReadFull(buf, b[:]); err != nil {
 			return nil, fmt.Errorf("error reading palette entry count: %w", err)
 		}
+		paletteCount = binary.LittleEndian.Uint32(b[:])
 		// A world file may declare any uint32 here, and the count was previously believed as far as the
 		// make below: four bytes of a corrupt or crafted file asked for up to 16 GiB. blockSize bits can
 		// only index 1<<blockSize entries, so a larger palette is malformed by definition.

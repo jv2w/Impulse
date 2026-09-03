@@ -167,10 +167,15 @@ func (chunk *Chunk) highestLightBlocker(x, z uint8, addOne bool) int16 {
 	if addOne {
 		plus++
 	}
+	// Neither the registry nor the first storage of a sub chunk changes while the column below is scanned,
+	// so both are read once instead of once per Y. A non-empty sub chunk always has a storage 0, and the Y
+	// loop always runs, so an empty storage list would still panic in the same place.
+	br := chunk.br
 	for index := int16(len(chunk.sub) - 1); index >= 0; index-- {
 		if sub := chunk.sub[index]; !sub.Empty() {
+			storage := sub.storages[0]
 			for y := 15; y >= 0; y-- {
-				if chunk.br.FilteringBlock(sub.storages[0].At(x, uint8(y), z)) == 15 {
+				if br.FilteringBlock(storage.At(x, uint8(y), z)) == 15 {
 					return int16(y) | chunk.SubY(index) + plus
 				}
 			}
@@ -182,10 +187,14 @@ func (chunk *Chunk) highestLightBlocker(x, z uint8, addOne bool) int16 {
 // HighestBlock iterates from the highest non-empty sub chunk downwards to find the Y value of the highest
 // non-air block at an x and z. If no blocks are present in the column, the minimum height is returned.
 func (chunk *Chunk) HighestBlock(x, z uint8) int16 {
+	// Same hoisting as in highestLightBlocker: the air runtime ID and the first storage are constant for
+	// the whole scan, so they are read once instead of once per Y.
+	air := chunk.air
 	for index := int16(len(chunk.sub) - 1); index >= 0; index-- {
 		if sub := chunk.sub[index]; !sub.Empty() {
+			storage := sub.storages[0]
 			for y := 15; y >= 0; y-- {
-				if rid := sub.storages[0].At(x, uint8(y), z); rid != chunk.air {
+				if rid := storage.At(x, uint8(y), z); rid != air {
 					return int16(y) | chunk.SubY(index)
 				}
 			}

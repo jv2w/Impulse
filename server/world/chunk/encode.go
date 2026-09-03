@@ -47,8 +47,17 @@ type (
 // NBT.
 func Encode(c *Chunk, e Encoding) SerialisedData {
 	d := SerialisedData{SubChunks: make([][]byte, len(c.sub))}
+	// One pooled buffer for all sub chunks instead of one per sub chunk. encodeSubChunk drains everything
+	// it wrote into a freshly allocated slice, so the reset after each one leaves the buffer in exactly the
+	// state a newly taken buffer is in, and every sub chunk is encoded from the same empty buffer as before.
+	buf := pool.Get().(*bytes.Buffer)
+	defer func() {
+		buf.Reset()
+		pool.Put(buf)
+	}()
 	for i := range c.sub {
-		d.SubChunks[i] = EncodeSubChunk(c, e, i)
+		d.SubChunks[i] = encodeSubChunk(buf, c, e, i)
+		buf.Reset()
 	}
 	d.Biomes = EncodeBiomes(c, e)
 	return d
@@ -62,11 +71,23 @@ func EncodeSubChunk(c *Chunk, e Encoding, ind int) []byte {
 		buf.Reset()
 		pool.Put(buf)
 	}()
+	return encodeSubChunk(buf, c, e, ind)
+}
 
+// encodeSubChunk encodes sub chunk ind of the Chunk into buf and returns the bytes read back out of it. The
+// returned slice is freshly allocated and does not alias buf. buf must be empty on entry; it is drained but
+// not reset, so a caller reusing it has to reset it.
+func encodeSubChunk(buf *bytes.Buffer, c *Chunk, e Encoding, ind int) []byte {
 	s := c.sub[ind]
 	_, _ = buf.Write([]byte{SubChunkVersion, byte(len(s.storages)), uint8(ind + (c.r[0] >> 4))})
-	for _, storage := range s.storages {
-		encodePalettedStorage(buf, storage, nil, e, BlockPaletteEncoding{Blocks: c.br})
+	if len(s.storages) != 0 {
+		// One boxed palette encoding for the whole sub chunk instead of one per layer: the value is the
+		// same for every layer and encodePalettedStorage only calls methods on it. Sub chunks without any
+		// layer still box nothing at all.
+		pe := paletteEncoding(BlockPaletteEncoding{Blocks: c.br})
+		for _, storage := range s.storages {
+			encodePalettedStorage(buf, storage, nil, e, pe)
+		}
 	}
 	sub := make([]byte, buf.Len())
 	_, _ = buf.Read(sub)
@@ -96,7 +117,9 @@ func EncodeBiomes(c *Chunk, e Encoding) []byte {
 // of the PalettedStorage.
 func encodePalettedStorage(buf *bytes.Buffer, storage, previous *PalettedStorage, e Encoding, pe paletteEncoding) {
 	if storage.Equal(previous) {
-		_, _ = buf.Write([]byte{0x7f<<1 | e.network()})
+		// The same single byte, written without building a one byte slice for it. bytes.Buffer.WriteByte
+		// only ever returns a nil error.
+		_ = buf.WriteByte(0x7f<<1 | e.network())
 		return
 	}
 	n := len(storage.indices)*4 + 1
