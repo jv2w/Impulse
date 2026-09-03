@@ -549,6 +549,9 @@ func init() {
 	for _, t := range DeepslateTypes() {
 		world.RegisterItem(Deepslate{Type: t})
 	}
+	// CopperTypes() allocates a fresh slice on every call and does not change inside the loop, so
+	// it is built once. The same types are visited in the same order.
+	copperTypes := CopperTypes()
 	for _, o := range OxidationTypes() {
 		world.RegisterItem(CopperBars{Oxidation: o})
 		world.RegisterItem(CopperBars{Oxidation: o, Waxed: true})
@@ -565,7 +568,7 @@ func init() {
 		world.RegisterItem(CopperTrapdoor{Oxidation: o})
 		world.RegisterItem(CopperTrapdoor{Oxidation: o, Waxed: true})
 
-		for _, c := range CopperTypes() {
+		for _, c := range copperTypes {
 			world.RegisterItem(Copper{Type: c, Oxidation: o})
 			world.RegisterItem(Copper{Type: c, Oxidation: o, Waxed: true})
 		}

@@ -86,16 +86,19 @@ func (s Sign) BreakInfo() BreakInfo {
 
 // Dye dyes the Sign, changing its base colour to that of the colour passed.
 func (s Sign) Dye(pos cube.Pos, userPos mgl64.Vec3, c item.Colour) (world.Block, bool) {
+	// c.SignRGBA() is a pure lookup on the colour and was called twice on the writing path; it is
+	// read once and the same value is compared and stored.
+	rgba := c.SignRGBA()
 	if s.EditingFrontSide(pos, userPos) {
-		if s.Front.BaseColour == c.SignRGBA() {
+		if s.Front.BaseColour == rgba {
 			return s, false
 		}
-		s.Front.BaseColour = c.SignRGBA()
+		s.Front.BaseColour = rgba
 	} else {
-		if s.Back.BaseColour == c.SignRGBA() {
+		if s.Back.BaseColour == rgba {
 			return s, false
 		}
-		s.Back.BaseColour = c.SignRGBA()
+		s.Back.BaseColour = rgba
 	}
 	return s, true
 }
@@ -176,19 +179,33 @@ func (s Sign) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
 	}
 }
 
+// signWoodPrefix gives the name prefix a sign of a wood type carries. It is the
+// prefix EncodeBlock built inline, with the same strings for the same types.
+func signWoodPrefix(w WoodType) string {
+	switch w {
+	case OakWood():
+		return ""
+	case DarkOakWood():
+		return "darkoak_"
+	}
+	return w.String() + "_"
+}
+
+// wallSignName and standingSignName give the encoded block name of a sign of a
+// wood type, hanging on a wall and standing. Both joins run once at start
+// instead of on every encode, and enumNamer joins the same strings on a miss,
+// so a wood type outside the table panics in String just as it did before.
+var (
+	wallSignName     = enumNamer(WoodTypes(), func(w WoodType) string { return signWoodPrefix(w) + "wall_sign" })
+	standingSignName = enumNamer(WoodTypes(), func(w WoodType) string { return signWoodPrefix(w) + "standing_sign" })
+)
+
 // EncodeBlock ...
 func (s Sign) EncodeBlock() (name string, properties map[string]any) {
-	woodType := s.Wood.String() + "_"
-	switch s.Wood {
-	case OakWood():
-		woodType = ""
-	case DarkOakWood():
-		woodType = "darkoak_"
-	}
 	if s.Attach.hanging {
-		return "minecraft:" + woodType + "wall_sign", map[string]any{"facing_direction": int32(s.Attach.facing + 2)}
+		return wallSignName(s.Wood), map[string]any{"facing_direction": int32(s.Attach.facing + 2)}
 	}
-	return "minecraft:" + woodType + "standing_sign", map[string]any{"ground_sign_direction": int32(s.Attach.o)}
+	return standingSignName(s.Wood), map[string]any{"ground_sign_direction": int32(s.Attach.o)}
 }
 
 // DecodeNBT ...
@@ -246,8 +263,13 @@ func (s Sign) EncodeNBT() map[string]any {
 
 // allSigns ...
 func allSigns() (signs []world.Block) {
-	for _, w := range WoodTypes() {
-		for _, d := range cube.Directions() {
+	// The direction list does not change between wood types and the final count is known, so it is
+	// read once and the slice is presized. The same blocks are appended in the same order into a
+	// slice still built fresh per call.
+	woods, dirs := WoodTypes(), cube.Directions()
+	signs = make([]world.Block, 0, len(woods)*(len(dirs)+16))
+	for _, w := range woods {
+		for _, d := range dirs {
 			signs = append(signs, Sign{Wood: w, Attach: WallAttachment(d)})
 		}
 		for o := cube.Orientation(0); o <= 15; o++ {

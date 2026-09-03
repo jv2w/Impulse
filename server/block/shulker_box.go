@@ -260,16 +260,25 @@ func (s ShulkerBox) MaxCount() int {
 	return 1
 }
 
-func (s ShulkerBox) EncodeBlock() (name string, properties map[string]any) {
-	if c, ok := s.Colour.Colour(); ok {
-		return "minecraft:" + c.String() + "_shulker_box", nil
+// shulkerBoxName gives the encoded name of a shulker box of an optional colour.
+// The join that built the dyed name on every encode runs once at start instead,
+// and enumNamer prepends "minecraft:" on a hit and on a miss alike, so a colour
+// outside the table joins exactly the same strings.
+var shulkerBoxName = enumNamer(item.OptionalColours(), func(c item.OptionalColour) string {
+	if col, ok := c.Colour(); ok {
+		return col.String() + "_shulker_box"
 	}
-	return "minecraft:undyed_shulker_box", nil
+	return "undyed_shulker_box"
+})
+
+func (s ShulkerBox) EncodeBlock() (name string, properties map[string]any) {
+	return shulkerBoxName(s.Colour), nil
 }
 
 func (s ShulkerBox) EncodeItem() (id string, meta int16) {
-	name, _ := s.EncodeBlock()
-	return name, 0
+	// The same table EncodeBlock reads, so the name is identical; going straight to it drops the
+	// EncodeBlock call and the discarded property result.
+	return shulkerBoxName(s.Colour), 0
 }
 
 func (s ShulkerBox) DecodeNBT(data map[string]any) any {
@@ -301,7 +310,11 @@ func (s ShulkerBox) EncodeNBT() map[string]any {
 
 // allShulkerBoxes returns one shulker box per item.OptionalColour, including the undyed variant.
 func allShulkerBoxes() (boxes []world.Block) {
-	for _, c := range item.OptionalColours() {
+	// The final count is known, so the slice is presized and grows without reallocating. The same
+	// blocks are appended in the same order into a slice still built fresh per call.
+	colours := item.OptionalColours()
+	boxes = make([]world.Block, 0, len(colours))
+	for _, c := range colours {
 		boxes = append(boxes, ShulkerBox{Colour: c})
 	}
 	return boxes

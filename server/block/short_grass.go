@@ -29,9 +29,11 @@ func (g ShortGrass) BreakInfo() BreakInfo {
 // BoneMeal attempts to affect the block using a bone meal item.
 func (g ShortGrass) BoneMeal(pos cube.Pos, tx *world.Tx) item.BoneMealResult {
 	upper := DoubleTallGrass{Type: NormalDoubleTallGrass(), UpperPart: true}
-	if replaceableWith(tx, pos.Side(cube.FaceUp), upper) {
+	// pos.Side(cube.FaceUp) is pure and was computed twice; one value serves both uses.
+	above := pos.Side(cube.FaceUp)
+	if replaceableWith(tx, above, upper) {
 		tx.SetBlock(pos, DoubleTallGrass{Type: NormalDoubleTallGrass()}, nil)
-		tx.SetBlock(pos.Side(cube.FaceUp), upper, nil)
+		tx.SetBlock(above, upper, nil)
 		return item.BoneMealResultSmall
 	}
 	return item.BoneMealResultNone
