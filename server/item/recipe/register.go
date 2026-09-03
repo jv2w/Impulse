@@ -1,11 +1,11 @@
 package recipe
 
 import (
+	"cmp"
 	"github.com/jv2w/Impulse/server/internal/sliceutil"
 	"github.com/jv2w/Impulse/server/item"
 	"github.com/jv2w/Impulse/server/world"
 	"slices"
-	"sort"
 	"strings"
 	"unsafe"
 )
@@ -45,8 +45,11 @@ func Register(recipe Recipe) {
 	}
 
 	if ok || okTwo {
-		input := make([]world.Item, len(recipe.Input()))
-		for i, stack := range recipe.Input() {
+		// Input is a pure getter returning the same slice header both times, so reading it once
+		// drops one interface call.
+		in := recipe.Input()
+		input := make([]world.Item, len(in))
+		for i, stack := range in {
 			if s, ok := stack.(item.Stack); ok {
 				input[i] = s.Item()
 			}
@@ -54,10 +57,14 @@ func Register(recipe Recipe) {
 		hash := hashItems(input, !ok)
 
 		block := recipe.Block()
-		if index[block] == nil {
-			index[block] = make(map[string]Recipe)
+		// The inner map is looked up once instead of three times. Nothing between the lookup and the
+		// write can change index[block], so the map written to is the same one.
+		blockInd := index[block]
+		if blockInd == nil {
+			blockInd = make(map[string]Recipe)
+			index[block] = blockInd
 		}
-		index[block][hash] = recipe
+		blockInd[hash] = recipe
 	}
 }
 
@@ -77,7 +84,13 @@ func Perform(block string, input ...world.Item) (output []item.Stack, ok bool) {
 		}
 	}
 	_, containerChange := r.(PotionContainerChange)
-	for ind, it := range r.Output() {
+	// The output length is known up front, so the result is grown once instead of by append. The
+	// slice is left nil for an empty output, so a caller comparing the result against nil still can.
+	out := r.Output()
+	if len(out) > 0 {
+		output = make([]item.Stack, 0, len(out))
+	}
+	for ind, it := range out {
 		if containerChange {
 			name, _ := it.Item().EncodeItem()
 			_, meta := input[ind].EncodeItem()
@@ -95,13 +108,17 @@ func hashItems(items []world.Item, useMeta bool) string {
 	items = sliceutil.Filter(items, func(it world.Item) bool {
 		return it != nil
 	})
-	sort.Slice(items, func(i, j int) bool {
-		nameOne, metaOne := items[i].EncodeItem()
-		nameTwo, metaTwo := items[j].EncodeItem()
+	// slices.SortFunc runs the same pdqsort over the same key but drops the any boxing of items, the
+	// reflect-based swapper and the capture of items by the comparison. Two elements that compare
+	// equal have the same name and meta, so they write the same bytes below and the string built
+	// from the sorted slice is the same whichever of the two orders the sort leaves them in.
+	slices.SortFunc(items, func(a, b world.Item) int {
+		nameOne, metaOne := a.EncodeItem()
+		nameTwo, metaTwo := b.EncodeItem()
 		if nameOne == nameTwo {
-			return metaOne < metaTwo
+			return cmp.Compare(metaOne, metaTwo)
 		}
-		return nameOne < nameTwo
+		return cmp.Compare(nameOne, nameTwo)
 	})
 
 	var b strings.Builder

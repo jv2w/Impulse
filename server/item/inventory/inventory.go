@@ -66,15 +66,19 @@ func (inv *Inventory) Clone(f SlotFunc) *Inventory {
 // SlotFunc changes the function called when a slot in the inventory is changed.
 func (inv *Inventory) SlotFunc(f SlotFunc) {
 	inv.mu.Lock()
-	defer inv.mu.Unlock()
+	// A field assignment cannot panic, so unlocking directly drops the defer frame without changing
+	// what happens on any input.
 	inv.f = f
+	inv.mu.Unlock()
 }
 
 // SlotValidatorFunc changes the function that limits item placement in the inventory slot.
 func (inv *Inventory) SlotValidatorFunc(f SlotValidatorFunc) {
 	inv.mu.Lock()
-	defer inv.mu.Unlock()
+	// A field assignment cannot panic, so unlocking directly drops the defer frame without changing
+	// what happens on any input.
 	inv.validator = f
+	inv.mu.Unlock()
 }
 
 // Item attempts to obtain an item from a specific slot in the inventory. If an item was present in that slot,
@@ -123,8 +127,11 @@ func (inv *Inventory) lockedSetItem(slot int, it item.Stack) (func(), error) {
 // specific item.Stack is in. Note that this item.Stack might be empty.
 func (inv *Inventory) Slots() []item.Stack {
 	inv.mu.RLock()
-	defer inv.mu.RUnlock()
-	return slices.Clone(inv.slots)
+	// slices.Clone makes no interface call and cannot panic, so unlocking directly drops the defer
+	// frame while still releasing the lock on every path out.
+	s := slices.Clone(inv.slots)
+	inv.mu.RUnlock()
+	return s
 }
 
 // Items returns a list of all contents of the inventory. This method excludes air items, so the method
@@ -476,8 +483,11 @@ func (inv *Inventory) setItem(slot int, it item.Stack) func() {
 // SlotFunc is captured here rather than read from inv.f inside the callback, so that a concurrent SlotFunc or
 // Close is not an unsynchronised access and the change is announced to the function installed at write time.
 func (inv *Inventory) writeItem(slot int, it item.Stack) func() {
-	if it.Count() > it.MaxCount() {
-		it = it.Grow(it.MaxCount() - it.Count())
+	// Count and MaxCount are pure reads of it, which nothing here changes between the two uses, so
+	// reading each once gives the same clamp. MaxCount in particular costs an interface assertion.
+	count, maxCount := it.Count(), it.MaxCount()
+	if count > maxCount {
+		it = it.Grow(maxCount - count)
 	}
 	before, f := inv.slots[slot], inv.f
 	inv.slots[slot] = it
@@ -490,8 +500,11 @@ func (inv *Inventory) writeItem(slot int, it item.Stack) func() {
 // is always at least 1.
 func (inv *Inventory) Size() int {
 	inv.mu.RLock()
-	defer inv.mu.RUnlock()
-	return inv.size()
+	// size is a slice length read that cannot panic, so unlocking directly drops the defer frame
+	// without changing what happens on any input.
+	n := inv.size()
+	inv.mu.RUnlock()
+	return n
 }
 
 // size returns the size of the inventory without locking.

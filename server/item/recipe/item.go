@@ -93,8 +93,12 @@ func (o outputItem) Stack() (item.Stack, bool) {
 	if !ok {
 		return item.Stack{}, false
 	}
-	if n, ok := it.(world.NBTer); ok && len(o.NBTData) > 0 {
-		it = n.DecodeNBT(o.NBTData).(world.Item)
+	// The map length is a plain read while the assertion costs an itab lookup, and neither has a
+	// side effect, so testing the cheap guard first only skips work when the body would not run.
+	if len(o.NBTData) > 0 {
+		if n, ok := it.(world.NBTer); ok {
+			it = n.DecodeNBT(o.NBTData).(world.Item)
+		}
 	}
 
 	return item.NewStack(it, int(o.Count)), true

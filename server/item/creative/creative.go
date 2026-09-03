@@ -3,6 +3,8 @@ package creative
 import (
 	_ "embed"
 	"fmt"
+	"slices"
+	"strconv"
 
 	"github.com/jv2w/Impulse/server/internal/nbtconv"
 	// The following four imports are essential for this package: They make sure this package is loaded after
@@ -101,10 +103,17 @@ func registerCreativeItems() {
 	if err := nbt.Unmarshal(creativeItemData, &m); err != nil {
 		panic(err)
 	}
+	// Every entry below appends exactly one group and one item at most, so both lists are grown to
+	// their final size once instead of repeatedly by append. Grow keeps whatever was registered
+	// before this runs, so the contents and their order are unchanged.
+	creativeGroups = slices.Grow(creativeGroups, len(m.Groups))
+	creativeItemStacks = slices.Grow(creativeItemStacks, len(m.Items))
 	for i, group := range m.Groups {
 		name := group.Name
 		if name == "" {
-			name = fmt.Sprint("anon", i)
+			// fmt.Sprint puts no space between a string operand and the next one, so this builds the
+			// same "anon<i>" without the interface boxing and formatting machinery.
+			name = "anon" + strconv.Itoa(i)
 		}
 		st, _ := itemStackFromEntry(group.Icon)
 		c := Category{category(group.Category)}
@@ -148,8 +157,10 @@ func itemStackFromEntry(data creativeItemEntry) (item.Stack, bool) {
 		}
 	}
 
-	if n, ok := it.(world.NBTer); ok {
-		if len(data.NBT) > 0 {
+	// The map length is a plain read while the assertion costs an itab lookup, and neither has a
+	// side effect, so testing the cheap guard first only skips work when the body would not run.
+	if len(data.NBT) > 0 {
+		if n, ok := it.(world.NBTer); ok {
 			it = n.DecodeNBT(data.NBT).(world.Item)
 		}
 	}

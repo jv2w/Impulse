@@ -47,7 +47,9 @@ func (r DecoratedPotRecipe) Match(input []Item) (output []item.Stack, ok bool) {
 	decorationIndex := 0
 	for i := range input {
 		it := input[i]
-		if i%2 == 0 {
+		// i is a range index over input and so is never negative, which is the case where the mask
+		// and the remainder disagree. For i >= 0, i&1 == 0 is exactly i%2 == 0.
+		if i&1 == 0 {
 			// Even slots (0, 2, 4, 6, 8) should be empty
 			if !it.Empty() {
 				return nil, false
@@ -91,7 +93,9 @@ func (r DecoratedPotRecipe) Match(input []Item) (output []item.Stack, ok bool) {
 	// The pot will be decoded with the decorations through NBT when placed
 	// For now, we'll create a pot with the decorations in the correct order
 	// DecoratedPot.DecodeNBT expects sherds in order: [back, left, front, right]
-	sherds := []any{}
+	// Exactly four sherds are appended below, so the slice is sized once here rather than grown
+	// three times by append. It is non-nil and of length four either way.
+	sherds := make([]any, 0, 4)
 	// Order: top -> back, left -> left, bottom -> front, right -> right
 	for _, idx := range []int{0, 1, 3, 2} { // top, left, bottom, right
 		name, _ := decorations[idx].EncodeItem()
