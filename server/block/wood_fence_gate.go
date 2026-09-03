@@ -97,20 +97,26 @@ func (f WoodFenceGate) SideClosed(cube.Pos, cube.Pos, *world.Tx) bool {
 	return false
 }
 
+// woodFenceGateName gives the encoded name of a fence gate of a wood type, oak
+// keeping its own legacy name. The join runs once at start instead of on every
+// encode, and enumNamer joins the same strings on a miss, so a wood type
+// outside the table panics in String exactly as it did before.
+var woodFenceGateName = enumNamer(WoodTypes(), func(w WoodType) string {
+	if w == OakWood() {
+		return "fence_gate"
+	}
+	return w.String() + "_fence_gate"
+})
+
 // EncodeItem ...
 func (f WoodFenceGate) EncodeItem() (name string, meta int16) {
-	if f.Wood == OakWood() {
-		return "minecraft:fence_gate", 0
-	}
-	return "minecraft:" + f.Wood.String() + "_fence_gate", 0
+	return woodFenceGateName(f.Wood), 0
 }
 
 // EncodeBlock ...
 func (f WoodFenceGate) EncodeBlock() (name string, properties map[string]any) {
-	if f.Wood == OakWood() {
-		return "minecraft:fence_gate", map[string]any{"minecraft:cardinal_direction": f.Facing.String(), "open_bit": f.Open, "in_wall_bit": f.Lowered}
-	}
-	return "minecraft:" + f.Wood.String() + "_fence_gate", map[string]any{"minecraft:cardinal_direction": f.Facing.String(), "open_bit": f.Open, "in_wall_bit": f.Lowered}
+	// Both branches built the same property map; only the name differed.
+	return woodFenceGateName(f.Wood), map[string]any{"minecraft:cardinal_direction": f.Facing.String(), "open_bit": f.Open, "in_wall_bit": f.Lowered}
 }
 
 // Model ...
@@ -120,7 +126,11 @@ func (f WoodFenceGate) Model() world.BlockModel {
 
 // allFenceGates returns a list of all trapdoor types.
 func allFenceGates() (fenceGates []world.Block) {
-	for _, w := range WoodTypes() {
+	// Four gates per direction and four directions per wood type, so the slice is presized to its
+	// final length and grows without reallocating. The same blocks are appended in the same order.
+	woods := WoodTypes()
+	fenceGates = make([]world.Block, 0, len(woods)*4*4)
+	for _, w := range woods {
 		for i := cube.Direction(0); i <= 3; i++ {
 			fenceGates = append(fenceGates, WoodFenceGate{Wood: w, Facing: i, Open: false, Lowered: false})
 			fenceGates = append(fenceGates, WoodFenceGate{Wood: w, Facing: i, Open: false, Lowered: true})

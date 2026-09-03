@@ -66,42 +66,56 @@ func (w Wood) Strip() (world.Block, world.Sound, bool) {
 	return Wood{Axis: w.Axis, Wood: w.Wood, Stripped: true}, nil, !w.Stripped
 }
 
+// woodKey identifies a wood block name by wood type and stripped state. The
+// axis does not appear in the name.
+type woodKey struct {
+	wood     WoodType
+	stripped bool
+}
+
+// woodName gives the encoded name of a wood block of a wood type and stripped
+// state. The joins run once at start instead of on every encode, and enumNamer
+// joins the same strings on a miss, so a wood type outside the table panics in
+// String exactly as it did before.
+var woodName = func() func(woodKey) string {
+	woods := WoodTypes()
+	keys := make([]woodKey, 0, len(woods)*2)
+	for _, w := range woods {
+		keys = append(keys, woodKey{w, false}, woodKey{w, true})
+	}
+	return enumNamer(keys, func(k woodKey) string {
+		suffix := "_wood"
+		switch k.wood {
+		case CrimsonWood(), WarpedWood():
+			suffix = "_hyphae"
+		}
+		if k.stripped {
+			return "stripped_" + k.wood.String() + suffix
+		}
+		return k.wood.String() + suffix
+	})
+}()
+
 // EncodeItem ...
 func (w Wood) EncodeItem() (name string, meta int16) {
-	switch w.Wood {
-	case CrimsonWood(), WarpedWood():
-		if w.Stripped {
-			return "minecraft:stripped_" + w.Wood.String() + "_hyphae", 0
-		}
-		return "minecraft:" + w.Wood.String() + "_hyphae", 0
-	default:
-		if w.Stripped {
-			return "minecraft:stripped_" + w.Wood.String() + "_wood", 0
-		}
-		return "minecraft:" + w.Wood.String() + "_wood", 0
-	}
+	return woodName(woodKey{w.Wood, w.Stripped}), 0
 }
 
 // EncodeBlock ...
 func (w Wood) EncodeBlock() (name string, properties map[string]any) {
-	switch w.Wood {
-	case CrimsonWood(), WarpedWood():
-		if w.Stripped {
-			return "minecraft:stripped_" + w.Wood.String() + "_hyphae", map[string]any{"pillar_axis": w.Axis.String()}
-		}
-		return "minecraft:" + w.Wood.String() + "_hyphae", map[string]any{"pillar_axis": w.Axis.String()}
-	default:
-		if w.Stripped {
-			return "minecraft:stripped_" + w.Wood.String() + "_wood", map[string]any{"pillar_axis": w.Axis.String()}
-		}
-		return "minecraft:" + w.Wood.String() + "_wood", map[string]any{"pillar_axis": w.Axis.String()}
-	}
+	// The four branches only differed in the name; the property map was the same in all of them.
+	return woodName(woodKey{w.Wood, w.Stripped}), map[string]any{"pillar_axis": w.Axis.String()}
 }
 
 // allWood returns all possible Wood block states, excluding bamboo blocks,
 // which are registered separately through allBambooBlocks.
 func allWood() (wood []world.Block) {
-	for _, w := range WoodTypes() {
+	// Three axes with two stripped states per wood type, so the slice is presized. Bamboo is
+	// skipped, so the buffer holds six spare entries; capacity only sizes the buffer and the same
+	// blocks are appended in the same order.
+	woods := WoodTypes()
+	wood = make([]world.Block, 0, len(woods)*6)
+	for _, w := range woods {
 		if w == BambooWood() {
 			continue
 		}

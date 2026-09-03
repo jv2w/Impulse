@@ -77,6 +77,8 @@ func (s WheatSeeds) EncodeBlock() (name string, properties map[string]any) {
 
 // allWheat ...
 func allWheat() (wheat []world.Block) {
+	// The final count is known, so the slice is presized and grows without reallocating.
+	wheat = make([]world.Block, 0, 8)
 	for i := 0; i <= 7; i++ {
 		wheat = append(wheat, WheatSeeds{crop{Growth: i}})
 	}

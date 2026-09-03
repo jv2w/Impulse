@@ -66,7 +66,11 @@ func (w WoodFence) EncodeItem() (name string, meta int16) {
 
 // allFence ...
 func allFence() (fence []world.Block) {
-	for _, w := range WoodTypes() {
+	// The final count is known, so the slice is presized and grows without reallocating. The same
+	// blocks are appended in the same order into a slice still built fresh per call.
+	woods := WoodTypes()
+	fence = make([]world.Block, 0, len(woods))
+	for _, w := range woods {
 		fence = append(fence, WoodFence{Wood: w})
 	}
 	return

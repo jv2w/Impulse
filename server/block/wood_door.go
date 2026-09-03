@@ -53,11 +53,14 @@ func (d WoodDoor) Model() world.BlockModel {
 
 // NeighbourUpdateTick ...
 func (d WoodDoor) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
+	// pos.Side(cube.FaceDown) is pure and both branches need it, the lower one twice; one value
+	// serves every use.
+	below := pos.Side(cube.FaceDown)
 	if d.Top {
-		if _, ok := tx.Block(pos.Side(cube.FaceDown)).(WoodDoor); !ok {
+		if _, ok := tx.Block(below).(WoodDoor); !ok {
 			breakBlockNoDrops(d, pos, tx)
 		}
-	} else if solid := tx.Block(pos.Side(cube.FaceDown)).Model().FaceSolid(pos.Side(cube.FaceDown), cube.FaceUp, tx); !solid {
+	} else if solid := tx.Block(below).Model().FaceSolid(below, cube.FaceUp, tx); !solid {
 		breakBlock(d, pos, tx)
 	} else if _, ok := tx.Block(pos.Side(cube.FaceUp)).(WoodDoor); !ok {
 		breakBlockNoDrops(d, pos, tx)
@@ -129,25 +132,35 @@ func (d WoodDoor) SideClosed(cube.Pos, cube.Pos, *world.Tx) bool {
 	return false
 }
 
+// woodDoorName gives the encoded name of a door of a wood type, oak keeping its
+// own legacy name. The join runs once at start instead of on every encode, and
+// enumNamer joins the same strings on a miss, so a wood type outside the table
+// panics in String exactly as it did before.
+var woodDoorName = enumNamer(WoodTypes(), func(w WoodType) string {
+	if w == OakWood() {
+		return "wooden_door"
+	}
+	return w.String() + "_door"
+})
+
 // EncodeItem ...
 func (d WoodDoor) EncodeItem() (name string, meta int16) {
-	if d.Wood == OakWood() {
-		return "minecraft:wooden_door", 0
-	}
-	return "minecraft:" + d.Wood.String() + "_door", 0
+	return woodDoorName(d.Wood), 0
 }
 
 // EncodeBlock ...
 func (d WoodDoor) EncodeBlock() (name string, properties map[string]any) {
-	if d.Wood == OakWood() {
-		return "minecraft:wooden_door", map[string]any{"minecraft:cardinal_direction": d.Facing.RotateRight().String(), "door_hinge_bit": d.Right, "open_bit": d.Open, "upper_block_bit": d.Top}
-	}
-	return "minecraft:" + d.Wood.String() + "_door", map[string]any{"minecraft:cardinal_direction": d.Facing.RotateRight().String(), "door_hinge_bit": d.Right, "open_bit": d.Open, "upper_block_bit": d.Top}
+	// Both branches built the same property map; only the name differed.
+	return woodDoorName(d.Wood), map[string]any{"minecraft:cardinal_direction": d.Facing.RotateRight().String(), "door_hinge_bit": d.Right, "open_bit": d.Open, "upper_block_bit": d.Top}
 }
 
 // allDoors returns a list of all door types
 func allDoors() (doors []world.Block) {
-	for _, w := range WoodTypes() {
+	// Eight doors per direction and four directions per wood type, so the slice is presized to its
+	// final length and grows without reallocating. The same blocks are appended in the same order.
+	woods := WoodTypes()
+	doors = make([]world.Block, 0, len(woods)*4*8)
+	for _, w := range woods {
 		for i := cube.Direction(0); i <= 3; i++ {
 			doors = append(doors, WoodDoor{Wood: w, Facing: i, Open: false, Top: false, Right: false})
 			doors = append(doors, WoodDoor{Wood: w, Facing: i, Open: false, Top: true, Right: false})
