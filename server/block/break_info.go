@@ -3,7 +3,6 @@ package block
 import (
 	"math"
 	"math/rand/v2"
-	"slices"
 	"time"
 
 	"github.com/jv2w/Impulse/server/block/cube"
@@ -238,7 +237,9 @@ func simpleDrops(s ...item.Stack) func(item.Tool, []item.Enchantment) []item.Sta
 // oneOf returns a drops function that returns one of each of the item types passed.
 func oneOf(i ...world.Item) func(item.Tool, []item.Enchantment) []item.Stack {
 	return func(item.Tool, []item.Enchantment) []item.Stack {
-		var s []item.Stack
+		// One stack per item, so the list is sized once instead of grown. It is still a fresh
+		// slice on every call and holds the same stacks in the same order.
+		s := make([]item.Stack, 0, len(i))
 		for _, it := range i {
 			s = append(s, item.NewStack(it, 1))
 		}
@@ -248,9 +249,14 @@ func oneOf(i ...world.Item) func(item.Tool, []item.Enchantment) []item.Stack {
 
 // hasSilkTouch checks if an item has the silk touch enchantment.
 func hasSilkTouch(enchantments []item.Enchantment) bool {
-	return slices.IndexFunc(enchantments, func(i item.Enchantment) bool {
-		return i.Type() == enchantment.SilkTouch
-	}) != -1
+	// slices.IndexFunc called the predicate through a function value for every entry. The loop
+	// walks the same entries in the same order and stops at the same one.
+	for _, e := range enchantments {
+		if e.Type() == enchantment.SilkTouch {
+			return true
+		}
+	}
+	return false
 }
 
 // silkTouchOneOf returns a drop function that returns 1x of the silk touch drop when silk touch exists, or 1x of the
@@ -287,13 +293,14 @@ func silkTouchOnlyDrop(it world.Item) func(t item.Tool, enchantments []item.Ench
 
 // fortuneLevel returns the level of the fortune enchantment in enchantments, or 0 if it isn't present.
 func fortuneLevel(enchantments []item.Enchantment) int {
-	index := slices.IndexFunc(enchantments, func(i item.Enchantment) bool {
-		return i.Type() == enchantment.Fortune
-	})
-	if index == -1 {
-		return 0
+	// slices.IndexFunc called the predicate through a function value for every entry and the
+	// slice was then indexed again. The loop finds the same first entry and reads its level there.
+	for _, e := range enchantments {
+		if e.Type() == enchantment.Fortune {
+			return e.Level()
+		}
 	}
-	return enchantments[index].Level()
+	return 0
 }
 
 // fortuneOreCount computes the drop count for an ore after applying the Fortune ore multiplier to a given base

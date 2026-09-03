@@ -141,6 +141,8 @@ func (b BrewingStand) EncodeItem() (name string, meta int16) {
 
 // allBrewingStands ...
 func allBrewingStands() (stands []world.Block) {
+	// Three independent slot bits give eight states, so the list is sized once instead of grown.
+	stands = make([]world.Block, 0, 8)
 	for _, left := range []bool{false, true} {
 		for _, middle := range []bool{false, true} {
 			for _, right := range []bool{false, true} {

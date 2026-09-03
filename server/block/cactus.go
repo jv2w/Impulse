@@ -43,10 +43,15 @@ func (c Cactus) RandomTick(pos cube.Pos, tx *world.Tx, _ *rand.Rand) {
 		c.Age = 0
 		if c.canGrowHere(pos.Side(cube.FaceDown), tx, false) {
 			for y := 1; y < 3; y++ {
-				if _, ok := tx.Block(pos.Add(cube.Pos{0, y})).(Air); ok {
-					tx.SetBlock(pos.Add(cube.Pos{0, y}), Cactus{Age: 0}, nil)
+				// The offset is computed once and the block read once: nothing between the
+				// two old reads of the same position could change it, so the branches see
+				// exactly the block they saw before.
+				above := pos.Add(cube.Pos{0, y})
+				b := tx.Block(above)
+				if _, ok := b.(Air); ok {
+					tx.SetBlock(above, Cactus{Age: 0}, nil)
 					break
-				} else if _, ok := tx.Block(pos.Add(cube.Pos{0, y})).(Cactus); !ok {
+				} else if _, ok := b.(Cactus); !ok {
 					break
 				}
 			}
@@ -62,10 +67,14 @@ func (c Cactus) canGrowHere(pos cube.Pos, tx *world.Tx, recursive bool) bool {
 			return false
 		}
 	}
-	if _, ok := tx.Block(pos.Side(cube.FaceDown)).(Cactus); ok && recursive {
-		return c.canGrowHere(pos.Side(cube.FaceDown), tx, recursive)
+	// Side(FaceDown) and Sub({0, 1}) name the same position, so the block below is
+	// read once and the position computed once. Nothing in between can change it.
+	below := pos.Side(cube.FaceDown)
+	blockBelow := tx.Block(below)
+	if _, ok := blockBelow.(Cactus); ok && recursive {
+		return c.canGrowHere(below, tx, recursive)
 	}
-	return supportsVegetation(c, tx.Block(pos.Sub(cube.Pos{0, 1})))
+	return supportsVegetation(c, blockBelow)
 }
 
 // EntityInside ...
@@ -102,6 +111,9 @@ func (c Cactus) Model() world.BlockModel {
 
 // allCactus returns all possible states of a cactus block.
 func allCactus() (b []world.Block) {
+	// Sixteen ages, so the list is sized once instead of grown. It is still a fresh
+	// slice on every call holding the same blocks in the same order.
+	b = make([]world.Block, 0, 16)
 	for i := 0; i < 16; i++ {
 		b = append(b, Cactus{Age: i})
 	}

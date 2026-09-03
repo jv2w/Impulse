@@ -70,8 +70,11 @@ func (c Cake) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
 // Activate ...
 func (c Cake) Activate(pos cube.Pos, face cube.Face, tx *world.Tx, u item.User, ctx *item.UseContext) bool {
 	held, _ := u.HeldItems()
+	// held.Item() is read once. It is a pure getter on a value that never changes in
+	// this function, so both old call sites see the same item.
+	heldItem := held.Item()
 	if c.Bites == 0 && !c.Candle {
-		if candle, ok := held.Item().(Candle); ok {
+		if candle, ok := heldItem.(Candle); ok {
 			c.Candle = true
 			c.CandleColour = candle.Colour
 			tx.SetBlock(pos, c, nil)
@@ -87,7 +90,7 @@ func (c Cake) Activate(pos cube.Pos, face cube.Face, tx *world.Tx, u item.User, 
 		return true
 	}
 
-	if _, ok := held.Item().(item.FlintAndSteel); ok {
+	if _, ok := heldItem.(item.FlintAndSteel); ok {
 		return false
 	}
 
@@ -182,10 +185,14 @@ func (c Cake) Model() world.BlockModel {
 
 // allCake ...
 func allCake() (cake []world.Block) {
+	// The colour list is built once and the final count is known, so the list is
+	// sized once instead of grown. Same blocks, same order, still a fresh slice.
+	colours := item.OptionalColours()
+	cake = make([]world.Block, 0, 7+len(colours)*2)
 	for bites := 0; bites < 7; bites++ {
 		cake = append(cake, Cake{Bites: bites})
 	}
-	for _, c := range item.OptionalColours() {
+	for _, c := range colours {
 		cake = append(cake, Cake{CandleColour: c, Candle: true})
 		cake = append(cake, Cake{CandleColour: c, Candle: true, CandleLit: true})
 	}

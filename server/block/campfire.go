@@ -9,7 +9,6 @@ import (
 	"github.com/jv2w/Impulse/server/world"
 	"github.com/jv2w/Impulse/server/world/sound"
 	"math/rand/v2"
-	"strconv"
 	"time"
 )
 
@@ -29,6 +28,14 @@ type Campfire struct {
 	// Type represents the type of Campfire, currently there are Normal and Soul campfires.
 	Type FireType
 }
+
+// campfireItemKeys and campfireItemTimeKeys hold the NBT keys of the four cooking
+// slots. They are the same strings strconv.Itoa and concatenation built per call,
+// so the stored names are unchanged and no string is built any more.
+var (
+	campfireItemKeys     = [4]string{"Item1", "Item2", "Item3", "Item4"}
+	campfireItemTimeKeys = [4]string{"ItemTime1", "ItemTime2", "ItemTime3", "ItemTime4"}
+)
 
 // CampfireItem holds data about the items in the campfire.
 type CampfireItem struct {
@@ -241,10 +248,9 @@ func (c Campfire) EntityInside(pos cube.Pos, tx *world.Tx, e world.Entity) {
 func (c Campfire) EncodeNBT() map[string]any {
 	m := map[string]any{"id": "Campfire"}
 	for i, v := range c.Items {
-		id := strconv.Itoa(i + 1)
 		if !v.Item.Empty() {
-			m["Item"+id] = item.WriteNBT(v.Item, true)
-			m["ItemTime"+id] = int32(v.Time.Milliseconds() / 50)
+			m[campfireItemKeys[i]] = item.WriteNBT(v.Item, true)
+			m[campfireItemTimeKeys[i]] = int32(v.Time.Milliseconds() / 50)
 		}
 	}
 	return m
@@ -253,13 +259,12 @@ func (c Campfire) EncodeNBT() map[string]any {
 // DecodeNBT ...
 func (c Campfire) DecodeNBT(data map[string]any) any {
 	for i := 0; i < 4; i++ {
-		id := strconv.Itoa(i + 1)
 		// DecodeNBT has no channel to report an item this build cannot resolve
 		// on; the slot cooks nothing.
-		it, _ := item.MapNBT(data, "Item"+id)
+		it, _ := item.MapNBT(data, campfireItemKeys[i])
 		c.Items[i] = CampfireItem{
 			Item: it,
-			Time: time.Duration(nbtconv.Int32(data, "ItemTime"+id)) * time.Millisecond * 50,
+			Time: time.Duration(nbtconv.Int32(data, campfireItemTimeKeys[i])) * time.Millisecond * 50,
 		}
 	}
 	return c
@@ -292,8 +297,12 @@ func (c Campfire) EncodeBlock() (name string, properties map[string]any) {
 
 // allCampfires ...
 func allCampfires() (campfires []world.Block) {
-	for _, d := range cube.Directions() {
-		for _, f := range FireTypes() {
+	// The fire type list is built once instead of once per direction, and the final
+	// count is known so the list is sized once. Same blocks in the same order.
+	directions, types := cube.Directions(), FireTypes()
+	campfires = make([]world.Block, 0, len(directions)*len(types)*2)
+	for _, d := range directions {
+		for _, f := range types {
 			campfires = append(campfires, Campfire{Facing: d, Type: f, Extinguished: true})
 			campfires = append(campfires, Campfire{Facing: d, Type: f})
 		}
