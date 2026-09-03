@@ -125,6 +125,16 @@ type Config struct {
 	// may be added to the Server's worlds. If no entity types are registered,
 	// Entities will be set to entity.DefaultRegistry.
 	Entities world.EntityRegistry
+	// GameRules holds toggles for world behaviour that may be turned off to
+	// save the work they cost. The zero value leaves the worlds behaving as
+	// vanilla does. The rules are applied to the three default worlds as they
+	// are created and may be changed later using World.SetGameRules.
+	GameRules world.GameRules
+	// VanillaRecipesDisabled specifies if the vanilla crafting, furnace,
+	// smithing and brewing recipes should be left unregistered. The recipe
+	// registry is global, so unlike GameRules this is read once, when the
+	// Server is created, and applies to every world.
+	VanillaRecipesDisabled bool
 	// Blocks is the BlockRegistry template used for newly created worlds. If nil, world.DefaultBlockRegistry is used.
 	// For a non-default registry, set this to world.NewBlockRegistry(), register blocks on that instance, and ensure
 	// it is finalized before use.
@@ -204,7 +214,9 @@ func (conf Config) New() *Server {
 	}
 
 	creative_registerCreativeItems()
-	recipe_registerVanilla()
+	if !conf.VanillaRecipesDisabled {
+		recipe_registerVanilla()
+	}
 
 	srv.world = srv.createWorld(world.Overworld, &srv.nether, &srv.end)
 	srv.nether = srv.createWorld(world.Nether, &srv.world, &srv.end)

@@ -114,6 +114,13 @@ func (a *lightArea) Fill() {
 	}
 }
 
+// FillFixed hands every sub chunk in the lightArea its light slices without propagating any light. It is used
+// for worlds whose light level is pinned by a game rule: the levels it writes are never read there, but a sub
+// chunk left without light slices would make SubChunk.SkyLight index a nil slice.
+func (a *lightArea) FillFixed() {
+	a.initialiseLightSlices()
+}
+
 // Spread executes the light 'spreading' stage, where the lightArea has light spread from every Chunk into the
 // neighbouring chunks. The neighbouring chunks must have passed the light 'filling' stage before this
 // function is called for an lightArea that includes them.

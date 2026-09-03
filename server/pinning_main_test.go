@@ -64,7 +64,7 @@ func snapshot() globals {
 // Recordings taken by TestMain in a pristine process, in the order documented
 // on captureGlobals.
 var (
-	gPristine, gAfterProbes, gAfterFirst, gAfterSecond globals
+	gPristine, gAfterProbes, gAfterFirst, gAfterSecond, gAfterRecipesDisabled globals
 
 	pristineAirPanic       any
 	cloneFinalizePanic     any
@@ -93,7 +93,8 @@ func TestMain(m *testing.M) {
 // captureGlobals performs, in a process where nothing has called Config.New()
 // yet, the sequence of calls whose effects cannot be undone. The order matters:
 // steps 2 and 3 are only observable while world.DefaultBlockRegistry is still
-// unfinalized, and steps 5 onwards only after it is.
+// unfinalized, steps 5 onwards only after it is, and every step adds to
+// registries no later step can subtract from again.
 func captureGlobals() {
 	// 1. Nothing has run yet.
 	gPristine = snapshot()
@@ -130,6 +131,11 @@ func captureGlobals() {
 	// so that the defaulting to slog.Default() is covered as well.
 	secondServer = Config{}.New()
 	gAfterSecond = snapshot()
+
+	// 7. A third Config.New(), this one with Config.VanillaRecipesDisabled set.
+	// It runs last because it must not shift what steps 5 and 6 recorded.
+	Config{VanillaRecipesDisabled: true}.New()
+	gAfterRecipesDisabled = snapshot()
 }
 
 func caught(f func()) (v any) {

@@ -65,6 +65,9 @@ type ItemBehaviour struct {
 	i       item.Stack
 
 	pickupDelay time.Duration
+	// scanDelay is the number of ticks left before the next nearby scan while
+	// world.GameRules.PickupScanPeriod is above 1.
+	scanDelay int
 }
 
 // PortalTravelComputer returns the interdimensional travel state for the behaviour.
@@ -118,6 +121,16 @@ func (i *ItemBehaviour) Explode(e *Ent, _ world.ExplosionSource, impact float64)
 // tick checks if the item can be picked up or merged with nearby item stacks.
 func (i *ItemBehaviour) tick(e *Ent, tx *world.Tx) {
 	if i.pickupDelay == 0 {
+		if period := tx.World().PickupScanPeriod(); period > 1 {
+			// Counting down per entity rather than testing the world tick keeps
+			// items dropped on different ticks on different phases, so the scans
+			// stay spread over the period instead of bunching onto one tick.
+			if i.scanDelay > 0 {
+				i.scanDelay--
+				return
+			}
+			i.scanDelay = period - 1
+		}
 		i.checkNearby(e, tx)
 	} else if i.pickupDelay < math.MaxInt16*(time.Second/20) {
 		i.pickupDelay -= time.Second / 20

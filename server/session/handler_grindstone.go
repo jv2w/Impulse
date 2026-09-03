@@ -73,8 +73,10 @@ func (h *ItemStackRequestHandler) handleGrindstoneCraft(s *Session, tx *world.Tx
 		resultStack = resultStack.WithDurability(firstDurability + secondDurability + maxDurability*5/100)
 	}
 
-	for _, o := range entity.NewExperienceOrbs(entity.EyePosition(c), experienceFromEnchantments(resultStack)) {
-		tx.AddEntity(o)
+	if !tx.World().ExperienceOrbsDisabled() {
+		for _, o := range entity.NewExperienceOrbs(entity.EyePosition(c), experienceFromEnchantments(resultStack)) {
+			tx.AddEntity(o)
+		}
 	}
 
 	h.setItemInSlot(protocol.StackRequestSlotInfo{

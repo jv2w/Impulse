@@ -28,6 +28,9 @@ var bottleOfEnchantingConf = ProjectileBehaviourConfig{
 // spawnExperience spawns experience orbs with a value of 3-11 at the target of
 // a trace.Result.
 func spawnExperience(_ *Ent, tx *world.Tx, target trace.Result) {
+	if tx.World().ExperienceOrbsDisabled() {
+		return
+	}
 	for _, orb := range NewExperienceOrbs(target.Position(), rand.IntN(9)+3) {
 		tx.AddEntity(orb)
 	}

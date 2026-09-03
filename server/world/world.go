@@ -50,8 +50,9 @@ type World struct {
 
 	o sync.Once
 
-	set     *Settings
-	handler atomic.Pointer[Handler]
+	set       *Settings
+	handler   atomic.Pointer[Handler]
+	gameRules gameRules
 
 	weather
 
@@ -744,6 +745,9 @@ func (tx *Tx) additionalLiquid(pos cube.Pos) (Liquid, bool) {
 // fully lit.
 func (tx *Tx) light(pos cube.Pos) uint8 {
 	w := tx.World()
+	if l := w.FixedLight(); l != 0 {
+		return uint8(l)
+	}
 	if pos[1] < w.ra[0] {
 		// Fast way out.
 		return 0
@@ -765,6 +769,11 @@ func (tx *Tx) light(pos cube.Pos) uint8 {
 // light is present.
 func (tx *Tx) skyLight(pos cube.Pos) uint8 {
 	w := tx.World()
+	if l := w.FixedLight(); l != 0 {
+		// This also keeps the chunk load below out of the way: unlike light,
+		// skyLight resolves through Tx.chunk, which loads or generates.
+		return uint8(l)
+	}
 	if pos[1] < w.ra[0] {
 		// Fast way out.
 		return 0
@@ -1440,7 +1449,14 @@ func (w *World) loadChunk(pos ChunkPos) (*chunk.Column, error) {
 		w.conf.Generator.GenerateChunk(pos, ch)
 		column = &chunk.Column{Chunk: ch}
 	}
-	chunk.LightArea([]*chunk.Chunk{column.Chunk}, int(pos[0]), int(pos[1])).Fill()
+	area := chunk.LightArea([]*chunk.Chunk{column.Chunk}, int(pos[0]), int(pos[1]))
+	if w.FixedLight() != 0 {
+		// Tx.Light and Tx.SkyLight answer from the rule instead of the column,
+		// so nothing reads what the flood fill would have written.
+		area.FillFixed()
+	} else {
+		area.Fill()
+	}
 	return column, nil
 }
 
@@ -1485,7 +1501,12 @@ func (w *World) addChunk(pos ChunkPos, c *chunk.Column) *Column {
 		e.setAndUnlockWorld(w)
 		e.markWorldReady(w)
 	}
-	w.calculateLight(pos)
+	if w.FixedLight() == 0 {
+		// Spreading light into the eight neighbours costs a flood fill over nine
+		// columns per neighbour, all of it on the transaction goroutine. Nothing
+		// reads the result while the light level is pinned.
+		w.calculateLight(pos)
+	}
 	return column
 }
 

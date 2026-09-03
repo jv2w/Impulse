@@ -71,6 +71,11 @@ type Config struct {
 	// be added to the World.
 	Entities EntityRegistry
 
+	// GameRules holds toggles for World behaviour that may be turned off to
+	// save the work they cost. The zero value leaves the World behaving as
+	// vanilla does. The rules may be changed later using World.SetGameRules.
+	GameRules GameRules
+
 	// Blocks is the BlockRegistry used by the World.
 	// If left nil, DefaultBlockRegistry is used. For a non-default registry,
 	// use NewBlockRegistry(), register blocks/states, and call Finalize().
@@ -162,6 +167,7 @@ func (conf Config) New() *World {
 		ra:               conf.Dim.Range(),
 		set:              s,
 	}
+	w.gameRules.store(conf.GameRules)
 	w.chunkWorkers = newChunkWorkerPool(w)
 	w.weather = weather{w: w}
 	var h Handler = NopHandler{}

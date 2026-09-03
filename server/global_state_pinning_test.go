@@ -119,6 +119,31 @@ func TestSecondServerDoublesEveryRegistry(t *testing.T) {
 	}
 }
 
+// Config.VanillaRecipesDisabled is the one way to keep a Server from adding to
+// a registry, and it reaches exactly one of them: the recipe tables stay where
+// the previous Config.New() left them while the creative registries are written
+// again. The recipe registry is process-wide, which is why this is a Config
+// field rather than one of the per-world world.GameRules.
+func TestVanillaRecipesDisabledRegistersNoRecipes(t *testing.T) {
+	if gAfterRecipesDisabled.recipes != gAfterSecond.recipes {
+		t.Errorf("recipes = %d, want the %d the previous server left",
+			gAfterRecipesDisabled.recipes, gAfterSecond.recipes)
+	}
+	if gAfterRecipesDisabled.dynamicRecipes != gAfterSecond.dynamicRecipes {
+		t.Errorf("dynamic recipes = %d, want the %d the previous server left",
+			gAfterRecipesDisabled.dynamicRecipes, gAfterSecond.dynamicRecipes)
+	}
+	// The creative registries are the control: they grow by another server's
+	// worth, so the recipe tables standing still is the rule and not a Server
+	// that failed to boot.
+	if want := gAfterSecond.creativeItems + gAfterFirst.creativeItems; gAfterRecipesDisabled.creativeItems != want {
+		t.Errorf("creative items = %d, want %d", gAfterRecipesDisabled.creativeItems, want)
+	}
+	if want := gAfterSecond.creativeGroups + gAfterFirst.creativeGroups; gAfterRecipesDisabled.creativeGroups != want {
+		t.Errorf("creative groups = %d, want %d", gAfterRecipesDisabled.creativeGroups, want)
+	}
+}
+
 // PINNED BUG: item/creative's vanilla data addresses groups by index into the
 // package-global group slice, so a group registered before the first
 // Config.New() shifts every vanilla group by one and 13 vanilla items are filed

@@ -82,6 +82,11 @@ func init() {
 
 // Explode performs the explosion as specified by the configuration.
 func (c ExplosionConfig) Explode(tx *world.Tx, src world.ExplosionSource) {
+	if tx.World().ExplosionsDisabled() {
+		// Every explosion in the server reaches this method, so returning here
+		// leaves no ray cast, no entity scan and no drop behind.
+		return
+	}
 	if c.Sound == nil {
 		c.Sound = sound.Explosion{}
 	}

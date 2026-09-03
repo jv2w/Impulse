@@ -592,6 +592,11 @@ func (p *Player) fall(distance float64) {
 	if pos, lander, ok := p.landedOn(); ok {
 		lander.EntityLand(pos, p.tx, p, &distance)
 	}
+	if p.tx.World().FallDamageDisabled() {
+		// The landing above still runs, so slime blocks bounce and farmland is
+		// trampled as in vanilla. Only the damage is dropped.
+		return
+	}
 	dmg := distance - 3
 	if boost, ok := p.Effect(effect.JumpBoost); ok {
 		dmg -= float64(boost.Level())
@@ -881,6 +886,11 @@ func (*Player) BeaconAffected() bool {
 // Exhaust exhausts the player by the amount of points passed if the player is in survival mode. If the total
 // exhaustion level exceeds 4, a saturation point, or food point, if saturation is 0, will be subtracted.
 func (p *Player) Exhaust(points float64) {
+	// Every source of food loss passes through here, so the rule is checked
+	// before the difficulty read below, which takes the world settings mutex.
+	if p.tx.World().HungerDisabled() {
+		return
+	}
 	if !p.GameMode().AllowsTakingDamage() || p.tx.World().Difficulty().FoodRegenerates() {
 		return
 	}
@@ -973,8 +983,10 @@ func finishDying(p *Player) {
 // dropItems drops all items and experience of the Player on the ground in random directions.
 func (p *Player) dropItems() {
 	pos := p.Position()
-	for _, orb := range entity.NewExperienceOrbs(pos, int(math.Min(float64(p.experience.Level()*7), 100))) {
-		p.tx.AddEntity(orb)
+	if !p.tx.World().ExperienceOrbsDisabled() {
+		for _, orb := range entity.NewExperienceOrbs(pos, int(math.Min(float64(p.experience.Level()*7), 100))) {
+			p.tx.AddEntity(orb)
+		}
 	}
 	p.experience.Reset()
 	p.session().SendExperience(p.ExperienceLevel(), p.ExperienceProgress())
@@ -2234,8 +2246,10 @@ func (p *Player) BreakBlock(pos cube.Pos) {
 		if info.BreakHandler != nil {
 			info.BreakHandler(pos, p.tx, p)
 		}
-		for _, orb := range entity.NewExperienceOrbs(pos.Vec3Centre(), xp) {
-			p.tx.AddEntity(orb)
+		if !p.tx.World().ExperienceOrbsDisabled() {
+			for _, orb := range entity.NewExperienceOrbs(pos.Vec3Centre(), xp) {
+				p.tx.AddEntity(orb)
+			}
 		}
 	}
 	for _, drop := range drops {

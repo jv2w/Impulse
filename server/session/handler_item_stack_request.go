@@ -212,8 +212,13 @@ func (h *ItemStackRequestHandler) handleSwap(a *protocol.SwapStackRequestAction,
 func (h *ItemStackRequestHandler) collectRewards(s *Session, inv *inventory.Inventory, slot int, tx *world.Tx, c Controllable) {
 	if inv == s.openedWindow.Load() && s.containerOpened.Load() && slot == inv.Size()-1 {
 		if f, ok := tx.Block(*s.openedPos.Load()).(smelter); ok {
-			for _, o := range entity.NewExperienceOrbs(entity.EyePosition(c), f.ResetExperience()) {
-				tx.AddEntity(o)
+			// ResetExperience is called either way: the experience the furnace
+			// holds is destroyed rather than kept for when the rule is unset.
+			xp := f.ResetExperience()
+			if !tx.World().ExperienceOrbsDisabled() {
+				for _, o := range entity.NewExperienceOrbs(entity.EyePosition(c), xp) {
+					tx.AddEntity(o)
+				}
 			}
 		}
 	}
