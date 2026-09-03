@@ -183,10 +183,13 @@ func (conf Config) New(conn Conn) *Session {
 	if conf.Log == nil {
 		conf.Log = slog.Default()
 	}
-	conf.Log = conf.Log.With("name", conn.IdentityData().DisplayName, "uuid", conn.IdentityData().Identity, "raddr", conn.RemoteAddr().String())
+	// IdentityData returns its data by value, so it is read once here instead of twice.
+	identity := conn.IdentityData()
+	conf.Log = conf.Log.With("name", identity.DisplayName, "uuid", identity.Identity, "raddr", conn.RemoteAddr().String())
 
-	s := &Session{}
-	*s = Session{
+	// The session is built straight into the allocation instead of being assigned over a zeroed one, which
+	// zeroed the whole struct twice. The literal does not refer to s, so the fields end up identical.
+	s := &Session{
 		openChunkTransactions:  make([]map[uint64]struct{}, 0, 8),
 		closeBackground:        make(chan struct{}),
 		handlers:               map[uint32]packetHandler{},
@@ -544,9 +547,13 @@ func (s *Session) handleWorldSwitch(w *world.World, tx *world.Tx, c Controllable
 		s.blobMu.Unlock()
 	}
 
-	dim, _ := world.DimensionID(w.Dimension())
-	same := w.Dimension() == s.chunkLoader.World().Dimension()
+	// The world's dimension is read once instead of twice; nothing between the two reads changes it. The
+	// dimension ID is only needed by the branch that changes dimension, so it is resolved there instead of
+	// on every world switch.
+	wDim := w.Dimension()
+	same := wDim == s.chunkLoader.World().Dimension()
 	if !same {
+		dim, _ := world.DimensionID(wDim)
 		s.changeDimension(int32(dim), false, c)
 	}
 	s.ViewEntityTeleport(c, c.Position())
@@ -663,9 +670,12 @@ type actorIdentifier struct {
 
 // sendAvailableEntities sends all registered entities to the player.
 func (s *Session) sendAvailableEntities(w *world.World) {
-	var identifiers []actorIdentifier
-	for _, t := range w.EntityRegistry().Types() {
-		identifiers = append(identifiers, actorIdentifier{ID: t.EncodeEntity()})
+	// The final length is known, so the slice is allocated once instead of grown. The element type is a
+	// struct, so an empty list still encodes to the same bytes a nil one did.
+	types := w.EntityRegistry().Types()
+	identifiers := make([]actorIdentifier, len(types))
+	for i, t := range types {
+		identifiers[i] = actorIdentifier{ID: t.EncodeEntity()}
 	}
 	serialisedEntityData, err := nbt.Marshal(map[string]any{"idlist": identifiers})
 	if err != nil {

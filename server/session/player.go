@@ -234,12 +234,16 @@ func (s *Session) sendRecipes() {
 
 // sendArmourTrimData sends the armour trim data.
 func (s *Session) sendArmourTrimData() {
-	var trimPatterns []protocol.TrimPattern
-	var trimMaterials []protocol.TrimMaterial
+	// Both lists hold at most one entry per registered value, so they are allocated once up front instead of
+	// being grown. They only ever reach the packet writer, which writes a count of zero for an empty slice
+	// just as it did for a nil one.
+	templates, materials := item.SmithingTemplates(), item.ArmourTrimMaterials()
+	trimPatterns := make([]protocol.TrimPattern, 0, len(templates))
+	trimMaterials := make([]protocol.TrimMaterial, 0, len(materials))
 
 	// The netherite upgrade template is a constant value, so it is built once instead of once per template.
 	netheriteUpgrade := item.TemplateNetheriteUpgrade()
-	for _, t := range item.SmithingTemplates() {
+	for _, t := range templates {
 		if t == netheriteUpgrade {
 			continue
 		}
@@ -250,7 +254,7 @@ func (s *Session) sendArmourTrimData() {
 		})
 	}
 
-	for _, i := range item.ArmourTrimMaterials() {
+	for _, i := range materials {
 		if material, ok := i.(item.ArmourTrimMaterial); ok {
 			name, _ := i.EncodeItem()
 
@@ -846,13 +850,15 @@ func (s *Session) HideHudElement(e hud.Element) {
 
 // HudElementHidden checks if a HUD element is currently hidden from the player.
 func (s *Session) HudElementHidden(e hud.Element) bool {
+	// The critical section only reads two maps, which cannot panic even when they are nil, so the unlock
+	// does not need a defer frame. Both exits still unlock before returning.
 	s.hudMu.RLock()
-	defer s.hudMu.RUnlock()
-
 	if _, ok := s.hiddenHud[e]; ok {
+		s.hudMu.RUnlock()
 		return true
 	}
 	vis, ok := s.hudUpdates[e]
+	s.hudMu.RUnlock()
 	return ok && !vis
 }
 
@@ -905,9 +911,18 @@ func (s *Session) RemoveDebugShape(shape debug.Shape) {
 // VisibleDebugShapes returns a slice of all debug shapes that are currently being shown to the player.
 func (s *Session) VisibleDebugShapes() []debug.Shape {
 	s.debugShapesMu.RLock()
-	defer s.debugShapesMu.RUnlock()
-
-	return slices.Collect(maps.Values(s.debugShapes))
+	if len(s.debugShapes) == 0 {
+		// slices.Collect appends to a nil slice, so an empty map produced nil. Returning early keeps that
+		// and skips the iterator entirely.
+		s.debugShapesMu.RUnlock()
+		return nil
+	}
+	// The size is known, so the slice is allocated once instead of grown. The same map is walked in the
+	// same way, so the shapes come out in the same order. The lock is released before returning rather
+	// than by a defer frame; nothing in the walk can panic.
+	shapes := slices.AppendSeq(make([]debug.Shape, 0, len(s.debugShapes)), maps.Values(s.debugShapes))
+	s.debugShapesMu.RUnlock()
+	return shapes
 }
 
 // RemoveAllDebugShapes removes all rendered debug shapes from the player, as well as any shapes that have
@@ -916,13 +931,14 @@ func (s *Session) RemoveAllDebugShapes() {
 	if s == Nop {
 		return
 	}
+	// The critical section is a slice reset and a map walk that appends plain values, none of which can
+	// panic, and there is no early return: the unlock does not need a defer frame.
 	s.debugShapesMu.Lock()
-	defer s.debugShapesMu.Unlock()
-
 	s.debugShapeUpdates = s.debugShapeUpdates[:0]
 	for id := range s.debugShapes {
 		s.debugShapeUpdates = append(s.debugShapeUpdates, debugShapeUpdate{id: id})
 	}
+	s.debugShapesMu.Unlock()
 }
 
 // SendDebugShapes sends any pending additions/removals of debug shapes to the player. Shapes should be sent
@@ -958,47 +974,58 @@ func (s *Session) SendDebugShapes(dim world.Dimension) {
 // LockInput applies an input lock to the player, disabling the specified input. If the lock is already
 // applied, this is a no-op.
 func (s *Session) LockInput(l input.Lock) {
+	// input.Lock is a concrete struct over a uint32, so the critical section is a single arithmetic update
+	// that cannot panic and has no early return: the unlock does not need a defer frame.
 	s.inputLocksMu.Lock()
-	defer s.inputLocksMu.Unlock()
 	s.inputLocks |= l.Uint32()
+	s.inputLocksMu.Unlock()
 }
 
 // UnlockInput removes an input lock from the player, re-enabling the specified input. If the lock is not
 // currently applied, this is a no-op.
 func (s *Session) UnlockInput(l input.Lock) {
+	// As in LockInput, the critical section is one arithmetic update that cannot panic.
 	s.inputLocksMu.Lock()
-	defer s.inputLocksMu.Unlock()
 	s.inputLocks &^= l.Uint32()
+	s.inputLocksMu.Unlock()
 }
 
 // ClearInputLocks removes all input locks from the player, re-enabling all inputs.
 func (s *Session) ClearInputLocks() {
+	// The critical section is a single store that cannot panic.
 	s.inputLocksMu.Lock()
-	defer s.inputLocksMu.Unlock()
 	s.inputLocks = 0
+	s.inputLocksMu.Unlock()
 }
 
 // InputLocked checks if a specific input lock is currently applied to the player.
 func (s *Session) InputLocked(l input.Lock) bool {
+	// The critical section is a single read of a uint32 that cannot panic.
 	s.inputLocksMu.RLock()
-	defer s.inputLocksMu.RUnlock()
-	return s.inputLocks&l.Uint32() != 0
+	locked := s.inputLocks&l.Uint32() != 0
+	s.inputLocksMu.RUnlock()
+	return locked
 }
 
 // SendInputLocks sends the current input lock state to the client.
 func (s *Session) SendInputLocks() {
+	// The lock only guards the read of the lock bits, so it is released before the packet is queued instead
+	// of being held across a channel send. The packet still carries the value read under the lock, and the
+	// unlock no longer needs a defer frame.
 	s.inputLocksMu.RLock()
-	defer s.inputLocksMu.RUnlock()
+	locks := s.inputLocks
+	s.inputLocksMu.RUnlock()
 	s.writePacket(&packet.UpdateClientInputLocks{
-		Locks: s.inputLocks,
+		Locks: locks,
 	})
 }
 
 // queueDebugShapeUpdate queues a debug shape mutation to be applied the next time debug shapes are sent.
 func (s *Session) queueDebugShapeUpdate(update debugShapeUpdate) {
+	// The critical section is a single append of a plain value, which cannot panic.
 	s.debugShapesMu.Lock()
-	defer s.debugShapesMu.Unlock()
 	s.debugShapeUpdates = append(s.debugShapeUpdates, update)
+	s.debugShapesMu.Unlock()
 }
 
 // valueOrDefault returns the value passed if it is not the zero value of the type T, otherwise it returns
@@ -1162,9 +1189,16 @@ func creativeContent(br world.BlockRegistry) ([]protocol.CreativeGroup, []protoc
 	creativeItems := creative.Items()
 	it := make([]protocol.CreativeItem, 0, len(creativeItems))
 	for index, i := range creativeItems {
-		group := slices.IndexFunc(creativeGroups, func(group creative.Group) bool {
-			return group.Name == i.Group
-		})
+		// The search runs inline instead of through slices.IndexFunc. The closure captured the whole item
+		// and was built again on every one of the thousands of iterations; the loop below visits the same
+		// groups in the same order and stops at the same first match, so the index is unchanged.
+		group := -1
+		for gi := range creativeGroups {
+			if creativeGroups[gi].Name == i.Group {
+				group = gi
+				break
+			}
+		}
 		if group < 0 {
 			continue
 		}
@@ -1218,7 +1252,9 @@ func protocolToSkin(sk protocol.Skin) (s skin.Skin, err error) {
 	s.Cape = skin.NewCape(capeWidth, capeHeight)
 	s.Cape.Pix = sk.CapeData
 
-	m := make(map[string]any)
+	// The map is only used to check that the geometry is a JSON object. Unmarshal allocates it itself when
+	// the data holds one, so pre-allocating it only wasted a map on data that fails the check.
+	var m map[string]any
 	if err = json.Unmarshal(sk.SkinGeometry, &m); err != nil {
 		return skin.Skin{}, fmt.Errorf("SkinGeometry was not a valid JSON string: %v", err)
 	}
@@ -1227,6 +1263,11 @@ func protocolToSkin(sk protocol.Skin) (s skin.Skin, err error) {
 		return skin.Skin{}, fmt.Errorf("SkinResourcePatch was not a valid JSON string: %v", err)
 	}
 
+	if len(sk.Animations) > 0 {
+		// The upper bound is known, so the slice is allocated once instead of grown. A skin without
+		// animations still leaves the field nil, exactly as the plain append did.
+		s.Animations = make([]skin.Animation, 0, len(sk.Animations))
+	}
 	for _, anim := range sk.Animations {
 		var t skin.AnimationType
 		switch anim.AnimationType {
