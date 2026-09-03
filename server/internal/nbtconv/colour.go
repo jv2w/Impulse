@@ -1,7 +1,6 @@
 package nbtconv
 
 import (
-	"encoding/binary"
 	"image/color"
 )
 
@@ -12,13 +11,15 @@ func Int32FromRGBA(x color.RGBA) int32 {
 		// up on the sign.
 		return int32(-0x1000000)
 	}
-	return int32(binary.BigEndian.Uint32([]byte{x.A, x.R, x.G, x.B}))
+	// binary.BigEndian.Uint32 of {A, R, G, B} is exactly this shift, so the
+	// four byte slice is no longer built.
+	return int32(uint32(x.A)<<24 | uint32(x.R)<<16 | uint32(x.G)<<8 | uint32(x.B))
 }
 
 // RGBAFromInt32 converts an int32 into a color.RGBA. These int32s are present in, for example, signs.
 func RGBAFromInt32(x int32) color.RGBA {
-	b := make([]byte, 4)
-	binary.BigEndian.PutUint32(b, uint32(x))
-
-	return color.RGBA{A: b[0], R: b[1], G: b[2], B: b[3]}
+	// PutUint32 writes byte(v>>24), byte(v>>16), byte(v>>8), byte(v) in that
+	// order, so reading the same shifts drops the four byte slice.
+	u := uint32(x)
+	return color.RGBA{A: byte(u >> 24), R: byte(u >> 16), G: byte(u >> 8), B: byte(u)}
 }

@@ -86,7 +86,10 @@ func Slice(m map[string]any, k string) []any {
 
 // Vec3 converts x, y and z values in an NBT map to an mgl64.Vec3.
 func Vec3(x map[string]any, k string) mgl64.Vec3 {
-	if i, ok := x[k].([]any); ok {
+	// One map read feeds both assertions; nothing between them could change
+	// the entry.
+	val := x[k]
+	if i, ok := val.([]any); ok {
 		if len(i) != 3 {
 			return mgl64.Vec3{}
 		}
@@ -96,7 +99,7 @@ func Vec3(x map[string]any, k string) mgl64.Vec3 {
 			v[index] = float64(f32)
 		}
 		return v
-	} else if i, ok := x[k].([]float32); ok {
+	} else if i, ok := val.([]float32); ok {
 		if len(i) != 3 {
 			return mgl64.Vec3{}
 		}
@@ -112,7 +115,10 @@ func Vec3ToFloat32Slice(x mgl64.Vec3) []float32 {
 
 // Pos converts x, y and z values in an NBT map to a cube.Pos.
 func Pos(x map[string]any, k string) cube.Pos {
-	if i, ok := x[k].([]any); ok {
+	// One map read feeds both assertions; nothing between them could change
+	// the entry.
+	val := x[k]
+	if i, ok := val.([]any); ok {
 		if len(i) != 3 {
 			return cube.Pos{}
 		}
@@ -122,7 +128,7 @@ func Pos(x map[string]any, k string) cube.Pos {
 			v[index] = int(f32)
 		}
 		return v
-	} else if i, ok := x[k].([]int32); ok {
+	} else if i, ok := val.([]int32); ok {
 		if len(i) != 3 {
 			return cube.Pos{}
 		}

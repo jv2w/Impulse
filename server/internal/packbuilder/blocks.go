@@ -35,8 +35,10 @@ func buildBlocks(reg world.BlockRegistry, dir string) (count int, lang []string)
 			textureData[name] = map[string]string{"textures": "textures/blocks/" + name}
 			buildBlockTexture(dir, name, texture)
 		}
-		if b.Geometry() != nil {
-			if err := os.WriteFile(filepath.Join(dir, "models/blocks", fmt.Sprintf("%s.geo.json", name)), b.Geometry(), 0666); err != nil {
+		// Geometry is read once for the check and the write, and the file name
+		// is the same string Sprintf built.
+		if geometry := b.Geometry(); geometry != nil {
+			if err := os.WriteFile(filepath.Join(dir, "models/blocks", name+".geo.json"), geometry, 0666); err != nil {
 				panic(err)
 			}
 		}
@@ -55,7 +57,8 @@ func buildBlocks(reg world.BlockRegistry, dir string) (count int, lang []string)
 
 // buildBlockTexture creates a PNG file for the block from the provided image and name and writes it to the pack.
 func buildBlockTexture(dir, name string, img image.Image) {
-	texture, err := os.Create(filepath.Join(dir, fmt.Sprintf("textures/blocks/%s.png", name)))
+	// The concatenation is the same string Sprintf built, without the call.
+	texture, err := os.Create(filepath.Join(dir, "textures/blocks/"+name+".png"))
 	if err != nil {
 		panic(err)
 	}

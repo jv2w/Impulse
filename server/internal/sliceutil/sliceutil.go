@@ -40,8 +40,15 @@ func Filter[E any](s []E, c func(E) bool) []E {
 // DeleteVal deletes the first occurrence of a value in a slice of the type E
 // and returns a new slice without the value.
 func DeleteVal[E any](s []E, v E) []E {
+	if len(s) == 0 {
+		return s
+	}
+	// v does not change inside the loop, so it is boxed once instead of once
+	// per element. Interfaces compare by dynamic type and value, so the
+	// comparison is unchanged, and the empty case still boxes nothing.
+	av := (any)(v)
 	for i, vs := range s {
-		if (any)(v) == (any)(vs) {
+		if av == (any)(vs) {
 			return slices.Delete(s, i, i+1)
 		}
 	}

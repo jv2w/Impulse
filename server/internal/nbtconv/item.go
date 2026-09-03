@@ -31,9 +31,12 @@ func InvFromNBT(inv *inventory.Inventory, items []any) error {
 			continue
 		}
 		// A "Slot" of another type read as a uint8 is 0, which silently overwrites whatever the first slot holds.
-		slot, ok := data["Slot"].(uint8)
+		raw := data["Slot"]
+		slot, ok := raw.(uint8)
 		if !ok {
-			errs = append(errs, fmt.Errorf("item %d: slot is %T, not uint8", i, data["Slot"]))
+			// The error path read the same entry a second time; the map is not
+			// written between the two reads, so the type reported is the same.
+			errs = append(errs, fmt.Errorf("item %d: slot is %T, not uint8", i, raw))
 			continue
 		}
 		if err := inv.SetItem(int(slot), it); err != nil {
