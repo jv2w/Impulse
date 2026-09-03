@@ -35,10 +35,15 @@ func (t CopperTorch) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *
 	if face == cube.FaceDown {
 		return false
 	}
-	if !tx.Block(pos.Side(face.Opposite())).Model().FaceSolid(pos.Side(face.Opposite()), face, tx) {
+	// The position behind the torch, and the position on each side tried below,
+	// are each computed once. pos and face do not change in between, so the same
+	// positions are tested in the same order.
+	behind := pos.Side(face.Opposite())
+	if !tx.Block(behind).Model().FaceSolid(behind, face, tx) {
 		found := false
 		for _, i := range []cube.Face{cube.FaceSouth, cube.FaceWest, cube.FaceNorth, cube.FaceEast, cube.FaceDown} {
-			if tx.Block(pos.Side(i)).Model().FaceSolid(pos.Side(i), i.Opposite(), tx) {
+			side := pos.Side(i)
+			if tx.Block(side).Model().FaceSolid(side, i.Opposite(), tx) {
 				found = true
 				face = i.Opposite()
 				break
@@ -56,7 +61,9 @@ func (t CopperTorch) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *
 
 // NeighbourUpdateTick ...
 func (t CopperTorch) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
-	if !tx.Block(pos.Side(t.Facing)).Model().FaceSolid(pos.Side(t.Facing), t.Facing.Opposite(), tx) {
+	// The supporting position is computed once; pos and t.Facing do not change.
+	side := pos.Side(t.Facing)
+	if !tx.Block(side).Model().FaceSolid(side, t.Facing.Opposite(), tx) {
 		breakBlock(t, pos, tx)
 	}
 }
@@ -88,7 +95,11 @@ func (t CopperTorch) EncodeBlock() (name string, properties map[string]any) {
 
 // allTorches ...
 func allCopperTorches() (torch []world.Block) {
-	for _, face := range cube.Faces() {
+	// One torch per face, so the list is sized once instead of grown. Still a fresh
+	// slice with the same blocks in the same order.
+	faces := cube.Faces()
+	torch = make([]world.Block, 0, len(faces))
+	for _, face := range faces {
 		if face == cube.FaceUp {
 			face = unknownFace
 		}

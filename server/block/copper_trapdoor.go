@@ -121,8 +121,12 @@ func (t CopperTrapdoor) EncodeBlock() (name string, properties map[string]any) {
 
 // allCopperTrapdoors returns a list of all copper trapdoor types
 func allCopperTrapdoors() (trapdoors []world.Block) {
+	// The oxidation list is built once instead of once per call of f, and the final
+	// count is known so the list is sized once. Same blocks in the same order.
+	oxidations := OxidationTypes()
+	trapdoors = make([]world.Block, 0, len(oxidations)*4*4*2)
 	f := func(waxed bool) {
-		for _, o := range OxidationTypes() {
+		for _, o := range oxidations {
 			for i := cube.Direction(0); i <= 3; i++ {
 				trapdoors = append(trapdoors, CopperTrapdoor{Oxidation: o, Waxed: waxed, Facing: i, Open: false, Top: false})
 				trapdoors = append(trapdoors, CopperTrapdoor{Oxidation: o, Waxed: waxed, Facing: i, Open: false, Top: true})

@@ -33,7 +33,10 @@ func (c CopperLantern) Model() world.BlockModel {
 func (c CopperLantern) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
 	if c.Hanging {
 		up := pos.Side(cube.FaceUp)
-		if _, ok := tx.Block(up).(CopperChain); !ok && !tx.Block(up).Model().FaceSolid(up, cube.FaceDown, tx) {
+		// The block above is read once: nothing between the two old reads of the
+		// same position could change it, so both tests see the same block.
+		blockUp := tx.Block(up)
+		if _, ok := blockUp.(CopperChain); !ok && !blockUp.Model().FaceSolid(up, cube.FaceDown, tx) {
 			breakBlock(c, pos, tx)
 		}
 	} else {
@@ -57,7 +60,10 @@ func (c CopperLantern) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx
 	}
 	if face == cube.FaceDown {
 		upPos := pos.Side(cube.FaceUp)
-		if _, ok := tx.Block(upPos).(CopperChain); !ok && !tx.Block(upPos).Model().FaceSolid(upPos, cube.FaceDown, tx) {
+		// The block above is read once: nothing between the two old reads of the
+		// same position could change it, so both tests see the same block.
+		blockUp := tx.Block(upPos)
+		if _, ok := blockUp.(CopperChain); !ok && !blockUp.Model().FaceSolid(upPos, cube.FaceDown, tx) {
 			face = cube.FaceUp
 		}
 	}
@@ -137,8 +143,12 @@ func (c CopperLantern) EncodeBlock() (name string, properties map[string]any) {
 
 // allCopperLanterns ...
 func allCopperLanterns() (lanterns []world.Block) {
+	// The oxidation list is built once instead of once per call of f, and the final
+	// count is known so the list is sized once. Same blocks in the same order.
+	oxidations := OxidationTypes()
+	lanterns = make([]world.Block, 0, len(oxidations)*2*2)
 	f := func(waxed bool) {
-		for _, o := range OxidationTypes() {
+		for _, o := range oxidations {
 			lanterns = append(lanterns, CopperLantern{Hanging: false, Oxidation: o, Waxed: waxed})
 			lanterns = append(lanterns, CopperLantern{Hanging: true, Oxidation: o, Waxed: waxed})
 		}

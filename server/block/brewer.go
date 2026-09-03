@@ -38,6 +38,9 @@ func newBrewer() *brewer {
 
 // InsertItem ...
 func (b *brewer) InsertItem(h Hopper, pos cube.Pos, tx *world.Tx) bool {
+	// The brewer inventory is cloned by Slots(); the loop returns as soon as it writes to that
+	// inventory, so a single clone serves every pass and it is only made once one is needed.
+	var brewingSlots []item.Stack
 	for sourceSlot, sourceStack := range h.inventory.Slots() {
 		var slot int
 
@@ -45,23 +48,28 @@ func (b *brewer) InsertItem(h Hopper, pos cube.Pos, tx *world.Tx) bool {
 			continue
 		}
 
+		// The item behind the stack was read up to five times below and does not change here.
+		sourceItem := sourceStack.Item()
 		if h.Facing == cube.FaceDown {
-			if !recipe.ValidBrewingReagent(sourceStack.Item()) {
+			if !recipe.ValidBrewingReagent(sourceItem) {
 				// This item is not a valid brewing reagent.
 				continue
 			}
 			slot = 0
-		} else if _, ok := sourceStack.Item().(item.BlazePowder); ok {
+		} else if _, ok := sourceItem.(item.BlazePowder); ok {
 			slot = 4
 		} else {
-			_, okPotion := sourceStack.Item().(item.Potion)
-			_, okSplash := sourceStack.Item().(item.SplashPotion)
-			_, okLingering := sourceStack.Item().(item.LingeringPotion)
-			_, okBottle := sourceStack.Item().(item.GlassBottle)
+			_, okPotion := sourceItem.(item.Potion)
+			_, okSplash := sourceItem.(item.SplashPotion)
+			_, okLingering := sourceItem.(item.LingeringPotion)
+			_, okBottle := sourceItem.(item.GlassBottle)
 			if !okPotion && !okSplash && !okLingering && !okBottle {
 				continue
 			}
-			for brewingSlot, brewingStack := range b.inventory.Slots() {
+			if brewingSlots == nil {
+				brewingSlots = b.inventory.Slots()
+			}
+			for brewingSlot, brewingStack := range brewingSlots {
 				if brewingSlot == 0 || brewingSlot == 4 {
 					continue
 				}
@@ -79,7 +87,10 @@ func (b *brewer) InsertItem(h Hopper, pos cube.Pos, tx *world.Tx) bool {
 		}
 
 		stack := sourceStack.Grow(-sourceStack.Count() + 1)
-		it, _ := b.Inventory(tx, pos).Item(slot)
+		// Inventory returns the same inventory for the same brewer, so it is asked once instead
+		// of once for the read and once for the write.
+		inv := b.Inventory(tx, pos)
+		it, _ := inv.Item(slot)
 
 		if !sourceStack.Comparable(it) {
 			// The items are not the same.
@@ -93,7 +104,7 @@ func (b *brewer) InsertItem(h Hopper, pos cube.Pos, tx *world.Tx) bool {
 			stack = it.Grow(1)
 		}
 
-		_ = b.Inventory(tx, pos).SetItem(slot, stack)
+		_ = inv.SetItem(slot, stack)
 		_ = h.inventory.SetItem(sourceSlot, sourceStack.Grow(-1))
 		return true
 
@@ -120,16 +131,22 @@ func (b *brewer) ExtractItem(h Hopper, pos cube.Pos, tx *world.Tx) bool {
 
 // Duration returns the remaining duration of the brewing process.
 func (b *brewer) Duration() time.Duration {
+	// The critical section is a single field read that cannot panic, so the unlock does not need
+	// a defer frame to survive one.
 	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.duration
+	d := b.duration
+	b.mu.Unlock()
+	return d
 }
 
 // Fuel returns the fuel and maximum fuel of the brewer.
 func (b *brewer) Fuel() (fuel, maxFuel int32) {
+	// The critical section is two field reads that cannot panic, so the unlock does not need a
+	// defer frame to survive one.
 	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.fuelAmount, b.fuelTotal
+	fuel, maxFuel = b.fuelAmount, b.fuelTotal
+	b.mu.Unlock()
+	return fuel, maxFuel
 }
 
 // Inventory returns the inventory of the brewer.
@@ -154,16 +171,20 @@ func (b *brewer) RemoveViewer(v ContainerViewer, _ *world.Tx, _ cube.Pos) {
 
 // setDuration sets the brew duration of the brewer to the given duration.
 func (b *brewer) setDuration(duration time.Duration) {
+	// The critical section is a single field write that cannot panic, so the unlock does not need
+	// a defer frame to survive one.
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	b.duration = duration
+	b.mu.Unlock()
 }
 
 // setFuel sets the fuel of the brewer to the given fuel and maximum fuel.
 func (b *brewer) setFuel(fuel, maxFuel int32) {
+	// The critical section is two field writes that cannot panic, so the unlock does not need a
+	// defer frame to survive one.
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	b.fuelAmount, b.fuelTotal = fuel, maxFuel
+	b.mu.Unlock()
 }
 
 // tickBrewing ticks the brewer, ensuring the necessary items exist in the brewer, and then processing all inputted
@@ -193,13 +214,16 @@ func (b *brewer) tickBrewing(block string, pos cube.Pos, tx *world.Tx) {
 	// Now get the ingredient item.
 	ingredient, _ := b.inventory.Item(0)
 
-	// Check each input and see if it is affected by the ingredient.
-	leftOutput, leftAffected := recipe.Perform(block, left.Item(), ingredient.Item())
-	middleOutput, middleAffected := recipe.Perform(block, middle.Item(), ingredient.Item())
-	rightOutput, rightAffected := recipe.Perform(block, right.Item(), ingredient.Item())
-
 	// Ensure that we have enough fuel to continue.
 	if b.fuelAmount > 0 {
+		// Check each input and see if it is affected by the ingredient.
+		// The three lookups are pure and their results were only read inside this branch, so they
+		// are done here and the ingredient behind the stack is read once instead of three times.
+		ingredientItem := ingredient.Item()
+		leftOutput, leftAffected := recipe.Perform(block, left.Item(), ingredientItem)
+		middleOutput, middleAffected := recipe.Perform(block, middle.Item(), ingredientItem)
+		rightOutput, rightAffected := recipe.Perform(block, right.Item(), ingredientItem)
+
 		// Now make sure that we have at least one potion that is affected by the ingredient.
 		if leftAffected || middleAffected || rightAffected {
 			// Tick our duration. If we have no brew duration, set it to the default of twenty seconds.
