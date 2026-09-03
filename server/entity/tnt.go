@@ -16,7 +16,10 @@ import (
 func NewTNT(opts world.EntitySpawnOpts, fuse time.Duration) *world.EntityHandle {
 	conf := tntConf
 	conf.ExistenceDuration = fuse
-	if opts.Velocity.Len() == 0 {
+	// Len() is the square root of LenSqr() and both build the sum of squares with
+	// the same expression, so the test against zero picks the same branch for
+	// every input, NaN and infinities included, without the square root.
+	if opts.Velocity.LenSqr() == 0 {
 		angle := rand.Float64() * math.Pi * 2
 		opts.Velocity = mgl64.Vec3{-math.Sin(angle) * 0.02, 0.1, -math.Cos(angle) * 0.02}
 	}

@@ -121,9 +121,12 @@ func (t *PortalTravelComputer) instantaneous(source, target world.Dimension) boo
 
 // hasPendingPortalTravel reports whether portal travel was queued during this tick.
 func (t *PortalTravelComputer) hasPendingPortalTravel() bool {
+	// This runs once per entity tick and the critical section is a single
+	// pointer read that cannot panic, so the defer frame is not needed.
 	t.mu.Lock()
-	defer t.mu.Unlock()
-	return t.pending != nil
+	pending := t.pending != nil
+	t.mu.Unlock()
+	return pending
 }
 
 // finishPendingPortalTravel consumes queued portal travel and starts the terminal transfer.
@@ -142,16 +145,21 @@ func (t *PortalTravelComputer) finishPendingPortalTravel(e Traveller, tx *world.
 
 // StopPortalContact resets the portal timer if the entity was not inside a portal this tick.
 func (t *PortalTravelComputer) StopPortalContact() {
+	// This runs once per entity tick and the critical section only reads and
+	// writes struct fields, so nothing in it can panic and the defer frame is
+	// not needed. Every exit still unlocks exactly once.
 	t.mu.Lock()
-	defer t.mu.Unlock()
 	if t.inside {
 		t.inside = false
+		t.mu.Unlock()
 		return
 	}
 	if t.travelling || t.pending != nil {
+		t.mu.Unlock()
 		return
 	}
 	t.timedOut, t.awaitingTravel = false, false
+	t.mu.Unlock()
 }
 
 // travel removes the entity from the current world and queues it for the given Nether or Overworld world.
@@ -258,16 +266,21 @@ func (t *PortalTravelComputer) transfer(handle *world.EntityHandle, source, dest
 // destinationSpawn returns the position the entity should be placed at in the destination world. False is returned
 // if no linked nether portal was found and none could be created.
 func (t *PortalTravelComputer) destinationSpawn(tx *world.Tx, sourceDim world.Dimension, pos cube.Pos) (mgl64.Vec3, bool) {
-	if tx.World().Dimension() == world.End {
+	// The transaction's world and its dimension were looked up up to three times
+	// and never change within a transaction, so one lookup of each serves them
+	// all. tx.World() still runs first, so a closed transaction panics as before.
+	w := tx.World()
+	dim := w.Dimension()
+	if dim == world.End {
 		portal.GenerateEndSpawnPlatform(tx)
 		return portal.EndSpawnPosition(t.Player), true
 	}
-	if sourceDim == world.End && tx.World().Dimension() == world.Overworld {
+	if sourceDim == world.End && dim == world.Overworld {
 		// Returning from the End leads to the configured spawn point rather than a portal.
 		if t.SpawnPoint != nil {
 			return t.SpawnPoint(tx), true
 		}
-		return tx.World().Spawn().Vec3Middle(), true
+		return w.Spawn().Vec3Middle(), true
 	}
 	if !t.CreatePortal {
 		n, ok := portal.FindNetherPortal(tx, pos, portalSearchRadius)

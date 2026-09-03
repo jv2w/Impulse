@@ -35,13 +35,14 @@ func encodeStairsBlock(block world.Block) string {
 		return "stone"
 	case Copper:
 		if block.Type == CutCopper() {
-			// The table holds the name the joins produced for every oxidation and waxed state, so
-			// the string is the same one without allocating. An oxidation outside the table falls
-			// back to the joins and panics in String exactly as it did before.
-			if name, ok := cutCopperStairsNames[cutCopperKey{block.Oxidation, block.Waxed}]; ok {
-				return name
+			name := "cut_copper"
+			if block.Oxidation != UnoxidisedOxidation() {
+				name = block.Oxidation.String() + "_" + name
 			}
-			return cutCopperStairsName(block.Oxidation, block.Waxed)
+			if block.Waxed {
+				name = "waxed_" + name
+			}
+			return name
 		}
 	case Deepslate:
 		if block.Type == CobbledDeepslate() {
@@ -147,31 +148,6 @@ func encodeStairsBlock(block world.Block) string {
 	}
 	panic("invalid block used for stairs")
 }
-
-// cutCopperStairsName gives the encoded name of cut copper stairs, joining
-// exactly the strings encodeStairsBlock used to join inline.
-func cutCopperStairsName(oxidation OxidationType, waxed bool) string {
-	name := "cut_copper"
-	if oxidation != UnoxidisedOxidation() {
-		name = oxidation.String() + "_" + name
-	}
-	if waxed {
-		name = "waxed_" + name
-	}
-	return name
-}
-
-// cutCopperStairsNames holds cutCopperStairsName for every oxidation and waxed
-// state, so those joins run once at start instead of on every encode.
-var cutCopperStairsNames = func() map[cutCopperKey]string {
-	oxidations := OxidationTypes()
-	m := make(map[cutCopperKey]string, len(oxidations)*2)
-	for _, o := range oxidations {
-		m[cutCopperKey{o, false}] = cutCopperStairsName(o, false)
-		m[cutCopperKey{o, true}] = cutCopperStairsName(o, true)
-	}
-	return m
-}()
 
 // StairsBlocks returns a list of all possible blocks for stairs.
 func StairsBlocks() []world.Block {

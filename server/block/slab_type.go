@@ -47,13 +47,14 @@ func encodeSlabBlock(block world.Block, double bool) (id string, suffix string) 
 				// The join could only ever produce this one string, so it is spelled out.
 				suffix = "double_cut_copper_slab"
 			}
-			// The table holds the prefix the joins produced for every oxidation and waxed state,
-			// so the string is the same one without allocating. An oxidation outside the table
-			// falls back to the joins and panics in String exactly as it did before.
-			if name, ok := cutCopperSlabPrefixes[cutCopperKey{block.Oxidation, block.Waxed}]; ok {
-				return name, suffix
+			var name string
+			if block.Oxidation != UnoxidisedOxidation() {
+				name = block.Oxidation.String() + "_"
 			}
-			return cutCopperSlabPrefix(block.Oxidation, block.Waxed), suffix
+			if block.Waxed {
+				name = "waxed_" + name
+			}
+			return name, suffix
 		}
 	case Deepslate:
 		if block.Type == CobbledDeepslate() {
@@ -165,37 +166,6 @@ func encodeSlabBlock(block world.Block, double bool) (id string, suffix string) 
 	}
 	panic("invalid block used for slab")
 }
-
-// cutCopperKey identifies one cut copper variant by oxidation and waxed state.
-type cutCopperKey struct {
-	oxidation OxidationType
-	waxed     bool
-}
-
-// cutCopperSlabPrefix gives the oxidation and waxed prefix of a cut copper slab
-// name, joining exactly the strings encodeSlabBlock used to join inline.
-func cutCopperSlabPrefix(oxidation OxidationType, waxed bool) string {
-	var name string
-	if oxidation != UnoxidisedOxidation() {
-		name = oxidation.String() + "_"
-	}
-	if waxed {
-		name = "waxed_" + name
-	}
-	return name
-}
-
-// cutCopperSlabPrefixes holds cutCopperSlabPrefix for every oxidation and waxed
-// state, so those joins run once at start instead of on every encode.
-var cutCopperSlabPrefixes = func() map[cutCopperKey]string {
-	oxidations := OxidationTypes()
-	m := make(map[cutCopperKey]string, len(oxidations)*2)
-	for _, o := range oxidations {
-		m[cutCopperKey{o, false}] = cutCopperSlabPrefix(o, false)
-		m[cutCopperKey{o, true}] = cutCopperSlabPrefix(o, true)
-	}
-	return m
-}()
 
 // SlabBlocks returns a list of all possible blocks for a slab.
 func SlabBlocks() []world.Block {
