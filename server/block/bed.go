@@ -113,7 +113,7 @@ func (b Bed) Activate(pos cube.Pos, _ cube.Face, tx *world.Tx, u item.User, _ *i
 		return true
 	}
 
-	_, sidePos, ok := b.side(pos, tx)
+	other, sidePos, ok := b.side(pos, tx)
 	if !ok {
 		return false
 	}
@@ -124,9 +124,11 @@ func (b Bed) Activate(pos cube.Pos, _ cube.Face, tx *world.Tx, u item.User, _ *i
 		return true
 	}
 
-	headSide, headPos, ok := b.head(pos, tx)
-	if !ok {
-		return false
+	// head() would read the other half out of the world a second time. Nothing above it changes a
+	// block, so the read above is reused and the same halves are picked as head() picks them.
+	headSide, headPos := other, sidePos
+	if b.Head {
+		headSide, headPos = b, pos
 	}
 
 	if _, safeSpawn := b.SafeSpawn(pos, tx); !safeSpawn {
@@ -138,9 +140,11 @@ func (b Bed) Activate(pos cube.Pos, _ cube.Face, tx *world.Tx, u item.User, _ *i
 		return false
 	}
 
-	previousSpawn := w.PlayerSpawn(s.UUID())
+	// The UUID of a sleeper does not change, so it is read once instead of once per world call.
+	uuid := s.UUID()
+	previousSpawn := w.PlayerSpawn(uuid)
 	if previousSpawn != headPos {
-		w.SetPlayerSpawn(s.UUID(), headPos)
+		w.SetPlayerSpawn(uuid, headPos)
 		s.Messaget(chat.MessageRespawnPointSet)
 	}
 
@@ -251,7 +255,10 @@ func (b Bed) side(pos cube.Pos, tx *world.Tx) (Bed, cube.Pos, bool) {
 
 // allBeds returns all possible beds.
 func allBeds() (beds []world.Block) {
-	for _, d := range cube.Directions() {
+	dirs := cube.Directions()
+	// The count is known before the loop, so the list is sized once instead of grown.
+	beds = make([]world.Block, 0, len(dirs)*2)
+	for _, d := range dirs {
 		beds = append(beds, Bed{Facing: d})
 		beds = append(beds, Bed{Facing: d, Head: true})
 	}
@@ -283,8 +290,11 @@ func (b Bed) SafeSpawn(pos cube.Pos, tx *world.Tx) (cube.Pos, bool) {
 	for _, offset := range bedOffsets[b.Facing.Face()] {
 		offsetPos := heelPos.Add(offset)
 
-		if _, solidBlock := tx.Block(offsetPos).Model().(model.Solid); solidBlock {
-			if diffuser, ok := tx.Block(offsetPos).(LightDiffuser); !ok || diffuser.LightDiffusionLevel() != 0 {
+		// The block at the offset was read twice and the offset position was added twice. Nothing
+		// between the reads changes a block, so both are done once.
+		offsetBlock := tx.Block(offsetPos)
+		if _, solidBlock := offsetBlock.Model().(model.Solid); solidBlock {
+			if diffuser, ok := offsetBlock.(LightDiffuser); !ok || diffuser.LightDiffusionLevel() != 0 {
 				continue
 			}
 		}
@@ -293,7 +303,7 @@ func (b Bed) SafeSpawn(pos cube.Pos, tx *world.Tx) (cube.Pos, bool) {
 			continue
 		}
 
-		return heelPos.Add(offset), true
+		return offsetPos, true
 	}
 	return cube.Pos{}, false
 }

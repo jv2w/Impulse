@@ -80,6 +80,8 @@ func (b BeetrootSeeds) EncodeBlock() (name string, properties map[string]any) {
 
 // allBeetroot ...
 func allBeetroot() (beetroot []world.Block) {
+	// Eight growth stages, so the list is sized once instead of grown.
+	beetroot = make([]world.Block, 0, 8)
 	for i := 0; i <= 7; i++ {
 		beetroot = append(beetroot, BeetrootSeeds{crop: crop{Growth: i}})
 	}

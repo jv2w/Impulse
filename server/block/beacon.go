@@ -118,10 +118,16 @@ func (b Beacon) Tick(currentTick int64, pos cube.Pos, tx *world.Tx) {
 func (b Beacon) recalculateLevel(pos cube.Pos, tx *world.Tx) int {
 	var lvl int
 	iter := 1
+	// pos never changes inside the loops, so its coordinates and the row bounds are read once
+	// instead of on every iteration. The same positions are visited in the same order.
+	px, py, pz := pos.X(), pos.Y(), pos.Z()
+	bottom := py - 4
 	// This loop goes over all 4 possible pyramid levels.
-	for y := pos.Y() - 1; y >= pos.Y()-4; y-- {
-		for x := pos.X() - iter; x <= pos.X()+iter; x++ {
-			for z := pos.Z() - iter; z <= pos.Z()+iter; z++ {
+	for y := py - 1; y >= bottom; y-- {
+		minX, maxX := px-iter, px+iter
+		minZ, maxZ := pz-iter, pz+iter
+		for x := minX; x <= maxX; x++ {
+			for z := minZ; z <= maxZ; z++ {
 				if s, ok := tx.Block(cube.Pos{x, y, z}).(BeaconSource); !ok || !s.PowersBeacon() {
 					return lvl
 				}
@@ -186,6 +192,13 @@ func (b Beacon) broadcastBeaconEffects(pos cube.Pos, tx *world.Tx) {
 				secondaryEff = effect.NewAmbient(secondary, 1, dur)
 			}
 		}
+	}
+
+	if primary == nil {
+		// Both effects are left at their zero value when there is no primary effect, and the loop
+		// below only ever calls AddEffect for an effect whose type is set. Nothing would be handed
+		// out, so the entity search is skipped entirely.
+		return
 	}
 
 	// Finding entities in range.

@@ -18,10 +18,15 @@ type ServerBoundLoadingScreenHandler struct {
 func (h *ServerBoundLoadingScreenHandler) Handle(p packet.Packet, s *Session, _ *world.Tx, _ Controllable) error {
 	pk := p.(*packet.ServerBoundLoadingScreen)
 	v, ok := pk.LoadingScreenID.Value()
+	if !ok {
+		// A packet without a loading screen ID was already ignored, so the expected ID no longer has to be
+		// loaded to decide that.
+		return nil
+	}
 	expected := h.expectedID.Load()
 
 	switch {
-	case !ok || expected == 0:
+	case expected == 0:
 		return nil
 	case v != expected:
 		return fmt.Errorf("expected loading screen ID %d, got %d", expected, v)

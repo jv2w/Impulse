@@ -27,8 +27,13 @@ func (h *ItemStackRequestHandler) handleSmithing(a *protocol.CraftRecipeStackReq
 	if craft.Block() != "smithing_table" {
 		return fmt.Errorf("recipe with network id %v is not a smithing table recipe", a.RecipeNetworkID)
 	}
+	// The trim case is recorded while the recipe type is already being tested, so the same assertion is not
+	// repeated below. The two types are still tried in the same order, so every recipe takes the same branch.
+	var trimRecipe bool
 	switch craft.(type) {
-	case recipe.SmithingTransform, recipe.SmithingTrim:
+	case recipe.SmithingTransform:
+	case recipe.SmithingTrim:
+		trimRecipe = true
 	default:
 		return fmt.Errorf("recipe with network id %v is not a smithing recipe", a.RecipeNetworkID)
 	}
@@ -74,7 +79,7 @@ func (h *ItemStackRequestHandler) handleSmithing(a *protocol.CraftRecipeStackReq
 	// Only one input item is consumed above, so only one may be produced: input.WithItem keeps the count of the whole
 	// input stack.
 	result := input.Grow(1 - input.Count())
-	if _, ok = craft.(recipe.SmithingTrim); ok {
+	if trimRecipe {
 		var trim item.ArmourTrim
 		if t, ok := template.Item().(item.SmithingTemplate); ok {
 			trim.Template = t.Template
