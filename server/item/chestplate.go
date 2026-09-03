@@ -59,9 +59,12 @@ func (c Chestplate) EnchantmentValue() int {
 
 // DurabilityInfo ...
 func (c Chestplate) DurabilityInfo() DurabilityInfo {
+	// BaseDurability is a constant per tier, so one call serves both operands
+	// of the same expression in the same order.
+	base := c.Tier.BaseDurability()
 	return DurabilityInfo{
-		MaxDurability: int(c.Tier.BaseDurability() + c.Tier.BaseDurability()/2.2),
-		BrokenItem:    simpleItem(Stack{}),
+		MaxDurability: int(base + base/2.2),
+		BrokenItem:    brokenIntoNothing,
 	}
 }
 

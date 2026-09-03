@@ -20,7 +20,7 @@ func (Bow) MaxCount() int {
 func (Bow) DurabilityInfo() DurabilityInfo {
 	return DurabilityInfo{
 		MaxDurability: 385,
-		BrokenItem:    simpleItem(Stack{}),
+		BrokenItem:    brokenIntoNothing,
 	}
 }
 
@@ -63,25 +63,32 @@ func (Bow) Release(releaser Releaser, tx *world.Tx, ctx *UseContext, duration ti
 	held, _ := releaser.HeldItems()
 	damage, punchLevel, burnDuration, consume := 2.0, 0, time.Duration(0), !creative
 	for _, enchant := range held.Enchantments() {
-		if f, ok := enchant.Type().(interface{ BurnDuration() time.Duration }); ok {
+		// Type is a field read on a value, so the four assertions share one
+		// call.
+		t := enchant.Type()
+		if f, ok := t.(interface{ BurnDuration() time.Duration }); ok {
 			burnDuration = f.BurnDuration()
 		}
-		if _, ok := enchant.Type().(interface{ KnockBackMultiplier() float64 }); ok {
+		if _, ok := t.(interface{ KnockBackMultiplier() float64 }); ok {
 			punchLevel = enchant.Level()
 		}
-		if p, ok := enchant.Type().(interface{ PowerDamage(int) float64 }); ok {
+		if p, ok := t.(interface{ PowerDamage(int) float64 }); ok {
 			damage += p.PowerDamage(enchant.Level())
 		}
-		if i, ok := enchant.Type().(interface{ ConsumesArrows() bool }); ok && !i.ConsumesArrows() {
+		if i, ok := t.(interface{ ConsumesArrows() bool }); ok && !i.ConsumesArrows() {
 			consume = false
 		}
 	}
 
 	create := tx.World().EntityRegistry().Config().Arrow
+	// Nothing between the two Rotation reads of the literal could change it,
+	// so one read feeds both fields; the eye position is still read first.
+	pos := eyePosition(releaser)
+	rot := releaser.Rotation()
 	opts := world.EntitySpawnOpts{
-		Position: eyePosition(releaser),
-		Velocity: releaser.Rotation().Vec3().Mul(force * 5),
-		Rotation: releaser.Rotation().Neg(),
+		Position: pos,
+		Velocity: rot.Vec3().Mul(force * 5),
+		Rotation: rot.Neg(),
 	}
 	projectile := tx.AddEntity(create(opts, world.ArrowSpawnConfig{
 		Damage:              damage,

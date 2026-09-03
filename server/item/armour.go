@@ -134,10 +134,20 @@ func armourNames(suffix string) map[string]string {
 	tiers := ArmourTiers()
 	names := make(map[string]string, len(tiers))
 	for _, t := range tiers {
-		names[t.Name()] = "minecraft:" + t.Name() + suffix
+		// Name returns a constant per tier, so one call feeds both the key and
+		// the value.
+		name := t.Name()
+		names[name] = "minecraft:" + name + suffix
 	}
 	return names
 }
+
+// brokenIntoNothing is the BrokenItem of every item that breaks into nothing.
+// simpleItem(Stack{}) allocates a closure on each DurabilityInfo call; that
+// closure only ever returns its zero Stack by value and func values have no
+// observable identity, so a single shared one is indistinguishable from a
+// fresh one.
+var brokenIntoNothing = simpleItem(Stack{})
 
 // armourTierRepairable returns true if the ArmourTier passed is repairable.
 func armourTierRepairable(tier ArmourTier) func(Stack) bool {

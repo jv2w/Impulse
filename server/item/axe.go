@@ -20,9 +20,12 @@ func (a Axe) UseOnBlock(pos cube.Pos, _ cube.Face, _ mgl64.Vec3, tx *world.Tx, _
 	if s, ok := tx.Block(pos).(Strippable); ok {
 		if res, so, ok := s.Strip(); ok {
 			tx.SetBlock(pos, res, nil)
-			tx.PlaySound(pos.Vec3(), sound.ItemUseOn{Block: res})
+			// pos is a local value and Vec3 is a pure conversion, so the
+			// second sound reuses the first conversion.
+			v := pos.Vec3()
+			tx.PlaySound(v, sound.ItemUseOn{Block: res})
 			if so != nil {
-				tx.PlaySound(pos.Vec3(), so)
+				tx.PlaySound(v, so)
 			}
 
 			ctx.DamageItem(1)
@@ -50,7 +53,7 @@ func (a Axe) MaxCount() int {
 func (a Axe) DurabilityInfo() DurabilityInfo {
 	return DurabilityInfo{
 		MaxDurability:    a.Tier.Durability,
-		BrokenItem:       simpleItem(Stack{}),
+		BrokenItem:       brokenIntoNothing,
 		AttackDurability: 2,
 		BreakDurability:  1,
 	}

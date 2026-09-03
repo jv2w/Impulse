@@ -27,9 +27,12 @@ func (b Boots) MaxCount() int {
 
 // DurabilityInfo ...
 func (b Boots) DurabilityInfo() DurabilityInfo {
+	// BaseDurability is a constant per tier, so one call serves both operands
+	// of the same expression in the same order.
+	base := b.Tier.BaseDurability()
 	return DurabilityInfo{
-		MaxDurability: int(b.Tier.BaseDurability() + b.Tier.BaseDurability()/5.5),
-		BrokenItem:    simpleItem(Stack{}),
+		MaxDurability: int(base + base/5.5),
+		BrokenItem:    brokenIntoNothing,
 	}
 }
 
