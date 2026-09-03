@@ -2,6 +2,7 @@ package session
 
 import (
 	"bytes"
+	"slices"
 	"testing"
 	"time"
 
@@ -340,5 +341,52 @@ func TestSubChunkEntryDropsOtherSubChunkBlockEntities(t *testing.T) {
 	}
 	if want := chunk.EncodeSubChunk(col.Chunk, chunk.NetworkEncoding, int(ind)); !bytes.Equal(got, want) {
 		t.Fatalf("a block entity outside the sub-chunk was written into the payload")
+	}
+}
+
+// TestSubChunkEntrySharedBetweenSessions pins that two sessions requesting the
+// same sub-chunk are sent identical bytes, and that each is still handed arrays
+// of its own: the sub-chunk bytes outlive the call inside a per-session blob
+// map, and the height map is written into a packet on the session's own
+// goroutine.
+func TestSubChunkEntrySharedBetweenSessions(t *testing.T) {
+	col, ind := stoneColumn(t)
+	a := newStubSession(t, &stubConn{cacheEnabled: false})
+	b := newStubSession(t, &stubConn{cacheEnabled: false})
+
+	first := a.subChunkEntry(protocol.SubChunkOffset{}, ind, col, map[uint64]struct{}{})
+	second := b.subChunkEntry(protocol.SubChunkOffset{}, ind, col, map[uint64]struct{}{})
+
+	payloadA, ok := first.RawPayload.Value()
+	if !ok {
+		t.Fatal("the first entry carries no raw payload")
+	}
+	payloadB, ok := second.RawPayload.Value()
+	if !ok {
+		t.Fatal("the second entry carries no raw payload")
+	}
+	if !bytes.Equal(payloadA, payloadB) {
+		t.Fatalf("payloads differ between sessions: %v vs %v", payloadA, payloadB)
+	}
+	if want := chunk.EncodeSubChunk(col.Chunk, chunk.NetworkEncoding, int(ind)); !bytes.Equal(payloadA, want) {
+		t.Fatalf("payload = %v, want the encoded sub-chunk %v", payloadA, want)
+	}
+	if &payloadA[0] == &payloadB[0] {
+		t.Error("both sessions were handed the same payload array")
+	}
+
+	mapA, ok := first.HeightMapData.Value()
+	if !ok {
+		t.Fatal("the first entry carries no height map")
+	}
+	mapB, ok := second.HeightMapData.Value()
+	if !ok {
+		t.Fatal("the second entry carries no height map")
+	}
+	if !slices.Equal(mapA, mapB) {
+		t.Fatalf("height maps differ between sessions: %v vs %v", mapA, mapB)
+	}
+	if &mapA[0] == &mapB[0] {
+		t.Error("both sessions were handed the same height map array")
 	}
 }
