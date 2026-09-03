@@ -5,6 +5,7 @@ import (
 	"github.com/jv2w/Impulse/server/item"
 	"github.com/jv2w/Impulse/server/world"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
+	"unicode/utf8"
 )
 
 // BookEditHandler handles the BookEdit packet.
@@ -68,6 +69,24 @@ func (b BookEditHandler) Handle(p packet.Packet, s *Session, _ *world.Tx, _ Cont
 		}
 		book = book.SwapPages(page, int(pk.SecondaryPageNumber))
 	case packet.BookActionSign:
+		// Title and Author reach item NBT that is written to the world, and
+		// nothing bounded them: a client could sign a book with strings of any
+		// length and any bytes. They are checked here, in the signing branch
+		// alone, because the client fills both fields in on every BookEdit
+		// packet, so checking them beside pk.Text above would start rejecting
+		// page edits that are accepted today.
+		if len(pk.Title) > 256 {
+			return fmt.Errorf("title can not be longer than 256 bytes")
+		}
+		if !utf8.ValidString(pk.Title) {
+			return fmt.Errorf("title must be valid utf8")
+		}
+		if len(pk.Author) > 256 {
+			return fmt.Errorf("author can not be longer than 256 bytes")
+		}
+		if !utf8.ValidString(pk.Author) {
+			return fmt.Errorf("author must be valid utf8")
+		}
 		_ = s.inv.SetItem(slot, it.WithItem(item.WrittenBook{Title: pk.Title, Author: pk.Author, Pages: book.Pages, Generation: item.OriginalGeneration()}))
 		return nil
 	}

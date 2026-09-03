@@ -1177,14 +1177,29 @@ func protocolToSkin(sk protocol.Skin) (s skin.Skin, err error) {
 		return skin.Skin{}, fmt.Errorf("SkinID must not be an empty string")
 	}
 
-	s = skin.New(int(sk.SkinImageWidth), int(sk.SkinImageHeight))
+	// protocol.Skin.validate compares width*height*4 against len(data) in uint32 arithmetic, while the
+	// constructors below allocate width*height*4 in int arithmetic. Dimensions whose product is a multiple
+	// of 2^32, such as 1073741824x1, wrap to zero for gophertunnel and validate against empty pixel data,
+	// then ask for the full unwrapped size here. Repeating the check in the same int arithmetic the
+	// constructors use ties every allocation below to the length of the data actually received.
+	skinWidth, skinHeight := int(sk.SkinImageWidth), int(sk.SkinImageHeight)
+	if skinWidth*skinHeight*4 != len(sk.SkinData) {
+		return skin.Skin{}, fmt.Errorf("skin of %vx%v needs %v bytes of pixel data, but got %v", skinWidth, skinHeight, skinWidth*skinHeight*4, len(sk.SkinData))
+	}
+
+	s = skin.New(skinWidth, skinHeight)
 	s.Persona = sk.PersonaSkin
 	s.Pix = sk.SkinData
 	s.Model = sk.SkinGeometry
 	s.PlayFabID = sk.PlayFabID
 	s.FullID = sk.FullID
 
-	s.Cape = skin.NewCape(int(sk.CapeImageWidth), int(sk.CapeImageHeight))
+	capeWidth, capeHeight := int(sk.CapeImageWidth), int(sk.CapeImageHeight)
+	if capeWidth*capeHeight*4 != len(sk.CapeData) {
+		return skin.Skin{}, fmt.Errorf("cape of %vx%v needs %v bytes of pixel data, but got %v", capeWidth, capeHeight, capeWidth*capeHeight*4, len(sk.CapeData))
+	}
+
+	s.Cape = skin.NewCape(capeWidth, capeHeight)
 	s.Cape.Pix = sk.CapeData
 
 	m := make(map[string]any)
@@ -1209,7 +1224,12 @@ func protocolToSkin(sk protocol.Skin) (s skin.Skin, err error) {
 			return skin.Skin{}, fmt.Errorf("invalid animation type: %v", anim.AnimationType)
 		}
 
-		animation := skin.NewAnimation(int(anim.ImageWidth), int(anim.ImageHeight), int(anim.ExpressionType), t)
+		animWidth, animHeight := int(anim.ImageWidth), int(anim.ImageHeight)
+		if animWidth*animHeight*4 != len(anim.ImageData) {
+			return skin.Skin{}, fmt.Errorf("animation of %vx%v needs %v bytes of pixel data, but got %v", animWidth, animHeight, animWidth*animHeight*4, len(anim.ImageData))
+		}
+
+		animation := skin.NewAnimation(animWidth, animHeight, int(anim.ExpressionType), t)
 		animation.FrameCount = int(anim.FrameCount)
 		animation.Pix = anim.ImageData
 

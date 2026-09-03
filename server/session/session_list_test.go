@@ -546,26 +546,26 @@ func TestProtocolToSkinErrorsAreNotWrapped(t *testing.T) {
 	}
 }
 
-// TestProtocolToSkinPixelDataIsNotValidated pins that the declared dimensions
-// and the pixel slice are never checked against each other, so the skin the
-// server ends up holding can claim a size its data does not have.
+// TestProtocolToSkinPixelDataIsNotValidated pinned the absence of any check between the declared dimensions
+// and the pixel slice, which is the defect protocolToSkin now rejects, so it pins the rejection instead: a
+// skin declaring 64x32 against four bytes of pixel data no longer converts into a skin whose bounds its data
+// cannot fill. The name is the one the marker was written under and is left alone.
 //
-// PINNED BUG: skin.New allocates width*height*4 bytes and the very next line
-// throws that slice away for the client's SkinData, whatever length it is. A
-// later Skin.At within the declared bounds then reads out of range. The
-// unbounded make itself is the more serious half: nothing caps the dimensions.
+// The wasted allocation the marker also described is still there: skin.New allocates width*height*4 bytes
+// and the next line replaces that slice with the client's SkinData. It is no longer an amplification, since
+// the check above ties the allocation to the length of the data received.
 func TestProtocolToSkinPixelDataIsNotValidated(t *testing.T) {
 	sk := validProtocolSkin()
 	sk.SkinData = []byte{1, 2, 3, 4}
 
 	got, err := protocolToSkin(sk)
-	if err != nil {
-		t.Fatalf("protocolToSkin rejected mismatched pixel data: %v", err)
+	if err == nil {
+		t.Fatal("protocolToSkin accepted mismatched pixel data, want an error")
 	}
-	if got.Bounds().Max.X != 64 || got.Bounds().Max.Y != 32 {
-		t.Fatalf("bounds = %v, want the declared 64x32", got.Bounds())
+	if !strings.Contains(err.Error(), "skin of 64x32 needs 8192 bytes of pixel data, but got 4") {
+		t.Errorf("error = %q, want it to report the declared size against the data length", err)
 	}
-	if len(got.Pix) != 4 {
-		t.Fatalf("pixel data length = %d, want the client's 4", len(got.Pix))
+	if !reflect.DeepEqual(got, skin.Skin{}) {
+		t.Errorf("a rejected skin still returned data: %#v", got)
 	}
 }

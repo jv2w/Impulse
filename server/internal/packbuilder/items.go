@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	_ "unsafe" // Imported for compiler directives.
 )
 
 // buildItems builds all the item-related files for the resource pack. This includes textures, language

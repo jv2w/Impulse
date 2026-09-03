@@ -156,7 +156,14 @@ func (h *ItemStackRequestHandler) handleCreativeCraft(a *protocol.CraftCreativeS
 		return fmt.Errorf("can only craft creative items in gamemode creative/spectator")
 	}
 	index := a.CreativeItemNetworkID - 1
-	if int(index) >= len(creative.Items()) {
+	// Network IDs are one-based, so a client sending ID 0 wraps the uint32
+	// subtraction to 0xFFFFFFFF. Both sides widen to uint64 without changing
+	// value, which keeps the wrapped ID above the length on every GOARCH: the
+	// previous int(index) narrowed it to -1 on a 32-bit build, passed the check
+	// and indexed creative.Items() out of range below. On a 64-bit build int
+	// held the wrapped value exactly, so the comparison, the item selected and
+	// the error string are all unchanged there.
+	if uint64(index) >= uint64(len(creative.Items())) {
 		return fmt.Errorf("creative item with network ID %v does not exist", index)
 	}
 	it := creative.Items()[index].Stack

@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	rdebug "runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -384,6 +385,35 @@ func (s *Session) ClientData() login.ClientData {
 	return s.conn.ClientData()
 }
 
+// handlePacketRecovered runs pk's handler on the Controllable's world owner,
+// turning a panic in that handler into an error so that it ends the session
+// rather than the process.
+//
+// A panic inside the world callback is already recovered on the world goroutine
+// by the world's task recovery, which logs it with the panicking stack and
+// keeps the world and its tick loop running with no lock held. The world then
+// re-panics the original value here, on this session's goroutine, so that
+// synchronous callers keep their panic semantics. Nothing above handlePackets
+// recovered it, so a single defective handler took the whole server down.
+//
+// What is swallowed is exactly that re-panic. The value, this goroutine's stack
+// and the packet type being handled are logged at error level, and the error
+// returned is not one sessionOwnerStopped matches, so the read loop logs it and
+// returns: the panic never becomes a success. The panicking handler's own stack
+// is the one the world already logged, not the one recorded here, which starts
+// at the re-panic.
+func (s *Session) handlePacketRecovered(pk packet.Packet) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.conf.Log.Error("panic handling packet", "packet", fmt.Sprintf("%T", pk), "panic", r, "stack", string(rdebug.Stack()))
+			err = fmt.Errorf("panic handling packet %T: %v", pk, r)
+		}
+	}()
+	return s.withControllable(context.Background(), func(tx *world.Tx, c Controllable) error {
+		return s.handlePacket(pk, tx, c)
+	})
+}
+
 // handlePackets continuously handles incoming packets from the connection. It processes them accordingly.
 // Once the connection is closed, handlePackets will return.
 func (s *Session) handlePackets() {
@@ -411,9 +441,7 @@ func (s *Session) handlePackets() {
 		if err != nil {
 			return
 		}
-		err = s.withControllable(context.Background(), func(tx *world.Tx, c Controllable) error {
-			return s.handlePacket(pk, tx, c)
-		})
+		err = s.handlePacketRecovered(pk)
 		if err != nil {
 			if sessionOwnerStopped(err) {
 				return

@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	_ "unsafe" // Imported for compiler directives.
 
 	"github.com/jv2w/Impulse/server/world"
 )
