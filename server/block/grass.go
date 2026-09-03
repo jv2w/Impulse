@@ -2,6 +2,7 @@ package block
 
 import (
 	"math/rand/v2"
+	"slices"
 
 	"github.com/jv2w/Impulse/server/block/cube"
 	"github.com/jv2w/Impulse/server/item"
@@ -28,6 +29,9 @@ var plantSelection = []world.Block{
 
 // init adds extra variants of TallGrass to the plant selection.
 func init() {
+	// Twenty more plants are appended below, so the backing array is grown once
+	// here instead of reallocating as it fills. The contents are unchanged.
+	plantSelection = slices.Grow(plantSelection, 20)
 	for i := 0; i < 8; i++ {
 		plantSelection = append(plantSelection, Fern{})
 	}

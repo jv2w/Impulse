@@ -140,7 +140,10 @@ func (f Furnace) DecodeNBT(data map[string]any) any {
 
 // allFurnaces ...
 func allFurnaces() (furnaces []world.Block) {
-	for _, face := range cube.Directions() {
+	// Two furnaces are appended per direction, so the final length is known.
+	dirs := cube.Directions()
+	furnaces = make([]world.Block, 0, len(dirs)*2)
+	for _, face := range dirs {
 		furnaces = append(furnaces, Furnace{Facing: face})
 		furnaces = append(furnaces, Furnace{Facing: face, Lit: true})
 	}

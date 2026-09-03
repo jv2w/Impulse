@@ -68,7 +68,10 @@ func (h HayBale) EncodeBlock() (name string, properties map[string]any) {
 
 // allHayBales ...
 func allHayBales() (haybale []world.Block) {
-	for _, a := range cube.Axes() {
+	// One bale per axis, so the final length is known before the loop.
+	axes := cube.Axes()
+	haybale = make([]world.Block, 0, len(axes))
+	for _, a := range axes {
 		haybale = append(haybale, HayBale{Axis: a})
 	}
 	return

@@ -53,8 +53,13 @@ func (t GlazedTerracotta) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3,
 
 // allGlazedTerracotta returns glazed terracotta blocks with all possible colours.
 func allGlazedTerracotta() (b []world.Block) {
-	for _, dir := range append(cube.Directions(), unknownDirection) {
-		for _, c := range item.Colours() {
+	// coloursByID holds the same sixteen colours in the same order, so ranging
+	// over it builds the same list without item.Colours allocating a fresh slice
+	// on every direction.
+	dirs := append(cube.Directions(), unknownDirection)
+	b = make([]world.Block, 0, len(dirs)*len(coloursByID))
+	for _, dir := range dirs {
+		for _, c := range coloursByID {
 			b = append(b, GlazedTerracotta{Colour: c, Facing: dir})
 		}
 	}

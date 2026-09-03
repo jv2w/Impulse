@@ -89,8 +89,12 @@ func (g Grindstone) EncodeItem() (name string, meta int16) {
 
 // allGrindstones ...
 func allGrindstones() (grindstones []world.Block) {
-	for _, a := range GrindstoneAttachments() {
-		for _, d := range cube.Directions() {
+	// Neither list depends on the loop variables and GrindstoneAttachments
+	// builds a fresh slice on every call, so both are read once.
+	attachments, dirs := GrindstoneAttachments(), cube.Directions()
+	grindstones = make([]world.Block, 0, len(attachments)*len(dirs))
+	for _, a := range attachments {
+		for _, d := range dirs {
 			grindstones = append(grindstones, Grindstone{Attach: a, Facing: d})
 		}
 	}
