@@ -7,7 +7,6 @@ import (
 	"github.com/jv2w/Impulse/server/world"
 	"math/rand/v2"
 	"reflect"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -96,7 +95,6 @@ type parser struct {
 // parsing was not successful, an error is returned.
 func (p parser) parseArgument(line *Line, v reflect.Value, optional bool, name string, source Source, tx *world.Tx) (error, bool) {
 	var err error
-	i := v.Interface()
 	if line.Len() == 0 && optional {
 		// The command run didn't have enough arguments for this parameter, but
 		// it was optional, so it does not matter. Make sure to clear the value
@@ -104,6 +102,9 @@ func (p parser) parseArgument(line *Line, v reflect.Value, optional bool, name s
 		v.Set(reflect.Zero(v.Type()))
 		return nil, false
 	}
+	// Boxed after the early return: this path never looked at i, so the
+	// interface value it allocated was always thrown away.
+	i := v.Interface()
 	switch i.(type) {
 	case int, int8, int16, int32, int64:
 		err = p.int(line, v)
@@ -213,15 +214,15 @@ func (p parser) enum(line *Line, val reflect.Value, v Enum, source Source) error
 	if !ok {
 		return line.UsageError()
 	}
-	opts := v.Options(source)
-	ind := slices.IndexFunc(opts, func(s string) bool {
-		return strings.EqualFold(s, arg)
-	})
-	if ind < 0 {
-		return MessageParameterInvalid.F(arg)
+	// A plain loop stops at the same first match slices.IndexFunc would report,
+	// but does not allocate a closure capturing arg on every call.
+	for _, opt := range v.Options(source) {
+		if strings.EqualFold(opt, arg) {
+			val.SetString(opt)
+			return nil
+		}
 	}
-	val.SetString(opts[ind])
-	return nil
+	return MessageParameterInvalid.F(arg)
 }
 
 // sub reads verifies a SubCommand against the next argument.
@@ -280,6 +281,11 @@ func (p parser) parseTargets(line *Line, tx *world.Tx) ([]Target, error) {
 	}
 	switch first[:min(len(first), 2)] {
 	case "@p":
+		if len(players) == 0 {
+			// Moved ahead of the sort: with no players the result was nil either
+			// way, so the distance slice and the sort closure are pure waste.
+			return nil, nil
+		}
 		pos := line.src.Position()
 		playerDistances := make([]float64, len(players))
 		for i, p := range players {
@@ -288,9 +294,6 @@ func (p parser) parseTargets(line *Line, tx *world.Tx) ([]Target, error) {
 		sort.Slice(players, func(i, j int) bool {
 			return playerDistances[i] < playerDistances[j]
 		})
-		if len(players) == 0 {
-			return nil, nil
-		}
 		return sliceutil.Convert[Target](players[0:1]), nil
 	case "@e":
 		return entities, nil
@@ -314,10 +317,12 @@ func (p parser) parseTargets(line *Line, tx *world.Tx) ([]Target, error) {
 
 // parsePlayer attempts to find a target whose name matches the name passed.
 func (p parser) parsePlayer(name string, players []NamedTarget) (Target, error) {
-	if ind := slices.IndexFunc(players, func(target NamedTarget) bool {
-		return strings.EqualFold(target.Name(), name)
-	}); ind != -1 {
-		return players[ind], nil
+	// A plain loop returns the same first match slices.IndexFunc would find,
+	// without allocating a closure capturing name on every call.
+	for _, target := range players {
+		if strings.EqualFold(target.Name(), name) {
+			return target, nil
+		}
 	}
 	return nil, MessagePlayerNotFound.F()
 }

@@ -191,6 +191,9 @@ func (conf Config) New() *Server {
 		p:        make(map[uuid.UUID]*onlinePlayer),
 		world:    &world.World{}, nether: &world.World{}, end: &world.World{},
 	}
+	// Presized to the listener count so append never grows the slice; the loop
+	// still appends the same listeners in the same order.
+	srv.listeners = make([]Listener, 0, len(conf.Listeners))
 	for _, lf := range conf.Listeners {
 		l, err := lf(conf)
 		if err != nil {
@@ -323,9 +326,12 @@ func loadResources(dir string) ([]*resource.Pack, error) {
 	}
 	packs := make([]*resource.Pack, len(resources))
 	for i, entry := range resources {
-		packs[i], err = resource.ReadPath(filepath.Join(dir, entry.Name()))
+		// The entry does not change, so the error branch reuses the name that
+		// was already read instead of asking for it a second time.
+		n := entry.Name()
+		packs[i], err = resource.ReadPath(filepath.Join(dir, n))
 		if err != nil {
-			return nil, fmt.Errorf("compile resource (%v): %w", entry.Name(), err)
+			return nil, fmt.Errorf("compile resource (%v): %w", n, err)
 		}
 	}
 	return packs, nil

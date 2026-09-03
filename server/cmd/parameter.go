@@ -88,6 +88,10 @@ type optionalT interface {
 	with(val any) any
 }
 
+// optionalType is the reflect.Type of optionalT, computed once so that
+// implementations can be checked without boxing a value into an interface.
+var optionalType = reflect.TypeOf((*optionalT)(nil)).Elem()
+
 // typeNameOf returns a readable type name for the interface value passed. If none could be found, 'value'
 // is returned.
 func typeNameOf(i any, name string) string {
@@ -122,7 +126,9 @@ func typeNameOf(i any, name string) string {
 
 // unwrap returns the underlying reflect.Value of a reflect.Value, assuming it is of the Optional[T] type.
 func unwrap(v reflect.Value) reflect.Value {
-	if _, ok := v.Interface().(optionalT); ok {
+	// Asking the type whether it implements optionalT gives the same answer as
+	// asserting on a boxed value, without allocating the interface value.
+	if v.Type().Implements(optionalType) {
 		return reflect.New(v.Field(0).Type()).Elem()
 	}
 	return v
@@ -130,8 +136,9 @@ func unwrap(v reflect.Value) reflect.Value {
 
 // optional checks if the reflect.Value passed implements the optionalT interface.
 func optional(v reflect.Value) bool {
-	_, ok := v.Interface().(optionalT)
-	return ok
+	// A type assertion on v.Interface() succeeds exactly when v's type
+	// implements optionalT, so this drops the boxing allocation per call.
+	return v.Type().Implements(optionalType)
 }
 
 // suffix returns the suffix of the parameter as set in the struct field, if any.

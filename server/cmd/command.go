@@ -75,11 +75,13 @@ func New(name, description string, aliases []string, r ...Runnable) Command {
 
 	for i, runnable := range r {
 		t := reflect.TypeOf(runnable)
-		if t.Kind() != reflect.Struct && (t.Kind() != reflect.Ptr || t.Elem().Kind() != reflect.Struct) {
-			panic(fmt.Sprintf("Runnable r must be struct or pointer to struct, but got %v", t.Kind()))
+		// t does not change, so the three t.Kind() calls all returned this kind.
+		k := t.Kind()
+		if k != reflect.Struct && (k != reflect.Ptr || t.Elem().Kind() != reflect.Struct) {
+			panic(fmt.Sprintf("Runnable r must be struct or pointer to struct, but got %v", k))
 		}
 		original := reflect.ValueOf(runnable)
-		if t.Kind() == reflect.Ptr {
+		if k == reflect.Ptr {
 			original = original.Elem()
 		}
 
@@ -183,13 +185,16 @@ type ParamInfo struct {
 func (cmd Command) Params(src Source) [][]ParamInfo {
 	params := make([][]ParamInfo, 0, len(cmd.v))
 	for _, runnable := range cmd.v {
-		if allower, ok := runnable.Interface().(Allower); ok && !allower.Allow(src) {
+		// The value is boxed once: runnable is not touched in between, so both
+		// assertions saw the same value before.
+		i := runnable.Interface()
+		if allower, ok := i.(Allower); ok && !allower.Allow(src) {
 			// This source cannot execute this runnable.
 			continue
 		}
 
 		// If the runnable can describe its own parameters, prefer that over reflection.
-		if d, ok := runnable.Interface().(ParamDescriber); ok {
+		if d, ok := i.(ParamDescriber); ok {
 			params = append(params, d.DescribeParams(src))
 			continue
 		}
@@ -234,7 +239,10 @@ func (cmd Command) String() string {
 // parsing was not successful or the Runnable could not be run by this source, an error is returned, and the
 // leftover command line.
 func (cmd Command) executeRunnable(v reflect.Value, args string, source Source, output *Output, tx *world.Tx) (*Line, error) {
-	if a, ok := v.Interface().(Allower); ok && !a.Allow(source) {
+	// v is a pointer value, so boxing it once yields the same interface the
+	// second call produced, including the fields parsed into it below.
+	run := v.Interface()
+	if a, ok := run.(Allower); ok && !a.Allow(source) {
 		return nil, MessageUnknown.F(cmd.name)
 	}
 
@@ -281,7 +289,7 @@ func (cmd Command) executeRunnable(v reflect.Value, args string, source Source, 
 		return arguments, arguments.UsageError()
 	}
 
-	v.Interface().(Runnable).Run(source, output, tx)
+	run.(Runnable).Run(source, output, tx)
 	return arguments, nil
 }
 
@@ -294,19 +302,22 @@ func parseUsage(commandName string, command reflect.Value) string {
 	for _, t := range exportedFields(command) {
 		field := command.FieldByName(t.Name)
 
-		typeName := typeNameOf(field.Interface(), name(t))
-		if _, ok := field.Interface().(optionalT); ok {
-			typeName = typeNameOf(reflect.New(field.Field(0).Type()).Elem().Interface(), name(t))
+		// The field is boxed once and the tag parsed once: neither field nor t
+		// changes in the loop body, so all three calls returned the same value.
+		fv, fieldName := field.Interface(), name(t)
+		typeName := typeNameOf(fv, fieldName)
+		if _, ok := fv.(optionalT); ok {
+			typeName = typeNameOf(reflect.New(field.Field(0).Type()).Elem().Interface(), fieldName)
 		}
-		if _, ok := field.Interface().(SubCommand); ok {
+		if _, ok := fv.(SubCommand); ok {
 			parts = append(parts, typeName)
 			continue
 		}
 		if optional(field) {
-			parts = append(parts, "["+name(t)+": "+typeName+"]"+suffix(t))
+			parts = append(parts, "["+fieldName+": "+typeName+"]"+suffix(t))
 			continue
 		}
-		parts = append(parts, "<"+name(t)+": "+typeName+">"+suffix(t))
+		parts = append(parts, "<"+fieldName+": "+typeName+">"+suffix(t))
 	}
 	return strings.Join(parts, " ")
 }

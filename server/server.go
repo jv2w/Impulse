@@ -137,8 +137,12 @@ func (srv *Server) Accept() iter.Seq[*player.Player] {
 			if !ok {
 				return
 			}
+			// The handle's UUID is fixed at creation, so reading it once outside
+			// the lock returns what both calls returned before.
+			id := inc.p.handle.UUID()
+
 			srv.pmu.Lock()
-			srv.p[inc.p.handle.UUID()] = inc.p
+			srv.p[id] = inc.p
 			srv.pmu.Unlock()
 
 			ret, err := world.Call(context.Background(), inc.w, func(tx *world.Tx) (bool, error) {
@@ -148,7 +152,7 @@ func (srv *Server) Accept() iter.Seq[*player.Player] {
 			})
 			if err != nil {
 				srv.pmu.Lock()
-				delete(srv.p, inc.p.handle.UUID())
+				delete(srv.p, id)
 				srv.pmu.Unlock()
 				srv.pwg.Done()
 				// Join failed before spawn: the entity was never added, so close
@@ -191,18 +195,23 @@ func (srv *Server) End() *world.World {
 // set to 0, MaxPlayerCount will return Server.PlayerCount + 1.
 func (srv *Server) MaxPlayerCount() int {
 	if srv.conf.MaxPlayers == 0 {
+		// len cannot panic, so unlocking directly runs the same unlock the defer
+		// did, without the defer frame.
 		srv.pmu.RLock()
-		defer srv.pmu.RUnlock()
-		return len(srv.p) + 1
+		n := len(srv.p)
+		srv.pmu.RUnlock()
+		return n + 1
 	}
 	return srv.conf.MaxPlayers
 }
 
 // PlayerCount returns the total number of players connected to the Server.
 func (srv *Server) PlayerCount() int {
+	// len cannot panic, so the unlock always ran here anyway.
 	srv.pmu.RLock()
-	defer srv.pmu.RUnlock()
-	return len(srv.p)
+	n := len(srv.p)
+	srv.pmu.RUnlock()
+	return n
 }
 
 // Players returns an iterator that yields players currently online. If Players
@@ -263,9 +272,12 @@ func (srv *Server) Players(tx *world.Tx) iter.Seq[*player.Player] {
 // entity handle is returned and the bool returns holds a true value. If not,
 // the bool returned is false and the handle is nil.
 func (srv *Server) Player(uuid uuid.UUID) (*world.EntityHandle, bool) {
+	// A map read cannot panic, so the unlock always ran; the handle field of an
+	// onlinePlayer is written before it is put in the map and never changes, so
+	// reading it after the unlock returns the same pointer.
 	srv.pmu.RLock()
-	defer srv.pmu.RUnlock()
 	p, ok := srv.p[uuid]
+	srv.pmu.RUnlock()
 	if !ok {
 		return nil, false
 	}
@@ -541,9 +553,13 @@ func (srv *Server) dimension(dimension world.Dimension) *world.World {
 // handleSessionClose handles the closing of a session. It removes the player
 // of the session from the server.
 func (srv *Server) handleSessionClose(tx *world.Tx, c session.Controllable) {
+	// The UUID of a Controllable never changes, so asking for it once gives the
+	// same value the four calls returned, and keeps two of them out of the lock.
+	id := c.UUID()
+
 	srv.pmu.Lock()
-	_, ok := srv.p[c.UUID()]
-	delete(srv.p, c.UUID())
+	_, ok := srv.p[id]
+	delete(srv.p, id)
 	srv.pmu.Unlock()
 	if !ok {
 		// When a player disconnects immediately after a session is started, it
@@ -553,11 +569,11 @@ func (srv *Server) handleSessionClose(tx *world.Tx, c session.Controllable) {
 	}
 
 	if tx != nil {
-		if err := srv.conf.PlayerProvider.Save(c.UUID(), c.(*player.Player).Data(), tx.World()); err != nil {
+		if err := srv.conf.PlayerProvider.Save(id, c.(*player.Player).Data(), tx.World()); err != nil {
 			srv.conf.Log.Error("Save player data: " + err.Error())
 		}
 	} else {
-		srv.conf.Log.Error("Save player data: player's worlds closed before teardown; data not saved", "uuid", c.UUID())
+		srv.conf.Log.Error("Save player data: player's worlds closed before teardown; data not saved", "uuid", id)
 	}
 	srv.pwg.Done()
 }
@@ -577,11 +593,15 @@ func (srv *Server) createPlayer(id uuid.UUID, conn session.Conn, conf player.Con
 		BlockRegistry:  w.BlockRegistry(),
 	}.New(conn)
 
-	conf.Name = conn.IdentityData().DisplayName
-	conf.XUID = conn.IdentityData().XUID
+	// Both getters return a copy of a field of conn that nothing changes here,
+	// so fetching each once copies the same data the repeated calls did.
+	identity, client := conn.IdentityData(), conn.ClientData()
+
+	conf.Name = identity.DisplayName
+	conf.XUID = identity.XUID
 	conf.UUID = id
-	conf.Locale, _ = language.Parse(strings.Replace(conn.ClientData().LanguageCode, "_", "-", 1))
-	conf.Skin = srv.parseSkin(conn.ClientData())
+	conf.Locale, _ = language.Parse(strings.Replace(client.LanguageCode, "_", "-", 1))
+	conf.Skin = srv.parseSkin(client)
 	conf.Session = s
 
 	handle := world.EntitySpawnOpts{Position: conf.Position, ID: id}.New(player.Type, conf)
@@ -641,6 +661,11 @@ func (srv *Server) parseSkin(data login.ClientData) skin.Skin {
 	playerSkin.Cape = skin.NewCape(data.CapeImageWidth, data.CapeImageHeight)
 	playerSkin.Cape.Pix, _ = base64.StdEncoding.DecodeString(data.CapeData)
 
+	if n := len(data.AnimatedImageData); n > 0 {
+		// Presized to the number of animations appended below. Left nil when
+		// there are none, exactly as the append loop did.
+		playerSkin.Animations = make([]skin.Animation, 0, n)
+	}
 	for _, animation := range data.AnimatedImageData {
 		var t skin.AnimationType
 		switch animation.Type {
@@ -670,7 +695,9 @@ func vec64To32(vec3 mgl64.Vec3) mgl32.Vec3 {
 // itemEntries loads a list of all custom item entries of the server, ready to
 // be sent in the StartGame packet.
 func (srv *Server) itemEntries() []protocol.ItemEntry {
-	entries := make([]protocol.ItemEntry, 0, len(vanillaItems))
+	// Room for the custom entries too, so the append below never has to grow and
+	// copy the slice. Both loops still append in the same order.
+	entries := make([]protocol.ItemEntry, 0, len(vanillaItems)+len(srv.customItems))
 
 	for name, e := range vanillaItems {
 		entries = append(entries, protocol.ItemEntry{
