@@ -16,6 +16,9 @@ var minimumCompatibleClientVersion []int32
 // init initialises the minimum compatible client version.
 func init() {
 	fullVersion := append(strings.Split(protocol.CurrentVersion, "."), "0", "0")
+	// The final length is known, so the slice is sized once instead of being grown; the same values are
+	// appended in the same order.
+	minimumCompatibleClientVersion = make([]int32, 0, len(fullVersion))
 	for _, v := range fullVersion {
 		i, _ := strconv.Atoi(v)
 		minimumCompatibleClientVersion = append(minimumCompatibleClientVersion, int32(i))

@@ -114,6 +114,9 @@ func DeactivateEndPortal(tx *world.Tx, portalPos cube.Pos) {
 	var positions []cube.Pos
 	queue := []cube.Pos{portalPos}
 	seen := map[cube.Pos]struct{}{portalPos: {}}
+	// HorizontalFaces returns the same package level array on every call, so reading it once yields the very
+	// same slice the loop walked before.
+	faces := cube.HorizontalFaces()
 	for len(queue) > 0 {
 		p := queue[0]
 		queue = queue[1:]
@@ -121,7 +124,7 @@ func DeactivateEndPortal(tx *world.Tx, portalPos cube.Pos) {
 			continue
 		}
 		positions = append(positions, p)
-		for _, face := range cube.HorizontalFaces() {
+		for _, face := range faces {
 			n := p.Side(face)
 			if _, ok := seen[n]; ok {
 				continue

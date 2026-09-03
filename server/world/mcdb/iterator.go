@@ -128,7 +128,9 @@ type IteratorRange struct {
 
 // within checks if a position and dimension is within the IteratorRange.
 func (r *IteratorRange) within(pos world.ChunkPos, dim world.Dimension) bool {
-	if dim != r.Dimension && r.Dimension != nil {
+	// Both operands of the && are side effect free, so testing the nil check first gives the same result and
+	// skips the interface comparison whenever no dimension was set.
+	if r.Dimension != nil && dim != r.Dimension {
 		return false
 	}
 	return ((r.Min == world.ChunkPos{}) && (r.Max == world.ChunkPos{})) ||

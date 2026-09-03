@@ -219,7 +219,7 @@ func (d *Data) FillDefault() {
 	d.ShowDeathMessages = true
 	d.ShowTags = true
 	d.SpawnMobs = true
-	d.SpawnRadius = 5
+	// The field was assigned the same 5 twice in a row, so dropping the repeat leaves the value unchanged.
 	d.SpawnRadius = 5
 	d.SpawnY = math.MaxInt16
 	d.StorageVersion = 9

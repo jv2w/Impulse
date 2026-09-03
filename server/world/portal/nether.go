@@ -104,6 +104,9 @@ func FindNetherPortal(tx *world.Tx, pos cube.Pos, radius int) (Nether, bool) {
 
 	closest, closestDist, found := Nether{}, math.MaxFloat64, false
 	seen := make(map[cube.Pos]struct{})
+	// pos does not change, so the same Vec3 is subtracted as before; it is converted once instead of once
+	// per portal block visited.
+	posVec := pos.Vec3()
 	for selectedPos := range tx.BlocksWithin(pos, radius, portal(cube.X), portal(cube.Z)) {
 		if _, ok := seen[selectedPos]; ok {
 			// Part of a portal that was already validated through an earlier block.
@@ -112,7 +115,7 @@ func FindNetherPortal(tx *world.Tx, pos cube.Pos, radius int) (Nether, bool) {
 		if n, ok := NetherPortalFromPos(tx, selectedPos); ok && n.Framed() && n.Activated() {
 			for _, p := range n.Positions() {
 				seen[p] = struct{}{}
-				if dist := p.Vec3().Sub(pos.Vec3()).Len(); dist < closestDist {
+				if dist := p.Vec3().Sub(posVec).Len(); dist < closestDist {
 					closestDist, closest, found = dist, n, true
 				}
 			}
@@ -128,18 +131,23 @@ func CreateNetherPortal(tx *world.Tx, pos cube.Pos) (Nether, bool) {
 	}
 
 	resultPos, random, distance, a, r := pos, rand.IntN(4), -1.0, 0, tx.Range()
+	// The registry lookup behind air returns the same block value on every call, and the scan below reaches
+	// it once per block tested, so it is resolved once here. pos and r do not change either.
+	airBlock := air()
+	posX, posY, posZ := pos.X(), pos.Y(), pos.Z()
+	minY, maxY := r.Min(), r.Max()
 	searchValidArea := func(directions int, valid func(pos cube.Pos, riv int, coEff1, coEff2 int) bool) {
-		for tempX := pos.X() - 16; tempX <= pos.X()+16; tempX++ {
-			offsetX := float64(tempX-pos.X()) + 0.5
-			for tempZ := pos.Z() - 16; tempZ <= pos.Z()+16; tempZ++ {
-				offsetZ := float64(tempZ-pos.Z()) + 0.5
-				for tempY := r.Max() - 1; tempY >= r.Min(); tempY-- {
+		for tempX := posX - 16; tempX <= posX+16; tempX++ {
+			offsetX := float64(tempX-posX) + 0.5
+			for tempZ := posZ - 16; tempZ <= posZ+16; tempZ++ {
+				offsetZ := float64(tempZ-posZ) + 0.5
+				for tempY := maxY - 1; tempY >= minY; tempY-- {
 					entryPos := cube.Pos{tempX, tempY, tempZ}
-					if tx.Block(entryPos) != air() {
+					if tx.Block(entryPos) != airBlock {
 						continue
 					}
 
-					for tempY > r.Min() && tx.Block(entryPos.Side(cube.FaceDown)) == air() {
+					for tempY > minY && tx.Block(entryPos.Side(cube.FaceDown)) == airBlock {
 						tempY--
 						entryPos[1]--
 					}
@@ -152,7 +160,7 @@ func CreateNetherPortal(tx *world.Tx, pos cube.Pos) (Nether, bool) {
 							break
 						}
 
-						offsetY := float64(tempY-pos.Y()) + 0.5
+						offsetY := float64(tempY-posY) + 0.5
 						newDist := offsetX*offsetX + offsetY*offsetY + offsetZ*offsetZ
 						if distance < 0.0 || newDist < distance {
 							distance = newDist
@@ -172,16 +180,21 @@ func CreateNetherPortal(tx *world.Tx, pos cube.Pos) (Nether, bool) {
 			coEff2 = -coEff2
 		}
 
+		// Integer addition regroups exactly, so the coordinates are the same ones the loop computed; the
+		// terms that do not depend on the inner counters are now added once per level. The model is only
+		// consumed below the floor, so it is no longer read for the positions that ignore it.
+		cx, cy, cz := pos.X(), pos.Y(), pos.Z()
 		for safeSpace1 := range 3 {
+			x1, z1 := cx+safeSpace1*coEff2, cz-safeSpace1*coEff1
 			for safeSpace2 := -1; safeSpace2 < 3; safeSpace2++ {
+				x2, z2 := x1+safeSpace2*coEff1, z1+safeSpace2*coEff2
 				for height := -1; height < 4; height++ {
-					b := tx.Block(cube.Pos{
-						pos.X() + safeSpace2*coEff1 + safeSpace1*coEff2,
-						pos.Y() + height,
-						pos.Z() + safeSpace2*coEff2 - safeSpace1*coEff1,
-					})
-					_, solid := b.Model().(model.Solid)
-					if height < 0 && !solid || height >= 0 && b != air() {
+					b := tx.Block(cube.Pos{x2, cy + height, z2})
+					if height < 0 {
+						if _, solid := b.Model().(model.Solid); !solid {
+							return false
+						}
+					} else if b != airBlock {
 						return false
 					}
 				}
@@ -194,15 +207,18 @@ func CreateNetherPortal(tx *world.Tx, pos cube.Pos) (Nether, bool) {
 		// If we couldn't find a valid area under those specifications, we can search the two main directions instead,
 		// reducing comfort but at least allowing us to have a portal in the area.
 		searchValidArea(2, func(pos cube.Pos, riv int, coEff1, coEff2 int) bool {
+			// Same as above: the x and z terms do not depend on height, and the model is only consumed
+			// below the floor, so it is no longer read for the positions that ignore it.
+			cx, cy, cz := pos.X(), pos.Y(), pos.Z()
 			for safeSpace := range 3 {
+				x, z := cx+safeSpace*coEff1, cz+safeSpace*coEff2
 				for height := -1; height < 4; height++ {
-					b := tx.Block(cube.Pos{
-						pos.X() + safeSpace*coEff1,
-						pos.Y() + height,
-						pos.Z() + safeSpace*coEff2,
-					})
-					_, solid := b.Model().(model.Solid)
-					if height < 0 && !solid || height >= 0 && b != air() {
+					b := tx.Block(cube.Pos{x, cy + height, z})
+					if height < 0 {
+						if _, solid := b.Model().(model.Solid); !solid {
+							return false
+						}
+					} else if b != airBlock {
 						return false
 					}
 				}
@@ -298,8 +314,15 @@ func CreateNetherPortal(tx *world.Tx, pos cube.Pos) (Nether, bool) {
 
 // Activate ...
 func (n Nether) Activate() {
-	for _, pos := range n.Positions() {
-		n.tx.SetBlock(pos, portal(n.axis), nil)
+	// With no positions there was nothing to set, and otherwise the registry lookup behind portal returns
+	// the same block for the same axis on every call, so resolving it once sets the very same block.
+	positions := n.Positions()
+	if len(positions) == 0 {
+		return
+	}
+	pb := portal(n.axis)
+	for _, pos := range positions {
+		n.tx.SetBlock(pos, pb, nil)
 	}
 }
 
@@ -316,8 +339,15 @@ func (n Nether) Framed() bool {
 
 // Activated ...
 func (n Nether) Activated() bool {
-	for _, pos := range n.Positions() {
-		if n.tx.Block(pos) != portal(n.axis) {
+	// With no positions the loop never ran and true was returned, and otherwise the registry lookup behind
+	// portal returns the same block for the same axis on every call, so the comparison is unchanged.
+	positions := n.Positions()
+	if len(positions) == 0 {
+		return true
+	}
+	pb := portal(n.axis)
+	for _, pos := range positions {
+		if n.tx.Block(pos) != pb {
 			return false
 		}
 	}
