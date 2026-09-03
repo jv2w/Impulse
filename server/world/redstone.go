@@ -409,15 +409,19 @@ func (e *redstoneEngine) compile(tx *Tx, candidates []cube.Pos) redstoneGraph {
 
 // compileAdjacentRedstone adds redstone blocks that can interact with pos directly or through an adjacent conductor.
 func (e *redstoneEngine) compileAdjacentRedstone(tx *Tx, pos cube.Pos, seen map[cube.Pos]struct{}, nodes *[]redstoneNode) {
-	if b, ok := tx.World().blockLoaded(pos); ok && e.redstoneBlockMayConduct(tx, pos, b) {
+	// The world and its range are read once instead of once per visited neighbour. Tx.Range is exactly
+	// Tx.World().ra and neither can change during a transaction, so every lookup sees what it saw before.
+	w := tx.World()
+	r := w.ra
+	if b, ok := w.blockLoaded(pos); ok && e.redstoneBlockMayConduct(tx, pos, b) {
 		pos.Neighbours(func(neighbour cube.Pos) {
-			if b, ok := tx.World().blockLoaded(neighbour); ok && isRedstoneRelevant(b) {
+			if b, ok := w.blockLoaded(neighbour); ok && isRedstoneRelevant(b) {
 				e.compileRegion(tx, neighbour, seen, nodes)
 			}
-		}, tx.Range())
+		}, r)
 	}
 	pos.Neighbours(func(neighbour cube.Pos) {
-		b, ok := tx.World().blockLoaded(neighbour)
+		b, ok := w.blockLoaded(neighbour)
 		if !ok {
 			return
 		}
@@ -426,12 +430,12 @@ func (e *redstoneEngine) compileAdjacentRedstone(tx *Tx, pos cube.Pos, seen map[
 		}
 		if e.redstoneBlockMayConduct(tx, neighbour, b) {
 			neighbour.Neighbours(func(conductedNeighbour cube.Pos) {
-				if b, ok := tx.World().blockLoaded(conductedNeighbour); ok && isRedstoneRelevant(b) {
+				if b, ok := w.blockLoaded(conductedNeighbour); ok && isRedstoneRelevant(b) {
 					e.compileRegion(tx, conductedNeighbour, seen, nodes)
 				}
-			}, tx.Range())
+			}, r)
 		}
-	}, tx.Range())
+	}, r)
 }
 
 // redstoneBlockMayConduct reports whether a block should include its adjacent receivers in graph compilation.
@@ -449,16 +453,20 @@ func (e *redstoneEngine) compileRegion(tx *Tx, pos cube.Pos, seen map[cube.Pos]s
 	if _, ok := seen[pos]; ok || pos.OutOfBounds(tx.Range()) {
 		return
 	}
+	// The world and its range are read once instead of once per queued position. Tx.Range is exactly
+	// Tx.World().ra and neither can change during a transaction, so the walk visits the same positions.
+	w := tx.World()
+	r := w.ra
 	queue := []cube.Pos{pos}
 	for len(queue) != 0 {
 		p := queue[0]
 		queue = queue[1:]
-		if _, ok := seen[p]; ok || p.OutOfBounds(tx.Range()) {
+		if _, ok := seen[p]; ok || p.OutOfBounds(r) {
 			continue
 		}
 		seen[p] = struct{}{}
 
-		b, ok := tx.World().blockLoaded(p)
+		b, ok := w.blockLoaded(p)
 		if !ok {
 			continue
 		}
@@ -475,7 +483,7 @@ func (e *redstoneEngine) compileRegion(tx *Tx, pos cube.Pos, seen map[cube.Pos]s
 			continue
 		}
 		for _, neighbour := range e.redstoneRelayerConnectedPositions(tx, p, b) {
-			if b, ok := tx.World().blockLoaded(neighbour); ok && isRedstoneRelevant(b) {
+			if b, ok := w.blockLoaded(neighbour); ok && isRedstoneRelevant(b) {
 				queue = append(queue, neighbour)
 			}
 		}
@@ -531,11 +539,17 @@ func (e *redstoneEngine) update(tx *Tx, pos cube.Pos, d redstoneDirty, newPower 
 func (e *redstoneEngine) updateGraphSources(tx *Tx, graph redstoneGraph, dirty map[cube.Pos]redstoneDirty) (map[cube.Pos]int, map[cube.Pos]struct{}) {
 	var cancelled map[cube.Pos]int
 	var checked map[cube.Pos]struct{}
+	if len(graph.nodes) == 0 {
+		// With no nodes the loop below never ran and both maps stayed nil, so this returns the same pair.
+		return cancelled, checked
+	}
+	// The world is read once instead of once per source node; tx cannot change world during a transaction.
+	w := tx.World()
 	for _, node := range graph.nodes {
 		if !node.source {
 			continue
 		}
-		b, ok := tx.World().blockLoaded(node.pos)
+		b, ok := w.blockLoaded(node.pos)
 		if !ok {
 			continue
 		}
@@ -785,9 +799,12 @@ func (e *redstoneEngine) graphPower(tx *Tx, graph redstoneGraph) []int {
 	sources := make([]RedstonePowerSource, len(graph.nodes))
 	relayers := make([]RedstonePowerRelayer, len(graph.nodes))
 	edges := make([][]redstoneEdge, len(graph.nodes))
+	// The world is read once instead of once per node; tx cannot change world during a transaction. The empty
+	// case already returned above, so this call replaces at least one call it removes.
+	w := tx.World()
 	for i, node := range graph.nodes {
 		index[node.pos] = i
-		if b, ok := tx.World().blockLoaded(node.pos); ok {
+		if b, ok := w.blockLoaded(node.pos); ok {
 			sources[i], _ = b.(RedstonePowerSource)
 			relayers[i], _ = b.(RedstonePowerRelayer)
 		}
@@ -871,10 +888,14 @@ func (e *redstoneEngine) powerFrom(pos cube.Pos, tx *Tx, face cube.Face) int {
 	}
 	queue := []step{{pos: pos.Side(face), from: face.Opposite(), loss: 0, depth: 0}}
 	seen := make(map[cube.Pos]int, 16)
+	// The world and its range are read once instead of once per queued step. Tx.Range is exactly
+	// Tx.World().ra and neither can change during a transaction, so the walk sees the same blocks.
+	w := tx.World()
+	r := w.ra
 	for len(queue) != 0 {
 		s := queue[0]
 		queue = queue[1:]
-		if s.pos.OutOfBounds(tx.Range()) || s.loss >= 15 || s.depth >= 15 {
+		if s.pos.OutOfBounds(r) || s.loss >= 15 || s.depth >= 15 {
 			continue
 		}
 		if s.pos == pos {
@@ -885,7 +906,7 @@ func (e *redstoneEngine) powerFrom(pos cube.Pos, tx *Tx, face cube.Face) int {
 		}
 		seen[s.pos] = s.loss
 
-		b, ok := tx.World().blockLoaded(s.pos)
+		b, ok := w.blockLoaded(s.pos)
 		if !ok {
 			continue
 		}
@@ -903,7 +924,7 @@ func (e *redstoneEngine) powerFrom(pos cube.Pos, tx *Tx, face cube.Face) int {
 			if to == s.from {
 				continue
 			}
-			nextBlock, ok := tx.World().blockLoaded(next)
+			nextBlock, ok := w.blockLoaded(next)
 			if !ok {
 				continue
 			}
@@ -1062,8 +1083,15 @@ func (e *redstoneEngine) compileEdges(tx *Tx, nodes []redstoneNode) []redstoneEd
 		index[node.pos] = i
 	}
 	edges := make([]redstoneEdge, 0, len(nodes))
+	if len(nodes) == 0 {
+		// The loop and the sort below are both no-ops on an empty node list, so this returns the same slice.
+		return edges
+	}
+	// The world is read once instead of once per node and neighbour; tx cannot change world during a
+	// transaction, so the same blocks are looked up.
+	w := tx.World()
 	for i, node := range nodes {
-		b, loaded := tx.World().blockLoaded(node.pos)
+		b, loaded := w.blockLoaded(node.pos)
 		if !loaded {
 			continue
 		}
@@ -1077,7 +1105,7 @@ func (e *redstoneEngine) compileEdges(tx *Tx, nodes []redstoneNode) []redstoneEd
 				continue
 			}
 			weight := 0
-			if neighbourBlock, ok := tx.World().blockLoaded(neighbour); ok {
+			if neighbourBlock, ok := w.blockLoaded(neighbour); ok {
 				if _, neighbourRelayer := neighbourBlock.(RedstonePowerRelayer); neighbourRelayer {
 					weight = max(relayer.RedstoneSignalLoss(node.pos, tx), 1)
 				}
@@ -1126,11 +1154,14 @@ func (e *redstoneEngine) redstoneRelayerConnectedPositions(tx *Tx, pos cube.Pos,
 	for _, neighbour := range neighbours {
 		seen[neighbour] = struct{}{}
 	}
-	for _, candidate := range redstoneRelayerIncomingCandidates(pos, tx.Range()) {
+	// The world is read once instead of once per candidate; Tx.Range already resolved it, and tx cannot change
+	// world during a transaction, so the same blocks are looked up.
+	w := tx.World()
+	for _, candidate := range redstoneRelayerIncomingCandidates(pos, w.ra) {
 		if _, ok := seen[candidate]; ok {
 			continue
 		}
-		candidateBlock, ok := tx.World().blockLoaded(candidate)
+		candidateBlock, ok := w.blockLoaded(candidate)
 		if !ok {
 			continue
 		}
@@ -1149,9 +1180,12 @@ func (e *redstoneEngine) redstoneRelayerConnectedPositions(tx *Tx, pos cube.Pos,
 // redstoneRelayerIncomingCandidates returns nearby positions that can point at pos with the built-in relayer geometry.
 func redstoneRelayerIncomingCandidates(pos cube.Pos, r cube.Range) []cube.Pos {
 	candidates := make([]cube.Pos, 0, 26)
-	for x := pos[0] - 1; x <= pos[0]+1; x++ {
-		for y := pos[1] - 1; y <= pos[1]+1; y++ {
-			for z := pos[2] - 1; z <= pos[2]+1; z++ {
+	// The loop bounds are computed once instead of once per step; pos does not change, so the same 26
+	// candidates are produced in the same order.
+	maxX, maxY, maxZ := pos[0]+1, pos[1]+1, pos[2]+1
+	for x := pos[0] - 1; x <= maxX; x++ {
+		for y := pos[1] - 1; y <= maxY; y++ {
+			for z := pos[2] - 1; z <= maxZ; z++ {
 				candidate := cube.Pos{x, y, z}
 				if candidate == pos || candidate.OutOfBounds(r) {
 					continue
@@ -1165,9 +1199,12 @@ func redstoneRelayerIncomingCandidates(pos cube.Pos, r cube.Range) []cube.Pos {
 
 // redstoneRelayerNeighbours visits the six default adjacent relayer neighbours.
 func (e *redstoneEngine) redstoneRelayerNeighbours(tx *Tx, pos cube.Pos, f func(cube.Pos)) {
+	// The range is read once instead of once per face; it cannot change during a transaction, so the same
+	// neighbours are visited in the same order.
+	r := tx.Range()
 	for _, face := range cube.Faces() {
 		neighbour := pos.Side(face)
-		if !neighbour.OutOfBounds(tx.Range()) {
+		if !neighbour.OutOfBounds(r) {
 			f(neighbour)
 		}
 	}
@@ -1208,8 +1245,22 @@ func classifyRedstoneBlock(b Block) (source, consumer, action, relayer bool) {
 
 // isRedstoneRelevant reports whether b should be included in redstone graph compilation.
 func isRedstoneRelevant(b Block) bool {
-	source, consumer, action, relayer := classifyRedstoneBlock(b)
-	return source || consumer || action || relayer
+	// The assertions stop at the first match instead of always running all five. The result is the same OR of
+	// the same five assertions, and a type assertion has no side effect, so only the count of them changes.
+	if _, ok := b.(RedstonePowerSource); ok {
+		return true
+	}
+	if _, ok := b.(RedstonePowerConsumer); ok {
+		return true
+	}
+	if _, ok := b.(RedstonePowerAction); ok {
+		return true
+	}
+	if _, ok := b.(RedstonePowerContextAction); ok {
+		return true
+	}
+	_, relayer := b.(RedstonePowerRelayer)
+	return relayer
 }
 
 // compareBlockPos orders positions deterministically by Y, Z, then X.

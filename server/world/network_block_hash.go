@@ -3,7 +3,7 @@ package world
 import (
 	"encoding/binary"
 	"fmt"
-	"sort"
+	"slices"
 
 	"github.com/segmentio/fasthash/fnv1a"
 )
@@ -22,39 +22,40 @@ func networkBlockHash(name string, properties map[string]any, scratch []byte) (u
 	for k := range properties {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	// slices.Sort replaces sort.Strings: both put distinct strings in ascending order, so the key order and the
+	// bytes hashed are the same, without boxing the slice into a sort.Interface.
+	slices.Sort(keys)
 
 	data := scratch[:0]
-	writeString := func(str string) {
-		data = binary.LittleEndian.AppendUint16(data, uint16(len(str)))
-		data = append(data, []byte(str)...)
-	}
+	// writeString became appendNetworkString, a plain function taking and returning the buffer. The closure used
+	// to capture data by reference, which forced the slice header and the closure onto the heap on every call.
+	// The bytes appended, and their order, are unchanged.
 
 	data = append(data, 10) // compound
 	data = append(data, 0)
 	data = append(data, 0)
 
 	data = append(data, 8) // string
-	writeString("name")
-	writeString(name)
+	data = appendNetworkString(data, "name")
+	data = appendNetworkString(data, name)
 
 	data = append(data, 10) // compound
-	writeString("states")
+	data = appendNetworkString(data, "states")
 	for _, k := range keys {
 		v := properties[k]
 		switch v := v.(type) {
 		case string:
 			data = append(data, 8) // string
-			writeString(k)
-			writeString(v)
+			data = appendNetworkString(data, k)
+			data = appendNetworkString(data, v)
 
 		case uint8:
 			data = append(data, 1) // tagByte
-			writeString(k)
+			data = appendNetworkString(data, k)
 			data = append(data, byte(v))
 		case int8:
 			data = append(data, 1) // tagByte
-			writeString(k)
+			data = appendNetworkString(data, k)
 			data = append(data, byte(v))
 		case bool:
 			b := 0
@@ -62,25 +63,25 @@ func networkBlockHash(name string, properties map[string]any, scratch []byte) (u
 				b = 1
 			}
 			data = append(data, 1) // tagByte
-			writeString(k)
+			data = appendNetworkString(data, k)
 			data = append(data, byte(b))
 
 		case uint16:
 			data = append(data, 2) // tagInt16
-			writeString(k)
+			data = appendNetworkString(data, k)
 			data = binary.LittleEndian.AppendUint16(data, uint16(v))
 		case int16:
 			data = append(data, 2) // tagInt16
-			writeString(k)
+			data = appendNetworkString(data, k)
 			data = binary.LittleEndian.AppendUint16(data, uint16(v))
 
 		case uint32:
 			data = append(data, 3) // tagInt32
-			writeString(k)
+			data = appendNetworkString(data, k)
 			data = binary.LittleEndian.AppendUint32(data, uint32(v))
 		case int32:
 			data = append(data, 3) // tagInt32
-			writeString(k)
+			data = appendNetworkString(data, k)
 			data = binary.LittleEndian.AppendUint32(data, uint32(v))
 		default:
 			panic(fmt.Sprintf("unhandled nbt type: %T", v))
@@ -90,4 +91,11 @@ func networkBlockHash(name string, properties map[string]any, scratch []byte) (u
 	data = append(data, 0) // end
 
 	return fnv1a.HashBytes32(data), data
+}
+
+// appendNetworkString appends str to data prefixed with its little endian uint16 length, as the network block hash
+// format writes strings. It returns the grown buffer, which the caller must keep.
+func appendNetworkString(data []byte, str string) []byte {
+	data = binary.LittleEndian.AppendUint16(data, uint16(len(str)))
+	return append(data, str...)
 }

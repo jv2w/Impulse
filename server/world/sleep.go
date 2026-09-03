@@ -36,13 +36,20 @@ func (ticker) tryAdvanceDay(tx *Tx, timeCycle bool) {
 	sleepers := tx.Sleepers()
 	time := tx.w.Time() % TimeFull
 
+	// The weather and time guard reads nothing about the sleeper, and nothing in the loop changes the weather
+	// or the time, so it can only return on the first sleeper. Checking it once instead of once per sleeper
+	// leaves the same outcome and drops the repeated locking Thundering and Raining do.
+	var guardChecked bool
 	for s := range sleepers {
-		if !tx.Thundering() {
-			if !tx.Raining() && (time <= TimeSleep || time >= TimeWake) {
-				return
-			}
-			if time <= TimeSleepWithRain || time >= TimeWakeWithRain {
-				return
+		if !guardChecked {
+			guardChecked = true
+			if !tx.Thundering() {
+				if !tx.Raining() && (time <= TimeSleep || time >= TimeWake) {
+					return
+				}
+				if time <= TimeSleepWithRain || time >= TimeWakeWithRain {
+					return
+				}
 			}
 		}
 

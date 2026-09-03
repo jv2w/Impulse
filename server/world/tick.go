@@ -44,8 +44,9 @@ func (w *World) AdvanceTick() {
 // tick performs a tick on the World and updates the time, weather, blocks and
 // entities that require updates.
 func (t ticker) tick(tx *Tx) {
-	viewers, loaders := tx.World().allViewers()
+	// The world is resolved once instead of twice; tx cannot change world during a transaction.
 	w := tx.World()
+	viewers, loaders := w.allViewers()
 
 	w.set.Lock()
 	if s := w.set.Spawn; s[1] > tx.Range()[1] && w.Dimension() == Overworld {
@@ -83,12 +84,16 @@ func (t ticker) tick(tx *Tx) {
 		t.tryAdvanceDay(tx, cycle)
 	}
 
-	if tick%20 == 0 {
+	if tick%20 == 0 && len(viewers) != 0 {
+		// The dimension and its two cycle flags are the same for every viewer, so they are read once instead
+		// of twice per viewer. The added length check only skips a loop body that never ran.
+		dim := w.Dimension()
+		viewTime, viewWeather := dim.TimeCycle() && cycle, dim.WeatherCycle()
 		for _, viewer := range viewers {
-			if w.Dimension().TimeCycle() && cycle {
+			if viewTime {
 				viewer.ViewTime(tim)
 			}
-			if w.Dimension().WeatherCycle() {
+			if viewWeather {
 				viewer.ViewWeather(rain, thunder)
 			}
 		}
@@ -164,6 +169,8 @@ func (t ticker) tickBlocksRandomly(tx *Tx, loaders []*Loader, tick int64) {
 	// lifetime, so they are resolved once for the scan below rather than per
 	// sub chunk visited.
 	blocks, subYBase := w.conf.Blocks, w.Range().Min()>>4
+	// The random tick speed is fixed for the whole scan, so it is read once instead of once per loop step.
+	tickSpeed := w.conf.RandomTickSpeed
 
 	for pos, c := range w.chunks {
 		if !synchronous && !t.anyWithinDistance(pos, loaded, r) {
@@ -178,12 +185,15 @@ func (t ticker) tickBlocksRandomly(tx *Tx, loaders []*Loader, tick int64) {
 		}
 
 		cx, cz := int(pos[0]<<4), int(pos[1]<<4)
+		// The sub chunk list is asked for once per chunk instead of once per random tick round. Nothing in
+		// the scan writes blocks, so every round used to get this same slice.
+		subs := c.Sub()
 
 		// We generate up to j random positions for every sub chunk.
-		for j := 0; j < w.conf.RandomTickSpeed; j++ {
+		for j := 0; j < tickSpeed; j++ {
 			x, y, z := g.uint4(w.r), g.uint4(w.r), g.uint4(w.r)
 
-			for i, sub := range c.Sub() {
+			for i, sub := range subs {
 				if sub.Empty() {
 					// SubChunk is empty, so skip it right away.
 					continue
@@ -217,9 +227,11 @@ func (t ticker) tickBlocksRandomly(tx *Tx, loaders []*Loader, tick int64) {
 
 // anyWithinDistance checks if any of the ChunkPos loaded are within the distance r of the ChunkPos pos.
 func (t ticker) anyWithinDistance(pos ChunkPos, loaded []ChunkPos, r int32) bool {
+	// The squared radius is computed once instead of once per loader; r does not change in the loop.
+	rSq := r * r
 	for _, chunkPos := range loaded {
 		xDiff, zDiff := chunkPos[0]-pos[0], chunkPos[1]-pos[1]
-		if (xDiff*xDiff)+(zDiff*zDiff) <= r*r {
+		if (xDiff*xDiff)+(zDiff*zDiff) <= rSq {
 			// The chunk was within the simulation distance of at least one viewer, so we can proceed to
 			// ticking the block.
 			return true
@@ -231,11 +243,14 @@ func (t ticker) anyWithinDistance(pos ChunkPos, loaded []ChunkPos, r int32) bool
 // tickEntities ticks all entities in the world, making sure they are still located in the correct chunks and
 // updating where necessary.
 func (t ticker) tickEntities(tx *Tx, tick int64) {
-	for handle, lastPos := range tx.World().entities {
+	// The world is resolved once instead of up to five times per entity; tx cannot change world during a
+	// transaction, so every lookup below reads the same maps it read before.
+	w := tx.World()
+	for handle, lastPos := range w.entities {
 		e := handle.mustEntity(tx)
 		chunkPos := chunkPosFromVec3(handle.data.Pos)
 
-		c, ok := tx.World().chunks[chunkPos]
+		c, ok := w.chunks[chunkPos]
 		if !ok {
 			continue
 		}
@@ -243,7 +258,7 @@ func (t ticker) tickEntities(tx *Tx, tick int64) {
 		if lastPos != chunkPos {
 			// The entity was stored using an outdated chunk position. We update it and make sure it is ready
 			// for loaders to view it.
-			tx.World().entities[handle] = chunkPos
+			w.entities[handle] = chunkPos
 			c.Entities = append(c.Entities, handle)
 
 			var viewers []Viewer
@@ -251,7 +266,7 @@ func (t ticker) tickEntities(tx *Tx, tick int64) {
 			// When changing an entity's world, then teleporting it immediately, we could end up in a situation
 			// where the old chunk of the entity was not loaded. In this case, it should be safe simply to ignore
 			// the loaders from the old chunk. We can assume they never saw the entity in the first place.
-			if old, ok := tx.World().chunks[lastPos]; ok {
+			if old, ok := w.chunks[lastPos]; ok {
 				old.Entities = sliceutil.DeleteVal(old.Entities, handle)
 				viewers = old.viewers
 			}
@@ -272,7 +287,7 @@ func (t ticker) tickEntities(tx *Tx, tick int64) {
 			}
 		}
 
-		if tx.World().conf.Synchronous || len(c.viewers) > 0 {
+		if w.conf.Synchronous || len(c.viewers) > 0 {
 			if te, ok := e.(TickerEntity); ok {
 				te.Tick(tx, tick)
 			}
@@ -331,14 +346,17 @@ func (queue *scheduledTickQueue) tick(tx *Tx, tick int64) {
 	queue.currentTick = tick
 
 	w := tx.World()
+	// The registry is read out of the config once instead of once per scheduled tick; conf.Blocks is fixed
+	// for the World's lifetime, so the same registry hashes the same blocks.
+	blocks := w.conf.Blocks
 	for _, t := range queue.ticks {
 		if t.t > tick {
 			continue
 		}
 		b := tx.Block(t.pos)
-		if ticker, ok := b.(ScheduledTicker); ok && w.conf.Blocks.BlockHash(b) == t.bhash {
+		if ticker, ok := b.(ScheduledTicker); ok && blocks.BlockHash(b) == t.bhash {
 			ticker.ScheduledTick(t.pos, tx, w.r)
-		} else if liquid, ok := tx.additionalLiquid(t.pos); ok && w.conf.Blocks.BlockHash(liquid) == t.bhash {
+		} else if liquid, ok := tx.additionalLiquid(t.pos); ok && blocks.BlockHash(liquid) == t.bhash {
 			if ticker, ok := liquid.(ScheduledTicker); ok {
 				ticker.ScheduledTick(t.pos, tx, w.r)
 			}
