@@ -94,6 +94,13 @@ func (v Vines) Attachment(direction cube.Direction) bool {
 	panic("should never happen")
 }
 
+// attached reports whether the vines are attached in any direction. It is the
+// same answer Attachments gives, without building the list: Attachment maps
+// each of the four directions onto exactly one of the fields below.
+func (v Vines) attached() bool {
+	return v.NorthDirection || v.EastDirection || v.SouthDirection || v.WestDirection
+}
+
 // Attachments returns all attachments of the vines.
 func (v Vines) Attachments() (attachments []cube.Direction) {
 	for _, d := range cube.Directions() {
@@ -127,7 +134,13 @@ func (v Vines) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *world.
 // NeighbourUpdateTick ...
 func (v Vines) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
 	above, updated := tx.Block(pos.Side(cube.FaceUp)), false
-	for _, d := range v.Attachments() {
+	// Attachments walks the same directions in the same order and only collects the attached ones,
+	// so checking each direction here visits exactly the same ones without building the list. Each
+	// step only ever clears its own direction, so a direction still reads its pre-loop value.
+	for _, d := range cube.Directions() {
+		if !v.Attachment(d) {
+			continue
+		}
 		if !v.canSpreadTo(tx, pos.Side(d.Face())) {
 			if o, ok := above.(Vines); !ok || !o.Attachment(d) {
 				//noinspection GoAssignmentToReceiver
@@ -139,7 +152,8 @@ func (v Vines) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
 	if !updated {
 		return
 	}
-	if len(v.Attachments()) == 0 {
+	// The list was built only to ask whether it was empty.
+	if !v.attached() {
 		breakBlock(v, pos, tx)
 		return
 	}
@@ -170,8 +184,11 @@ func (v Vines) RandomTick(pos cube.Pos, tx *world.Tx, r *rand.Rand) {
 			rightRotatedFace := face.RotateRight()
 			leftRotatedFace := face.RotateLeft()
 
-			attachedOnRight := v.Attachment(rightRotatedFace.Direction())
-			attachedOnLeft := v.Attachment(leftRotatedFace.Direction())
+			// The rotated faces' directions were derived again further down; they are pure and
+			// unchanged, so one value each serves every use.
+			rightDirection, leftDirection := rightRotatedFace.Direction(), leftRotatedFace.Direction()
+			attachedOnRight := v.Attachment(rightDirection)
+			attachedOnLeft := v.Attachment(leftDirection)
 
 			rightSelectedPos := selectedPos.Side(rightRotatedFace)
 			leftSelectedPos := selectedPos.Side(leftRotatedFace)
@@ -195,9 +212,9 @@ func (v Vines) RandomTick(pos cube.Pos, tx *world.Tx, r *rand.Rand) {
 			// 4) If the clockwise direction fails, try again with the left
 			//    direction.
 			if attachedOnRight && v.canSpreadTo(tx, rightSelectedPos) {
-				tx.SetBlock(selectedPos, (Vines{}).WithAttachment(rightRotatedFace.Direction(), true), nil)
+				tx.SetBlock(selectedPos, (Vines{}).WithAttachment(rightDirection, true), nil)
 			} else if attachedOnLeft && v.canSpreadTo(tx, leftSelectedPos) {
-				tx.SetBlock(selectedPos, (Vines{}).WithAttachment(leftRotatedFace.Direction(), true), nil)
+				tx.SetBlock(selectedPos, (Vines{}).WithAttachment(leftDirection, true), nil)
 			} else if _, ok = tx.Block(rightSelectedPos).(Air); ok && attachedOnRight && v.canSpreadTo(tx, pos.Side(rightRotatedFace)) {
 				tx.SetBlock(rightSelectedPos, (Vines{}).WithAttachment(face.Opposite().Direction(), true), nil)
 			} else if _, ok = tx.Block(leftSelectedPos).(Air); ok && attachedOnLeft && v.canSpreadTo(tx, pos.Side(leftRotatedFace)) {
@@ -229,7 +246,8 @@ func (v Vines) RandomTick(pos cube.Pos, tx *world.Tx, r *rand.Rand) {
 					newVines = newVines.WithAttachment(f.Direction(), true)
 				}
 			}
-			if len(newVines.Attachments()) > 0 {
+			// The list was built only to ask whether it held anything.
+			if newVines.attached() {
 				tx.SetBlock(selectedPos, newVines, nil)
 			}
 			return
@@ -268,11 +286,20 @@ func (Vines) EncodeItem() (name string, meta int16) {
 
 // EncodeBlock ...
 func (v Vines) EncodeBlock() (string, map[string]any) {
+	// The same four bits in the same order, set directly instead of walking a temporary list of
+	// the very same booleans.
 	var bits int
-	for i, ok := range []bool{v.SouthDirection, v.WestDirection, v.NorthDirection, v.EastDirection} {
-		if ok {
-			bits |= 1 << i
-		}
+	if v.SouthDirection {
+		bits |= 1 << 0
+	}
+	if v.WestDirection {
+		bits |= 1 << 1
+	}
+	if v.NorthDirection {
+		bits |= 1 << 2
+	}
+	if v.EastDirection {
+		bits |= 1 << 3
 	}
 	return "minecraft:vine", map[string]any{"vine_direction_bits": int32(bits)}
 }
@@ -309,6 +336,9 @@ func (v Vines) canSpread(tx *world.Tx, pos cube.Pos) bool {
 
 // allVines ...
 func allVines() (b []world.Block) {
+	// Two states on each of four directions, so the slice is presized to its final length and
+	// grows without reallocating. The same blocks are appended in the same order.
+	b = make([]world.Block, 0, 16)
 	for _, north := range []bool{true, false} {
 		for _, east := range []bool{true, false} {
 			for _, south := range []bool{true, false} {

@@ -51,10 +51,13 @@ func (c SugarCane) RandomTick(pos cube.Pos, tx *world.Tx, _ *rand.Rand) {
 		c.Age = 0
 		if c.canGrowHere(pos.Side(cube.FaceDown), tx, false) {
 			for y := 1; y < 3; y++ {
-				if _, ok := tx.Block(pos.Add(cube.Pos{0, y})).(Air); ok {
-					tx.SetBlock(pos.Add(cube.Pos{0, y}), SugarCane{}, nil)
+				// pos.Add(cube.Pos{0, y}) is pure and was computed up to three times per step; one
+				// value serves every use, and the same blocks are read in the same order.
+				above := pos.Add(cube.Pos{0, y})
+				if _, ok := tx.Block(above).(Air); ok {
+					tx.SetBlock(above, SugarCane{}, nil)
 					break
-				} else if _, ok := tx.Block(pos.Add(cube.Pos{0, y})).(SugarCane); !ok {
+				} else if _, ok := tx.Block(above).(SugarCane); !ok {
 					break
 				}
 			}
@@ -65,13 +68,21 @@ func (c SugarCane) RandomTick(pos cube.Pos, tx *world.Tx, _ *rand.Rand) {
 
 // BoneMeal ...
 func (c SugarCane) BoneMeal(pos cube.Pos, tx *world.Tx) item.BoneMealResult {
-	for _, ok := tx.Block(pos.Side(cube.FaceDown)).(SugarCane); ok; _, ok = tx.Block(pos.Side(cube.FaceDown)).(SugarCane) {
-		pos = pos.Side(cube.FaceDown)
+	// The walk down is unchanged: the same tx.Block calls happen on the same positions in the same
+	// order, but pos.Side(cube.FaceDown) is now computed once per step instead of twice.
+	for {
+		below := pos.Side(cube.FaceDown)
+		if _, ok := tx.Block(below).(SugarCane); !ok {
+			break
+		}
+		pos = below
 	}
 	if c.canGrowHere(pos.Side(cube.FaceDown), tx, false) {
 		for y := 1; y < 3; y++ {
-			if _, ok := tx.Block(pos.Add(cube.Pos{0, y})).(Air); ok {
-				tx.SetBlock(pos.Add(cube.Pos{0, y}), SugarCane{}, nil)
+			// pos.Add(cube.Pos{0, y}) is pure and was computed twice; one value serves both uses.
+			above := pos.Add(cube.Pos{0, y})
+			if _, ok := tx.Block(above).(Air); ok {
+				tx.SetBlock(above, SugarCane{}, nil)
 			}
 		}
 		return item.BoneMealResultSmall
@@ -81,8 +92,10 @@ func (c SugarCane) BoneMeal(pos cube.Pos, tx *world.Tx) item.BoneMealResult {
 
 // canGrowHere implements logic to check if sugar cane can live/grow here.
 func (c SugarCane) canGrowHere(pos cube.Pos, tx *world.Tx, recursive bool) bool {
-	if _, ok := tx.Block(pos.Side(cube.FaceDown)).(SugarCane); ok && recursive {
-		return c.canGrowHere(pos.Side(cube.FaceDown), tx, recursive)
+	// pos.Side(cube.FaceDown) is pure and was computed twice; one value serves both uses.
+	below := pos.Side(cube.FaceDown)
+	if _, ok := tx.Block(below).(SugarCane); ok && recursive {
+		return c.canGrowHere(below, tx, recursive)
 	}
 
 	if supportsVegetation(c, tx.Block(pos.Sub(cube.Pos{0, 1}))) {
@@ -119,6 +132,8 @@ func (c SugarCane) EncodeBlock() (name string, properties map[string]any) {
 
 // allSugarCane returns all possible states of a sugar cane block.
 func allSugarCane() (b []world.Block) {
+	// The final count is known, so the slice is presized and grows without reallocating.
+	b = make([]world.Block, 0, 16)
 	for i := 0; i < 16; i++ {
 		b = append(b, SugarCane{Age: i})
 	}

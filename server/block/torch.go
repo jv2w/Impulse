@@ -42,10 +42,14 @@ func (t Torch) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *world.
 	if face == cube.FaceDown {
 		return false
 	}
-	if !tx.Block(pos.Side(face.Opposite())).Model().FaceSolid(pos.Side(face.Opposite()), face, tx) {
+	// pos.Side(face.Opposite()) and pos.Side(i) are pure and were each computed twice; one value
+	// serves both uses in each case.
+	attached := pos.Side(face.Opposite())
+	if !tx.Block(attached).Model().FaceSolid(attached, face, tx) {
 		found := false
 		for _, i := range []cube.Face{cube.FaceSouth, cube.FaceWest, cube.FaceNorth, cube.FaceEast, cube.FaceDown} {
-			if tx.Block(pos.Side(i)).Model().FaceSolid(pos.Side(i), i.Opposite(), tx) {
+			neighbour := pos.Side(i)
+			if tx.Block(neighbour).Model().FaceSolid(neighbour, i.Opposite(), tx) {
 				found = true
 				face = i.Opposite()
 				break
@@ -63,7 +67,9 @@ func (t Torch) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *world.
 
 // NeighbourUpdateTick ...
 func (t Torch) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
-	if !tx.Block(pos.Side(t.Facing)).Model().FaceSolid(pos.Side(t.Facing), t.Facing.Opposite(), tx) {
+	// pos.Side(t.Facing) is pure and was computed twice; one value serves both uses.
+	attached := pos.Side(t.Facing)
+	if !tx.Block(attached).Model().FaceSolid(attached, t.Facing.Opposite(), tx) {
 		breakBlock(t, pos, tx)
 	}
 }
@@ -107,7 +113,11 @@ func (t Torch) EncodeBlock() (name string, properties map[string]any) {
 
 // allTorches ...
 func allTorches() (torch []world.Block) {
-	for _, face := range cube.Faces() {
+	// Two torches per face, so the slice is presized to its final length and grows without
+	// reallocating. The same blocks are appended in the same order.
+	faces := cube.Faces()
+	torch = make([]world.Block, 0, 2*len(faces))
+	for _, face := range faces {
 		if face == cube.FaceUp {
 			face = unknownFace
 		}

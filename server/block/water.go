@@ -193,19 +193,19 @@ func (w Water) EncodeBlock() (name string, properties map[string]any) {
 
 // allWater returns a list of all water states.
 func allWater() (b []world.Block) {
-	f := func(still, falling bool) {
-		b = append(b, Water{Still: still, Falling: falling, Depth: 8})
-		b = append(b, Water{Still: still, Falling: falling, Depth: 7})
-		b = append(b, Water{Still: still, Falling: falling, Depth: 6})
-		b = append(b, Water{Still: still, Falling: falling, Depth: 5})
-		b = append(b, Water{Still: still, Falling: falling, Depth: 4})
-		b = append(b, Water{Still: still, Falling: falling, Depth: 3})
-		b = append(b, Water{Still: still, Falling: falling, Depth: 2})
-		b = append(b, Water{Still: still, Falling: falling, Depth: 1})
+	// The helper takes and returns the slice instead of capturing it, so it is a plain function
+	// value rather than a closure built per call, and the final count is known so the slice is
+	// presized. The same water states are appended in the same order, depth 8 down to 1.
+	f := func(b []world.Block, still, falling bool) []world.Block {
+		for depth := 8; depth >= 1; depth-- {
+			b = append(b, Water{Still: still, Falling: falling, Depth: depth})
+		}
+		return b
 	}
-	f(true, true)
-	f(true, false)
-	f(false, false)
-	f(false, true)
+	b = make([]world.Block, 0, 32)
+	b = f(b, true, true)
+	b = f(b, true, false)
+	b = f(b, false, false)
+	b = f(b, false, true)
 	return
 }

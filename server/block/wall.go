@@ -5,7 +5,6 @@ import (
 	"github.com/go-gl/mathgl/mgl64"
 	"github.com/jv2w/Impulse/server/block/cube"
 	"github.com/jv2w/Impulse/server/block/model"
-	"github.com/jv2w/Impulse/server/internal/sliceutil"
 	"github.com/jv2w/Impulse/server/item"
 	"github.com/jv2w/Impulse/server/world"
 	"math"
@@ -133,18 +132,26 @@ func (w Wall) calculateConnections(tx *world.Tx, pos cube.Pos) (Wall, bool) {
 	var updated bool
 	abovePos := pos.Add(cube.Pos{0, 1, 0})
 	above := tx.Block(abovePos)
+	// The block above never changes inside the loop, so its boxes are built at most once and
+	// reused. They are still only built once a face actually connects, so a wall with no
+	// connection asks for them exactly as often as before: never.
+	var boxes []cube.BBox
+	var haveBoxes bool
 	for _, face := range cube.HorizontalFaces() {
 		sidePos := pos.Side(face)
 		side := tx.Block(sidePos)
 		// A wall can only connect to a block if the side is solid, with the only exception being thin blocks (such as
 		// glass panes and iron bars) as well as the sides of fence gates.
-		connected := side.Model().FaceSolid(sidePos, face.Opposite(), tx)
+		// side already holds the block at sidePos and its chunk is loaded by the read above, so the
+		// repeated reads of the same position below are the same block, and its model is taken once.
+		sideModel := side.Model()
+		connected := sideModel.FaceSolid(sidePos, face.Opposite(), tx)
 		if !connected {
-			if _, ok := tx.Block(sidePos).(Wall); ok {
+			if _, ok := side.(Wall); ok {
 				connected = true
-			} else if gate, ok := tx.Block(sidePos).(WoodFenceGate); ok {
+			} else if gate, ok := side.(WoodFenceGate); ok {
 				connected = gate.Facing.Face().Axis() != face.Axis()
-			} else if _, ok := tx.Block(sidePos).Model().(model.Thin); ok {
+			} else if _, ok := sideModel.(model.Thin); ok {
 				connected = true
 			}
 		}
@@ -153,21 +160,27 @@ func (w Wall) calculateConnections(tx *world.Tx, pos cube.Pos) (Wall, bool) {
 			// If the wall is connected to the side, it has the possibility of having a tall connection. This is
 			// calculated by checking for any overlapping blocks in the area of the connection.
 			connectionType = ShortWallConnection()
-			boxes := above.Model().BBox(abovePos, tx)
+			if !haveBoxes {
+				boxes, haveBoxes = above.Model().BBox(abovePos, tx), true
+			}
 			for _, bb := range boxes {
-				if bb.Min().Y() == 0 {
-					xOverlap := bb.Min().X() < 0.75 && bb.Max().X() > 0.25
-					zOverlap := bb.Min().Z() < 0.75 && bb.Max().Z() > 0.25
+				// bb.Min() and bb.Max() were each read up to three times for one box; one value
+				// each serves every use, and Max is still only read for a box that starts at 0.
+				mn := bb.Min()
+				if mn.Y() == 0 {
+					mx := bb.Max()
+					xOverlap := mn.X() < 0.75 && mx.X() > 0.25
+					zOverlap := mn.Z() < 0.75 && mx.Z() > 0.25
 					var tall bool
 					switch face {
 					case cube.FaceNorth:
-						tall = xOverlap && bb.Max().Z() > 0.75
+						tall = xOverlap && mx.Z() > 0.75
 					case cube.FaceEast:
-						tall = bb.Min().X() < 0.25 && zOverlap
+						tall = mn.X() < 0.25 && zOverlap
 					case cube.FaceSouth:
-						tall = xOverlap && bb.Min().Z() < 0.25
+						tall = xOverlap && mn.Z() < 0.25
 					case cube.FaceWest:
-						tall = bb.Max().X() > 0.75 && zOverlap
+						tall = mx.X() > 0.75 && zOverlap
 					}
 					if tall {
 						connectionType = TallWallConnection()
@@ -177,9 +190,11 @@ func (w Wall) calculateConnections(tx *world.Tx, pos cube.Pos) (Wall, bool) {
 			}
 
 		}
-		if w.ConnectionType(face.Direction()) != connectionType {
+		// face.Direction() is pure and was derived twice on the updating path; one value serves both.
+		direction := face.Direction()
+		if w.ConnectionType(direction) != connectionType {
 			updated = true
-			w = w.WithConnectionType(face.Direction(), connectionType)
+			w = w.WithConnectionType(direction, connectionType)
 		}
 	}
 	return w, updated
@@ -191,9 +206,6 @@ func (w Wall) calculatePost(tx *world.Tx, pos cube.Pos) (Wall, bool) {
 	var updated bool
 	abovePos := pos.Add(cube.Pos{0, 1, 0})
 	above := tx.Block(abovePos)
-	connections := len(sliceutil.Filter(cube.HorizontalFaces(), func(face cube.Face) bool {
-		return w.ConnectionType(face.Direction()) != NoWallConnection()
-	}))
 	var post bool
 	switch above := above.(type) {
 	case Lantern:
@@ -224,6 +236,15 @@ func (w Wall) calculatePost(tx *world.Tx, pos cube.Pos) (Wall, bool) {
 		post = above.Post
 	}
 	if !post {
+		// Counting the connected faces directly gives the same number as filtering them into a
+		// slice did, without the temporary slice or the closure, and it is only counted on the
+		// path that actually reads it.
+		connections := 0
+		for _, face := range cube.HorizontalFaces() {
+			if w.ConnectionType(face.Direction()) != NoWallConnection() {
+				connections++
+			}
+		}
 		// If a wall has two connections that are in different axis then it becomes a post regardless of the above block.
 		if connections < 2 {
 			post = true
@@ -247,15 +268,21 @@ func (w Wall) calculatePost(tx *world.Tx, pos cube.Pos) (Wall, bool) {
 
 // allWalls returns a list of all wall types.
 func allWalls() (walls []world.Block) {
-	for _, block := range WallBlocks() {
+	// WallConnectionTypes() built a fresh list on every one of the nested loop passes; it is built
+	// once, and the final count is known so the slice is presized. The same walls are appended in
+	// the same order into a slice still built fresh per call.
+	blocks, types := WallBlocks(), WallConnectionTypes()
+	n := len(types)
+	walls = make([]world.Block, 0, len(blocks)*n*n*n*n*2)
+	for _, block := range blocks {
 		if _, hash := block.Hash(); hash > math.MaxUint16 {
 			name, _ := block.EncodeBlock()
 			panic(fmt.Errorf("hash of block %s exceeds 16 bytes", name))
 		}
-		for _, north := range WallConnectionTypes() {
-			for _, east := range WallConnectionTypes() {
-				for _, south := range WallConnectionTypes() {
-					for _, west := range WallConnectionTypes() {
+		for _, north := range types {
+			for _, east := range types {
+				for _, south := range types {
+					for _, west := range types {
 						walls = append(walls, Wall{
 							Block:           block,
 							NorthConnection: north,
