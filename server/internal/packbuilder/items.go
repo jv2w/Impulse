@@ -27,7 +27,8 @@ func buildItems(dir string) (count int, lang []string) {
 		lang = append(lang, fmt.Sprintf("item.%s.name=%s", identifier, item.Name()))
 
 		name := strings.Split(identifier, ":")[1]
-		textureData[identifier] = map[string]string{"textures": fmt.Sprintf("textures/items/%s.png", name)}
+		// The concatenation is the same string Sprintf built, without the call.
+		textureData[identifier] = map[string]string{"textures": "textures/items/" + name + ".png"}
 
 		buildItemTexture(dir, name, item.Texture())
 

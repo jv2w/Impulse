@@ -73,7 +73,9 @@ func componentsFromProperties(props customblock.Properties) map[string]any {
 		components["minecraft:map_color"] = map[string]any{"value": props.MapColour}
 	}
 	if props.Textures != nil {
-		materials := map[string]any{}
+		// Exactly one entry is written per texture, so the hint is the final
+		// size and the map never grows.
+		materials := make(map[string]any, len(props.Textures))
 		for target, material := range props.Textures {
 			materials[target] = material.Encode()
 		}

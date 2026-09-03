@@ -1,9 +1,9 @@
 package cube
 
 import (
-	"fmt"
 	"iter"
 	"math"
+	"strconv"
 
 	"github.com/go-gl/mathgl/mgl64"
 )
@@ -14,7 +14,18 @@ type Pos [3]int
 
 // String converts the Pos to a string in the format (1,2,3) and returns it.
 func (p Pos) String() string {
-	return fmt.Sprintf("(%v,%v,%v)", p[0], p[1], p[2])
+	// %v on an int is the same text AppendInt writes in base 10, so this
+	// builds the identical string without boxing the three coordinates or
+	// running the formatter.
+	b := make([]byte, 0, 36)
+	b = append(b, '(')
+	b = strconv.AppendInt(b, int64(p[0]), 10)
+	b = append(b, ',')
+	b = strconv.AppendInt(b, int64(p[1]), 10)
+	b = append(b, ',')
+	b = strconv.AppendInt(b, int64(p[2]), 10)
+	b = append(b, ')')
+	return string(b)
 }
 
 // X returns the X coordinate of the block position.
@@ -171,9 +182,13 @@ func Range3D(p1, p2 Pos) iter.Seq[Pos] {
 	max := Max(p1, p2)
 	min := Min(p1, p2)
 	return func(yield func(Pos) bool) {
-		for x := min[0]; x <= max[0]; x++ {
-			for y := min[1]; y <= max[1]; y++ {
-				for z := min[2]; z <= max[2]; z++ {
+		// min and max are captured and never written, so their components are
+		// read once instead of out of the closure on every iteration.
+		minX, minY, minZ := min[0], min[1], min[2]
+		maxX, maxY, maxZ := max[0], max[1], max[2]
+		for x := minX; x <= maxX; x++ {
+			for y := minY; y <= maxY; y++ {
+				for z := minZ; z <= maxZ; z++ {
 					if !yield(Pos{x, y, z}) {
 						return
 					}
