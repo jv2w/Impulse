@@ -38,13 +38,22 @@ func (curseOfVanishing) CompatibleWithEnchantment(_ item.EnchantmentType) bool {
 
 // CompatibleWithItem ...
 func (curseOfVanishing) CompatibleWithItem(i world.Item) bool {
-	_, arm := i.(item.Armour)
-	_, com := i.(item.Compass)
-	_, dur := i.(item.Durable)
+	// Type assertions have no side effects, so returning at the first match
+	// gives the same value as arm || com || dur || rec while skipping the
+	// remaining assertions.
+	if _, arm := i.(item.Armour); arm {
+		return true
+	}
+	if _, com := i.(item.Compass); com {
+		return true
+	}
+	if _, dur := i.(item.Durable); dur {
+		return true
+	}
 	_, rec := i.(item.RecoveryCompass)
 	// TODO: Carrot on a Stick
 	// TODO: Warped Fungus on a Stick
-	return arm || com || dur || rec
+	return rec
 }
 
 // Treasure ...

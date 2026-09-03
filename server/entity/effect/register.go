@@ -42,9 +42,12 @@ func init() {
 	Register(30, Darkness)
 }
 
+// Sized for the 28 effects that init registers, so neither map has to grow and
+// rehash while registering. A size hint changes neither the entries nor the
+// lookups, and nothing iterates these maps.
 var (
-	effects   = map[int]Type{}
-	effectIds = map[Type]int{}
+	effects   = make(map[int]Type, 28)
+	effectIds = make(map[Type]int, 28)
 )
 
 // ByID attempts to return an effect by the ID it was registered with. If found, the effect found

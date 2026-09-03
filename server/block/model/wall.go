@@ -25,19 +25,37 @@ func (w Wall) BBox(cube.Pos, world.BlockSource) []cube.BBox {
 	if w.Post {
 		postHeight = 1
 	}
+	// Each connection height is compared once and the result reused, so the slice is
+	// sized to exactly the number of boxes appended below. The same boxes come out in
+	// the same order, and the slice is still allocated fresh on every call.
+	north, east := w.NorthConnection > 0, w.EastConnection > 0
+	south, west := w.SouthConnection > 0, w.WestConnection > 0
+	n := 1
+	if north {
+		n++
+	}
+	if east {
+		n++
+	}
+	if south {
+		n++
+	}
+	if west {
+		n++
+	}
 	// The post, plus at most one box per horizontal connection.
-	boxes := make([]cube.BBox, 1, 5)
+	boxes := make([]cube.BBox, 1, n)
 	boxes[0] = cube.Box(0.25, 0, 0.25, 0.75, postHeight, 0.75)
-	if w.NorthConnection > 0 {
+	if north {
 		boxes = append(boxes, cube.Box(0.25, 0, 0, 0.75, w.NorthConnection, 0.25))
 	}
-	if w.EastConnection > 0 {
+	if east {
 		boxes = append(boxes, cube.Box(0.75, 0, 0.25, 1, w.EastConnection, 0.75))
 	}
-	if w.SouthConnection > 0 {
+	if south {
 		boxes = append(boxes, cube.Box(0.25, 0, 0.75, 0.75, w.SouthConnection, 1))
 	}
-	if w.WestConnection > 0 {
+	if west {
 		boxes = append(boxes, cube.Box(0, 0, 0.25, 0.25, w.WestConnection, 0.75))
 	}
 	return boxes

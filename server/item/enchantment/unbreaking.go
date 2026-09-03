@@ -49,8 +49,11 @@ func (unbreaking) CompatibleWithItem(i world.Item) bool {
 func (unbreaking) Reduce(it world.Item, level, amount int) int {
 	after := amount
 	_, ok := it.(item.Armour)
+	// level is loop invariant, so the hoisted bound feeds rand.IntN the exact
+	// same argument on every iteration and the random stream is unchanged.
+	bound := level + 1
 	for i := 0; i < amount; i++ {
-		if (!ok || rand.Float64() >= 0.6) && rand.IntN(level+1) > 0 {
+		if (!ok || rand.Float64() >= 0.6) && rand.IntN(bound) > 0 {
 			after--
 		}
 	}
