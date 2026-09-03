@@ -64,9 +64,14 @@ func (l Leggings) Leggings() bool {
 
 // DurabilityInfo ...
 func (l Leggings) DurabilityInfo() DurabilityInfo {
+	// BaseDurability is read once instead of twice: nothing runs between the
+	// two calls, and the same value feeds both halves of the sum, so the float
+	// arithmetic is unchanged. The shared brokenIntoNothing replaces a closure
+	// built on every call, returning the same zero Stack by value.
+	base := l.Tier.BaseDurability()
 	return DurabilityInfo{
-		MaxDurability: int(l.Tier.BaseDurability() + l.Tier.BaseDurability()/2.75),
-		BrokenItem:    simpleItem(Stack{}),
+		MaxDurability: int(base + base/2.75),
+		BrokenItem:    brokenIntoNothing,
 	}
 }
 

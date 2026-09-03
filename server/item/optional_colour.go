@@ -29,10 +29,28 @@ func (oc OptionalColour) Uint8() uint8 {
 	return uint8(oc)
 }
 
+// colourPrefixes holds the "<colour>_" prefix that Prepend puts in front of a
+// string, one per Colour in colours. Colour.String returns a constant per
+// colour, so the prefix built once here is the one the concatenation built on
+// every call.
+var colourPrefixes = colourPrefixTable()
+
+// colourPrefixTable builds the table above.
+func colourPrefixTable() []string {
+	prefixes := make([]string, len(colours))
+	for i, c := range colours {
+		prefixes[i] = c.String() + "_"
+	}
+	return prefixes
+}
+
 // Prepend prepends the Colour to the string if the Colour is present.
 func (oc OptionalColour) Prepend(str string) string {
 	if oc != 0 {
-		return colours[(oc-1)].String() + "_" + str
+		// One join of two strings instead of three, and the colour's name is no
+		// longer looked up through String on each call. The index is the same
+		// one, so an out of range OptionalColour still panics here.
+		return colourPrefixes[oc-1] + str
 	}
 	return str
 }

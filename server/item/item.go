@@ -1,7 +1,6 @@
 package item
 
 import (
-	"encoding/binary"
 	"image/color"
 	"time"
 
@@ -252,15 +251,17 @@ func int32FromRGBA(x color.RGBA) int32 {
 		// up on the sign.
 		return int32(-0x1000000)
 	}
-	return int32(binary.BigEndian.Uint32([]byte{x.A, x.R, x.G, x.B}))
+	// The shifts spell out what BigEndian.Uint32 read out of that four byte
+	// slice, so the value is the same one without building the slice.
+	return int32(uint32(x.A)<<24 | uint32(x.R)<<16 | uint32(x.G)<<8 | uint32(x.B))
 }
 
 // rgbaFromInt32 converts an int32 into a color.RGBA. These int32s are present in things such as signs and dyed leather armour.
 func rgbaFromInt32(x int32) color.RGBA {
-	b := make([]byte, 4)
-	binary.BigEndian.PutUint32(b, uint32(x))
-
-	return color.RGBA{A: b[0], R: b[1], G: b[2], B: b[3]}
+	// The shifts pick out the same bytes BigEndian.PutUint32 wrote, so the
+	// four byte buffer it needed is gone.
+	u := uint32(x)
+	return color.RGBA{A: byte(u >> 24), R: byte(u >> 16), G: byte(u >> 8), B: byte(u)}
 }
 
 // boolByte returns 1 if the bool passed is true, or 0 if it is false.
