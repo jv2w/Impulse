@@ -93,7 +93,7 @@ func (s Skull) EncodeItem() (name string, meta int16) {
 func (s Skull) DecodeNBT(data map[string]any) any {
 	// Used to upgrade pre-1.21.40 skulls after their flattening. Any skull placed since will set SkullType to 255. A
 	// type this build has no name for is left to the block state rather than stored to panic on a later encode.
-	if t := skull(nbtconv.Uint8(data, "SkullType")); t != 255 && int(t) < len(SkullTypes()) {
+	if t := skull(nbtconv.Uint8(data, "SkullType")); t != 255 && int(t) < skullTypeCount {
 		s.Type = SkullType{t}
 	}
 	s.Attach.o = cube.OrientationFromYaw(float64(nbtconv.Float32(data, "Rotation")))
@@ -116,10 +116,21 @@ func (s Skull) EncodeBlock() (string, map[string]any) {
 	return skullName(s.Type), map[string]any{"facing_direction": int32(1)}
 }
 
+// skullTypeCount is the number of skull types this build names. SkullTypes()
+// builds a fresh list on every call, so DecodeNBT allocated the whole list only
+// to read its length, which never changes.
+var skullTypeCount = len(SkullTypes())
+
 // allSkulls ...
 func allSkulls() (skulls []world.Block) {
-	for _, t := range SkullTypes() {
-		for _, d := range append(cube.Directions(), unknownDirection) {
+	// The direction list does not change between skull types, so the appended copy is built once
+	// rather than per type, and the final count is known so the result is presized. The same blocks
+	// are appended in the same order into a slice still built fresh per call.
+	types := SkullTypes()
+	dirs := append(cube.Directions(), unknownDirection)
+	skulls = make([]world.Block, 0, len(types)*(len(dirs)+1))
+	for _, t := range types {
+		for _, d := range dirs {
 			skulls = append(skulls, Skull{Type: t, Attach: WallAttachment(d)})
 		}
 		skulls = append(skulls, Skull{Type: t, Attach: StandingAttachment(0)})

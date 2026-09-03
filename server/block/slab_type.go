@@ -44,16 +44,16 @@ func encodeSlabBlock(block world.Block, double bool) (id string, suffix string) 
 		if block.Type == CutCopper() {
 			suffix = "cut_copper_slab"
 			if double {
-				suffix = "double_" + suffix
+				// The join could only ever produce this one string, so it is spelled out.
+				suffix = "double_cut_copper_slab"
 			}
-			var name string
-			if block.Oxidation != UnoxidisedOxidation() {
-				name = block.Oxidation.String() + "_"
+			// The table holds the prefix the joins produced for every oxidation and waxed state,
+			// so the string is the same one without allocating. An oxidation outside the table
+			// falls back to the joins and panics in String exactly as it did before.
+			if name, ok := cutCopperSlabPrefixes[cutCopperKey{block.Oxidation, block.Waxed}]; ok {
+				return name, suffix
 			}
-			if block.Waxed {
-				name = "waxed_" + name
-			}
-			return name, suffix
+			return cutCopperSlabPrefix(block.Oxidation, block.Waxed), suffix
 		}
 	case Deepslate:
 		if block.Type == CobbledDeepslate() {
@@ -166,9 +166,45 @@ func encodeSlabBlock(block world.Block, double bool) (id string, suffix string) 
 	panic("invalid block used for slab")
 }
 
+// cutCopperKey identifies one cut copper variant by oxidation and waxed state.
+type cutCopperKey struct {
+	oxidation OxidationType
+	waxed     bool
+}
+
+// cutCopperSlabPrefix gives the oxidation and waxed prefix of a cut copper slab
+// name, joining exactly the strings encodeSlabBlock used to join inline.
+func cutCopperSlabPrefix(oxidation OxidationType, waxed bool) string {
+	var name string
+	if oxidation != UnoxidisedOxidation() {
+		name = oxidation.String() + "_"
+	}
+	if waxed {
+		name = "waxed_" + name
+	}
+	return name
+}
+
+// cutCopperSlabPrefixes holds cutCopperSlabPrefix for every oxidation and waxed
+// state, so those joins run once at start instead of on every encode.
+var cutCopperSlabPrefixes = func() map[cutCopperKey]string {
+	oxidations := OxidationTypes()
+	m := make(map[cutCopperKey]string, len(oxidations)*2)
+	for _, o := range oxidations {
+		m[cutCopperKey{o, false}] = cutCopperSlabPrefix(o, false)
+		m[cutCopperKey{o, true}] = cutCopperSlabPrefix(o, true)
+	}
+	return m
+}()
+
 // SlabBlocks returns a list of all possible blocks for a slab.
 func SlabBlocks() []world.Block {
-	b := []world.Block{
+	// The fixed list below holds 38 blocks and the loops add one per prismarine type, two per
+	// sandstone type, one per wood type and two per oxidation, so the whole list is built in one
+	// presized slice instead of growing. The same blocks are appended in the same order, and the
+	// count only sizes the buffer, so a stale number would cost one regrow and nothing else.
+	prismarines, sandstones, woods, oxidations := PrismarineTypes(), SandstoneTypes(), WoodTypes(), OxidationTypes()
+	b := append(make([]world.Block, 0, 38+len(prismarines)+2*len(sandstones)+len(woods)+2*len(oxidations)),
 		Andesite{Polished: true},
 		Andesite{},
 		BambooMosaic{},
@@ -207,20 +243,20 @@ func SlabBlocks() []world.Block {
 		SulfurBricks{},
 		Tuff{},
 		TuffBricks{},
-	}
-	for _, p := range PrismarineTypes() {
+	)
+	for _, p := range prismarines {
 		b = append(b, Prismarine{Type: p})
 	}
-	for _, s := range SandstoneTypes() {
+	for _, s := range sandstones {
 		if s != ChiseledSandstone() {
 			b = append(b, Sandstone{Type: s})
 			b = append(b, Sandstone{Type: s, Red: true})
 		}
 	}
-	for _, w := range WoodTypes() {
+	for _, w := range woods {
 		b = append(b, Planks{Wood: w})
 	}
-	for _, o := range OxidationTypes() {
+	for _, o := range oxidations {
 		b = append(b, Copper{Type: CutCopper(), Oxidation: o})
 		b = append(b, Copper{Type: CutCopper(), Oxidation: o, Waxed: true})
 	}

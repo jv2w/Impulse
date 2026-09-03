@@ -141,7 +141,11 @@ func (s Smoker) DecodeNBT(data map[string]any) any {
 
 // allSmokers ...
 func allSmokers() (smokers []world.Block) {
-	for _, face := range cube.Directions() {
+	// Two smokers per direction, so the slice is presized to its final length and grows without
+	// reallocating. The same blocks are appended in the same order.
+	dirs := cube.Directions()
+	smokers = make([]world.Block, 0, 2*len(dirs))
+	for _, face := range dirs {
 		smokers = append(smokers, Smoker{Facing: face})
 		smokers = append(smokers, Smoker{Facing: face, Lit: true})
 	}

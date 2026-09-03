@@ -54,7 +54,9 @@ func (s *smelter) InsertItem(h Hopper, pos cube.Pos, tx *world.Tx) bool {
 		}
 
 		stack := sourceStack.Grow(-sourceStack.Count() + 1)
-		it, _ := s.Inventory(tx, pos).Item(slot)
+		// Inventory always hands back the same inventory, so it is read once for both uses below.
+		inv := s.Inventory(tx, pos)
+		it, _ := inv.Item(slot)
 		if slot == 1 {
 			if fuel, ok := sourceStack.Item().(item.Fuel); !ok || fuel.FuelInfo().Duration == 0 {
 				// The item is not fuel.
@@ -73,7 +75,7 @@ func (s *smelter) InsertItem(h Hopper, pos cube.Pos, tx *world.Tx) bool {
 			stack = it.Grow(1)
 		}
 
-		_ = s.Inventory(tx, pos).SetItem(slot, stack)
+		_ = inv.SetItem(slot, stack)
 		_ = h.inventory.SetItem(sourceSlot, sourceStack.Grow(-1))
 		return true
 	}
@@ -191,8 +193,12 @@ func (s *smelter) tickSmelting(requirement, decrement time.Duration, lit bool, s
 
 	// Initialise some default smelt info, and update it if we can smelt the item.
 	var inputInfo item.SmeltInfo
-	if i, ok := input.Item().(item.Smeltable); ok && supported(i.SmeltInfo()) {
-		inputInfo = i.SmeltInfo()
+	// i.SmeltInfo() builds the same value both times it was called; it is built once and the very
+	// same value is handed to supported and stored, so supported still sees one equal call.
+	if i, ok := input.Item().(item.Smeltable); ok {
+		if info := i.SmeltInfo(); supported(info) {
+			inputInfo = info
+		}
 	}
 
 	// Initialise some default fuel info, and update it if it can be used as fuel.

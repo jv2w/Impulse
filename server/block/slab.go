@@ -159,7 +159,11 @@ func (s Slab) EncodeBlock() (string, map[string]any) {
 
 // allSlabs ...
 func allSlabs() (b []world.Block) {
-	for _, s := range SlabBlocks() {
+	// Four slabs per block, so the slice is presized to its final length and grows without
+	// reallocating. The same blocks are appended in the same order.
+	blocks := SlabBlocks()
+	b = make([]world.Block, 0, 4*len(blocks))
+	for _, s := range blocks {
 		b = append(b, Slab{Block: s, Double: true})
 		b = append(b, Slab{Block: s, Top: true, Double: true})
 		b = append(b, Slab{Block: s, Top: true})
