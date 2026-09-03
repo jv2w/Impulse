@@ -82,7 +82,10 @@ func (d DoubleTallGrass) EncodeBlock() (string, map[string]any) {
 
 // allDoubleTallGrass ...
 func allDoubleTallGrass() (b []world.Block) {
-	for _, g := range DoubleTallGrassTypes() {
+	// Every type yields exactly two blocks, so the final length is known before the loop starts.
+	types := DoubleTallGrassTypes()
+	b = make([]world.Block, 0, len(types)*2)
+	for _, g := range types {
 		b = append(b, DoubleTallGrass{Type: g})
 		b = append(b, DoubleTallGrass{Type: g, UpperPart: true})
 	}

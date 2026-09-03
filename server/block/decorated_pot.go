@@ -41,12 +41,14 @@ func (p DecoratedPot) SideClosed(cube.Pos, cube.Pos, *world.Tx) bool {
 
 // ProjectileHit ...
 func (p DecoratedPot) ProjectileHit(pos cube.Pos, tx *world.Tx, _ world.Entity, _ cube.Face) {
+	// pos does not change in the loop, so its centre is the same vector on every iteration.
+	centre := pos.Vec3Centre()
 	for _, d := range p.Decorations {
 		if d == nil {
-			dropItem(tx, item.NewStack(item.Brick{}, 1), pos.Vec3Centre())
+			dropItem(tx, item.NewStack(item.Brick{}, 1), centre)
 			continue
 		}
-		dropItem(tx, item.NewStack(d, 1), pos.Vec3Centre())
+		dropItem(tx, item.NewStack(d, 1), centre)
 	}
 	breakBlockNoDrops(p, pos, tx)
 }
@@ -88,15 +90,18 @@ func (p DecoratedPot) InsertItem(h Hopper, pos cube.Pos, tx *world.Tx) bool {
 
 // wobble ...
 func (p DecoratedPot) wobble(pos cube.Pos, tx *world.Tx, success bool) {
-	for _, v := range tx.Viewers(pos.Vec3Centre()) {
+	// Both the viewer lookup and the sound below want the same centre of pos, which never changes
+	// in this call.
+	centre := pos.Vec3Centre()
+	for _, v := range tx.Viewers(centre) {
 		v.ViewBlockAction(pos, DecoratedPotWobbleAction{DecoratedPot: p, Success: success})
 	}
 
 	if success {
 		tx.AddParticle(pos.Vec3Middle().Add(mgl64.Vec3{0, 1.2}), particle.DustPlume{})
-		tx.PlaySound(pos.Vec3Centre(), sound.DecoratedPotInserted{Progress: float64(p.Item.Count()) / float64(p.Item.MaxCount())})
+		tx.PlaySound(centre, sound.DecoratedPotInserted{Progress: float64(p.Item.Count()) / float64(p.Item.MaxCount())})
 	} else {
-		tx.PlaySound(pos.Vec3Centre(), sound.DecoratedPotInsertFailed{})
+		tx.PlaySound(centre, sound.DecoratedPotInsertFailed{})
 	}
 }
 
@@ -208,7 +213,10 @@ func (p DecoratedPot) DecodeNBT(data map[string]any) any {
 
 // allDecoratedPots ...
 func allDecoratedPots() (pots []world.Block) {
-	for _, f := range cube.Directions() {
+	// One pot per direction, so the final length is known and the list is allocated once.
+	directions := cube.Directions()
+	pots = make([]world.Block, 0, len(directions))
+	for _, f := range directions {
 		pots = append(pots, DecoratedPot{Facing: f})
 	}
 	return

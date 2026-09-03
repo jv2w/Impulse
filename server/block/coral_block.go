@@ -65,12 +65,15 @@ func (c CoralBlock) EncodeItem() (name string, meta int16) {
 
 // allCoralBlocks returns a list of all coral block variants
 func allCoralBlocks() (c []world.Block) {
-	f := func(dead bool) {
-		for _, t := range CoralTypes() {
-			c = append(c, CoralBlock{Type: t, Dead: dead})
-		}
+	// The type list and the final count are both known up front, so the list is built once and
+	// filled in the same order the two calls of the old closure filled it.
+	types := CoralTypes()
+	c = make([]world.Block, 0, len(types)*2)
+	for _, t := range types {
+		c = append(c, CoralBlock{Type: t, Dead: true})
 	}
-	f(true)
-	f(false)
+	for _, t := range types {
+		c = append(c, CoralBlock{Type: t, Dead: false})
+	}
 	return
 }

@@ -84,7 +84,10 @@ func (d DoubleFlower) EncodeBlock() (string, map[string]any) {
 
 // allDoubleFlowers ...
 func allDoubleFlowers() (b []world.Block) {
-	for _, d := range DoubleFlowerTypes() {
+	// Every type yields exactly two blocks, so the final length is known before the loop starts.
+	types := DoubleFlowerTypes()
+	b = make([]world.Block, 0, len(types)*2)
+	for _, d := range types {
 		b = append(b, DoubleFlower{Type: d, UpperPart: true})
 		b = append(b, DoubleFlower{Type: d, UpperPart: false})
 	}

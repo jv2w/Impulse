@@ -66,10 +66,15 @@ func (d Deepslate) EncodeBlock() (string, map[string]any) {
 
 // allDeepslate returns a list of all deepslate block variants.
 func allDeepslate() (s []world.Block) {
-	for _, t := range DeepslateTypes() {
-		axes := []cube.Axis{0}
-		if t == NormalDeepslate() {
-			axes = cube.Axes()
+	// The two axis lists and the normal type are the same on every iteration, so they are built
+	// once outside the loop. Only the normal type spans all axes, which gives the final count.
+	types, allAxes, normal := DeepslateTypes(), cube.Axes(), NormalDeepslate()
+	singleAxis := [...]cube.Axis{0}
+	s = make([]world.Block, 0, len(types)-1+len(allAxes))
+	for _, t := range types {
+		axes := singleAxis[:]
+		if t == normal {
+			axes = allAxes
 		}
 		for _, axis := range axes {
 			s = append(s, Deepslate{Type: t, Axis: axis})
