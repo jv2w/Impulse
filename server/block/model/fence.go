@@ -20,10 +20,30 @@ const (
 
 // BBox returns multiple physics.BBox depending on how many connections it has with the surrounding blocks.
 func (f Fence) BBox(pos cube.Pos, s world.BlockSource) []cube.BBox {
-	boxes := make([]cube.BBox, 0, 2)
-
 	connectWest, connectEast := f.checkConnection(pos, cube.FaceWest, s), f.checkConnection(pos, cube.FaceEast, s)
 	connectNorth, connectSouth := f.checkConnection(pos, cube.FaceNorth, s), f.checkConnection(pos, cube.FaceSouth, s)
+
+	// The boxes below are one per connection, or a single centre post when there is
+	// none, so this capacity is exactly the length the appends reach. The slice is
+	// still freshly allocated on every call and the connection checks run in the
+	// same order as before.
+	n := 0
+	if connectWest {
+		n++
+	}
+	if connectEast {
+		n++
+	}
+	if connectNorth {
+		n++
+	}
+	if connectSouth {
+		n++
+	}
+	if n == 0 {
+		n = 1
+	}
+	boxes := make([]cube.BBox, 0, n)
 
 	// Check if we have any connections on the Z axis
 	if connectWest || connectEast {

@@ -13,8 +13,13 @@ type blockMatcher func(world.Block, cube.Axis) bool
 // area. The last return value reports whether a portal-like interior was found; use Framed to check completion.
 func multiAxisScan(framePos cube.Pos, tx *world.Tx, matches blockMatcher) (cube.Axis, []cube.Pos, int, int, bool, bool) {
 	zPositions, zWidth, zHeight, zCompleted := scan(cube.Z, framePos, tx, matches)
+	// The X result was only ever used when the Z scan fell short of the minimum area, and scan only reads
+	// blocks, so returning the Z result before running it yields the same values without the second scan.
+	if len(zPositions) >= minimumNetherPortalArea {
+		return cube.Z, zPositions, zWidth, zHeight, zCompleted, len(zPositions) > 0
+	}
 	xPositions, xWidth, xHeight, xCompleted := scan(cube.X, framePos, tx, matches)
-	if len(zPositions) < minimumNetherPortalArea && len(xPositions) >= minimumNetherPortalArea {
+	if len(xPositions) >= minimumNetherPortalArea {
 		return cube.X, xPositions, xWidth, xHeight, xCompleted, len(xPositions) > 0
 	}
 	return cube.Z, zPositions, zWidth, zHeight, zCompleted, len(zPositions) > 0
@@ -65,9 +70,12 @@ func scan(axis cube.Axis, pos cube.Pos, tx *world.Tx, matches blockMatcher) ([]c
 
 	// Validate each row: side frames intact and every interior block matches.
 	positions := make([]cube.Pos, 0, width*height)
+	// axis and width do not change in the loop, so the offset of the right hand frame is the same one the
+	// loop computed per row.
+	rightOffset := widthOffset(axis, width)
 	for y := 0; y < height; y++ {
 		row := origin.Add(cube.Pos{0, y})
-		if !isFrame(tx.Block(row.Side(negative))) || !isFrame(tx.Block(row.Add(widthOffset(axis, width)))) {
+		if !isFrame(tx.Block(row.Side(negative))) || !isFrame(tx.Block(row.Add(rightOffset))) {
 			return nil, width, height, false
 		}
 		for x := 0; x < width; x++ {

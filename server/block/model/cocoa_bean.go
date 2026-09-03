@@ -16,12 +16,16 @@ type CocoaBean struct {
 
 // BBox returns a single physics.BBox whose size depends on the age of the CocoaBean.
 func (c CocoaBean) BBox(cube.Pos, world.BlockSource) []cube.BBox {
+	// The age conversion was done three times and its doubling twice; binding them
+	// once reuses the very same values, so every coordinate stays bit-identical.
+	age := float64(c.Age)
+	age2 := age * 2
 	return []cube.BBox{full.
-		Stretch(c.Facing.RotateRight().Face().Axis(), -(6-float64(c.Age))/16).
+		Stretch(c.Facing.RotateRight().Face().Axis(), -(6-age)/16).
 		ExtendTowards(cube.FaceUp, -0.25).
-		ExtendTowards(cube.FaceDown, -((7-float64(c.Age)*2)/16)).
+		ExtendTowards(cube.FaceDown, -((7-age2)/16)).
 		ExtendTowards(c.Facing.Face(), -0.0625).
-		ExtendTowards(c.Facing.Opposite().Face(), -((11 - float64(c.Age)*2) / 16))}
+		ExtendTowards(c.Facing.Opposite().Face(), -((11 - age2) / 16))}
 }
 
 // FaceSolid always returns false.

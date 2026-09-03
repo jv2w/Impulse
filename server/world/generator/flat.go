@@ -38,16 +38,19 @@ func NewFlatWithRegistry(biome world.Biome, layers []world.Block, br world.Block
 
 // GenerateChunk ...
 func (f Flat) GenerateChunk(pos world.ChunkPos, chunk *chunk.Chunk) {
-	min, max := int16(chunk.Range().Min()), int16(chunk.Range().Max())
+	// Range returns the same value both times, and min+y is the same y coordinate both calls were given.
+	r := chunk.Range()
+	min, max := int16(r.Min()), int16(r.Max())
 	n := int16(len(f.layers))
 
 	for x := range uint8(16) {
 		for z := range uint8(16) {
 			for y := int16(0); y <= max; y++ {
+				at := min + y
 				if y < n {
-					chunk.SetBlock(x, min+y, z, 0, f.layers[n-y-1])
+					chunk.SetBlock(x, at, z, 0, f.layers[n-y-1])
 				}
-				chunk.SetBiome(x, min+y, z, f.biome)
+				chunk.SetBiome(x, at, z, f.biome)
 			}
 		}
 	}
