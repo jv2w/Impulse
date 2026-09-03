@@ -50,9 +50,12 @@ func (s Shears) BaseMiningEfficiency(world.Block) float64 {
 
 // DurabilityInfo ...
 func (s Shears) DurabilityInfo() DurabilityInfo {
+	// brokenIntoNothing is the same simpleItem(Stack{}) this built on every
+	// call: it returns the same zero Stack by value, so sharing one closure
+	// instead of allocating a new one is indistinguishable.
 	return DurabilityInfo{
 		MaxDurability:    238,
-		BrokenItem:       simpleItem(Stack{}),
+		BrokenItem:       brokenIntoNothing,
 		AttackDurability: 0,
 		BreakDurability:  1,
 	}

@@ -17,12 +17,16 @@ type Shovel struct {
 
 // UseOnBlock handles the creation of dirt path blocks from dirt or grass blocks.
 func (s Shovel) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *world.Tx, _ User, ctx *UseContext) bool {
+	// A bottom face returned false no matter what the block was: the guard
+	// below did it for a shovellable block and the final return did it for
+	// every other one. Checking the face first skips the block lookup and the
+	// Shovel call on that face.
+	if face == cube.FaceDown {
+		// Dirt paths are not created when the bottom face is clicked.
+		return false
+	}
 	if b, ok := tx.Block(pos).(shovellable); ok {
 		if res, ok := b.Shovel(); ok {
-			if face == cube.FaceDown {
-				// Dirt paths are not created when the bottom face is clicked.
-				return false
-			}
 			if tx.Block(pos.Side(cube.FaceUp)) != air() {
 				// Dirt paths can only be created if air is above the grass block.
 				return false
@@ -76,9 +80,12 @@ func (s Shovel) EnchantmentValue() int {
 
 // DurabilityInfo ...
 func (s Shovel) DurabilityInfo() DurabilityInfo {
+	// brokenIntoNothing is the same simpleItem(Stack{}) this built on every
+	// call: it returns the same zero Stack by value, so sharing one closure
+	// instead of allocating a new one is indistinguishable.
 	return DurabilityInfo{
 		MaxDurability:    s.Tier.Durability,
-		BrokenItem:       simpleItem(Stack{}),
+		BrokenItem:       brokenIntoNothing,
 		AttackDurability: 2,
 		BreakDurability:  1,
 	}

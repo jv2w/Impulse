@@ -46,9 +46,12 @@ func (p Pickaxe) EnchantmentValue() int {
 
 // DurabilityInfo ...
 func (p Pickaxe) DurabilityInfo() DurabilityInfo {
+	// brokenIntoNothing is the same simpleItem(Stack{}) this built on every
+	// call: it returns the same zero Stack by value, so sharing one closure
+	// instead of allocating a new one is indistinguishable.
 	return DurabilityInfo{
 		MaxDurability:    p.Tier.Durability,
-		BrokenItem:       simpleItem(Stack{}),
+		BrokenItem:       brokenIntoNothing,
 		AttackDurability: 2,
 		BreakDurability:  1,
 	}
