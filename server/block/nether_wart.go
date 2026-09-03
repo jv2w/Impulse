@@ -79,6 +79,8 @@ func (n NetherWart) EncodeBlock() (name string, properties map[string]any) {
 
 // allNetherWart ...
 func allNetherWart() (wart []world.Block) {
+	// Ages 0 to 3 give four states, a length known before the loop.
+	wart = make([]world.Block, 0, 4)
 	for i := 0; i < 4; i++ {
 		wart = append(wart, NetherWart{Age: i})
 	}

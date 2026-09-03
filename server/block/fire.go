@@ -72,6 +72,11 @@ func (f Fire) burn(from, to cube.Pos, tx *world.Tx, r *rand.Rand, chanceBound in
 // rainingAround checks if it is raining either at the cube.Pos passed or at any of its horizontal neighbours.
 func rainingAround(pos cube.Pos, tx *world.Tx) bool {
 	raining := tx.RainingAt(pos)
+	if raining {
+		// The loop below breaks on its first iteration in this case, so returning
+		// here gives the same answer without walking the faces at all.
+		return true
+	}
 	for _, face := range cube.HorizontalFaces() {
 		if raining {
 			break
@@ -135,6 +140,18 @@ func (f Fire) tick(pos cube.Pos, tx *world.Tx, r *rand.Rand) {
 		}
 	}
 
+	// The world range cannot change while the loops below run, so it is read
+	// once instead of on every position considered.
+	worldRange := tx.Range()
+	// The callback reads nothing that depends on the position, so it is built
+	// once outside the loops. encouragement is reset before every call, so each
+	// position still starts from zero and the same calls run in the same order.
+	encouragement := 0
+	countEncouragement := func(neighbour cube.Pos) {
+		if flammable, ok := tx.Block(neighbour).(Flammable); ok {
+			encouragement = max(encouragement, flammable.FlammabilityInfo().Encouragement)
+		}
+	}
 	for y := -1; y <= 4; y++ {
 		randomBound := 100
 		if y > 1 {
@@ -152,12 +169,8 @@ func (f Fire) tick(pos cube.Pos, tx *world.Tx, r *rand.Rand) {
 					continue
 				}
 
-				encouragement := 0
-				blockPos.Neighbours(func(neighbour cube.Pos) {
-					if flammable, ok := tx.Block(neighbour).(Flammable); ok {
-						encouragement = max(encouragement, flammable.FlammabilityInfo().Encouragement)
-					}
-				}, tx.Range())
+				encouragement = 0
+				blockPos.Neighbours(countEncouragement, worldRange)
 				if encouragement <= 0 {
 					continue
 				}
@@ -289,6 +302,9 @@ func (f Fire) Start(tx *world.Tx, pos cube.Pos) {
 
 // allFire ...
 func allFire() (b []world.Block) {
+	// Two fires are appended for each of the sixteen ages, so the final length
+	// is known before the loop.
+	b = make([]world.Block, 0, 32)
 	for i := 0; i < 16; i++ {
 		b = append(b, Fire{Age: i, Type: NormalFire()})
 		b = append(b, Fire{Age: i, Type: SoulFire()})

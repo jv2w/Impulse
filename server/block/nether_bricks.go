@@ -28,19 +28,27 @@ func (n NetherBricks) SmeltInfo() item.SmeltInfo {
 	return item.SmeltInfo{}
 }
 
+// netherBricksName gives the encoded name of nether bricks of a type.
+var netherBricksName = enumNamer(NetherBricksTypes(), NetherBricksType.String)
+
 // EncodeItem ...
 func (n NetherBricks) EncodeItem() (id string, meta int16) {
-	return "minecraft:" + n.Type.String(), 0
+	// enumNamer prepends "minecraft:" to the same String the concatenation used,
+	// so the name is unchanged; it is now looked up instead of joined per call.
+	return netherBricksName(n.Type), 0
 }
 
 // EncodeBlock ...
 func (n NetherBricks) EncodeBlock() (name string, properties map[string]any) {
-	return "minecraft:" + n.Type.String(), nil
+	return netherBricksName(n.Type), nil
 }
 
 // allNetherBricks returns a list of all nether bricks variants.
 func allNetherBricks() (netherBricks []world.Block) {
-	for _, t := range NetherBricksTypes() {
+	// One block per type, so the final length is known before the loop.
+	types := NetherBricksTypes()
+	netherBricks = make([]world.Block, 0, len(types))
+	for _, t := range types {
 		netherBricks = append(netherBricks, NetherBricks{Type: t})
 	}
 	return
