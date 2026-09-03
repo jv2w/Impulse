@@ -38,8 +38,10 @@ func (s flowingWaterDisplacer) CanDisplace(b world.Liquid) bool {
 func tickLiquid(b world.Liquid, pos cube.Pos, tx *world.Tx) {
 	if !source(b) && !sourceAround(b, pos, tx) {
 		var res world.Liquid
-		if b.LiquidDepth()-4 > 0 {
-			res = b.WithDepth(b.LiquidDepth()-2*b.SpreadDecay(), false)
+		// b does not change between the two reads of its depth, so one read
+		// answers both.
+		if depth := b.LiquidDepth(); depth-4 > 0 {
+			res = b.WithDepth(depth-2*b.SpreadDecay(), false)
 		}
 		ctx := tx.Event()
 		if tx.World().Handler().HandleLiquidDecay(ctx, pos, b, res); ctx.Cancelled() {
@@ -50,11 +52,13 @@ func tickLiquid(b world.Liquid, pos cube.Pos, tx *world.Tx) {
 	}
 	displacer, _ := tx.Block(pos).(world.LiquidDisplacer)
 
-	canFlowBelow := canFlowInto(b, tx, pos.Side(cube.FaceDown), false)
+	// pos does not change, so the position below it is computed once for both
+	// uses instead of twice.
+	below := pos.Side(cube.FaceDown)
+	canFlowBelow := canFlowInto(b, tx, below, false)
 	if b.LiquidFalling() && !canFlowBelow {
 		b = b.WithDepth(8, true)
 	} else if canFlowBelow {
-		below := pos.Side(cube.FaceDown)
 		if displacer == nil || !displacer.SideClosed(pos, below, tx) {
 			flowInto(b.WithDepth(8, true), pos, below, tx, true)
 		}
@@ -99,13 +103,16 @@ func spreadOutwards(b world.Liquid, pos cube.Pos, tx *world.Tx, displacer world.
 
 // sourceAround checks if there is a source in the blocks around the position passed.
 func sourceAround(b world.Liquid, pos cube.Pos, tx *world.Tx) (sourcePresent bool) {
+	// Neither the type nor the depth of b changes while the neighbours are
+	// walked, so both are read once instead of once per neighbour.
+	liquidType, depth := b.LiquidType(), b.LiquidDepth()
 	pos.Neighbours(func(neighbour cube.Pos) {
 		if neighbour[1] == pos[1]-1 {
 			// We don't care about water below this one.
 			return
 		}
 		side, ok := tx.Liquid(neighbour)
-		if !ok || side.LiquidType() != b.LiquidType() {
+		if !ok || side.LiquidType() != liquidType {
 			return
 		}
 		if displacer, ok := tx.Block(neighbour).(world.LiquidDisplacer); ok && displacer.SideClosed(neighbour, pos, tx) {
@@ -113,7 +120,7 @@ func sourceAround(b world.Liquid, pos cube.Pos, tx *world.Tx) (sourcePresent boo
 			// liquid.
 			return
 		}
-		if neighbour[1] == pos[1]+1 || source(side) || side.LiquidDepth() > b.LiquidDepth() {
+		if neighbour[1] == pos[1]+1 || source(side) || side.LiquidDepth() > depth {
 			sourcePresent = true
 		}
 	}, tx.Range())
@@ -123,9 +130,12 @@ func sourceAround(b world.Liquid, pos cube.Pos, tx *world.Tx) (sourcePresent boo
 // flowInto makes the liquid passed flow into the position passed in a world. If successful, the block at that
 // position will be broken and the liquid with a lower depth will replace it.
 func flowInto(b world.Liquid, src, pos cube.Pos, tx *world.Tx, falling bool) bool {
-	newDepth := b.LiquidDepth() - b.SpreadDecay()
+	// b does not change between the two reads of its depth, so one read answers
+	// both branches.
+	depth := b.LiquidDepth()
+	newDepth := depth - b.SpreadDecay()
 	if falling {
-		newDepth = b.LiquidDepth()
+		newDepth = depth
 	}
 	if newDepth <= 0 && !falling {
 		return false

@@ -23,9 +23,17 @@ func (Light) SideClosed(cube.Pos, cube.Pos, *world.Tx) bool {
 	return false
 }
 
+// lightName gives the encoded name of a light block of a level.
+var lightName = enumNamer([]int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}, func(l int) string {
+	return "light_block_" + strconv.Itoa(l)
+})
+
 // EncodeItem ...
 func (l Light) EncodeItem() (name string, meta int16) {
-	return "minecraft:light_block_" + strconv.Itoa(l.Level), 0
+	// enumNamer prepends "minecraft:" to the same suffix the concatenation
+	// built, and falls back to building it for a level outside 0-15, so the
+	// name is unchanged while the sixteen real levels only cost a lookup.
+	return lightName(l.Level), 0
 }
 
 // LightEmissionLevel ...
@@ -35,7 +43,7 @@ func (l Light) LightEmissionLevel() uint8 {
 
 // EncodeBlock ...
 func (l Light) EncodeBlock() (name string, properties map[string]any) {
-	return "minecraft:light_block_" + strconv.Itoa(l.Level), nil
+	return lightName(l.Level), nil
 }
 
 // allLight returns all possible light blocks.

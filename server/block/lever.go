@@ -100,6 +100,9 @@ func (l Lever) EncodeBlock() (string, map[string]any) {
 }
 
 func allLevers() (all []world.Block) {
+	// f appends two levers and runs once per face plus once more for the up and
+	// down faces, so the final length is sixteen.
+	all = make([]world.Block, 0, 16)
 	f := func(facing cube.Face, direction cube.Direction) {
 		all = append(all, Lever{Facing: facing, Direction: direction})
 		all = append(all, Lever{Facing: facing, Direction: direction, Powered: true})

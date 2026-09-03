@@ -44,10 +44,13 @@ func findLog(pos cube.Pos, tx *world.Tx, visited *[]cube.Pos, distance int) bool
 	}
 	*visited = append(*visited, pos)
 
-	if log, ok := tx.Block(pos).(Log); ok && !log.Stripped {
+	// Nothing runs between the two reads of the block at pos, so one lookup
+	// answers both type checks.
+	b := tx.Block(pos)
+	if log, ok := b.(Log); ok && !log.Stripped {
 		return true
 	}
-	if _, ok := tx.Block(pos).(Leaves); !ok || distance > 6 {
+	if _, ok := b.(Leaves); !ok || distance > 6 {
 		return false
 	}
 	logFound := false
@@ -151,8 +154,12 @@ func (l Leaves) EncodeBlock() (name string, properties map[string]any) {
 
 // allLeaves returns a list of all possible leaves states.
 func allLeaves() (leaves []world.Block) {
+	// f runs four times over the same type list, which LeavesTypes rebuilds on
+	// every call, so the list is read once and the final length is known.
+	types := LeavesTypes()
+	leaves = make([]world.Block, 0, len(types)*4)
 	f := func(persistent, update bool) {
-		for _, t := range LeavesTypes() {
+		for _, t := range types {
 			leaves = append(leaves, Leaves{Type: t, Persistent: persistent, ShouldUpdate: update})
 		}
 	}

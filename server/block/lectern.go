@@ -165,7 +165,10 @@ func (l Lectern) EncodeBlock() (string, map[string]any) {
 
 // allLecterns ...
 func allLecterns() (lecterns []world.Block) {
-	for _, f := range cube.Directions() {
+	// One lectern per direction, so the final length is known before the loop.
+	dirs := cube.Directions()
+	lecterns = make([]world.Block, 0, len(dirs))
+	for _, f := range dirs {
 		lecterns = append(lecterns, Lectern{Facing: f})
 	}
 	return
