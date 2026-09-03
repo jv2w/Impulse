@@ -8,7 +8,6 @@ import (
 
 	"github.com/jv2w/Impulse/server/block"
 	"github.com/jv2w/Impulse/server/block/cube"
-	"github.com/jv2w/Impulse/server/internal/sliceutil"
 	"github.com/jv2w/Impulse/server/item"
 	"github.com/jv2w/Impulse/server/world"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
@@ -52,11 +51,16 @@ func (h *ItemStackRequestHandler) handleEnchant(a *protocol.CraftRecipeStackRequ
 
 	// If we don't have infinite resources, we need to deduct Lapis Lazuli and experience.
 	if !c.GameMode().CreativeInventory() {
+		// Nothing between the three reads changes the player's level, so all
+		// of them saw this one. ExperienceLevel goes through the Controllable
+		// interface and locks the player, so it is asked once.
+		level := c.ExperienceLevel()
+
 		// First ensure that the experience level is both underneath the requirement and the cost.
-		if c.ExperienceLevel() < requirement {
+		if level < requirement {
 			return fmt.Errorf("not enough levels to meet requirement")
 		}
-		if c.ExperienceLevel() < cost {
+		if level < cost {
 			return fmt.Errorf("not enough levels to meet cost")
 		}
 
@@ -73,7 +77,7 @@ func (h *ItemStackRequestHandler) handleEnchant(a *protocol.CraftRecipeStackRequ
 		}
 
 		// Deduct the experience and Lapis Lazuli.
-		c.SetExperienceLevel(c.ExperienceLevel() - cost)
+		c.SetExperienceLevel(level - cost)
 		h.setItemInSlot(protocol.StackRequestSlotInfo{
 			Container: protocol.FullContainerName{ContainerID: protocol.ContainerEnchantingMaterial},
 			Slot:      enchantingLapisSlot,
@@ -196,8 +200,12 @@ func createEnchantments(random *rand.Rand, stack item.Stack, value, level int) [
 
 	// Now that we have our enchantment cost, we need to select the available enchantments. First, we iterate through
 	// each possible enchantment.
-	availableEnchants := make([]item.Enchantment, 0, len(item.Enchantments()))
-	for _, enchant := range item.Enchantments() {
+	// Enchantments collects the registry into a fresh slice and sorts it on
+	// every call, and no enchantment is registered in between, so the same
+	// list in the same order is built once instead of twice.
+	allEnchants := item.Enchantments()
+	availableEnchants := make([]item.Enchantment, 0, len(allEnchants))
+	for _, enchant := range allEnchants {
 		if t, ok := enchant.(treasureEnchantment); ok && t.Treasure() {
 			// We then have to ensure that the enchantment is not a treasure enchantment, as those cannot be selected through
 			// the enchanting table.
@@ -241,9 +249,20 @@ func createEnchantments(random *rand.Rand, stack item.Stack, value, level int) [
 		// Ensure that we don't have any conflicting enchantments. If so, remove them from the list of available
 		// enchantments.
 		lastEnchant := selectedEnchants[len(selectedEnchants)-1]
-		if availableEnchants = sliceutil.Filter(availableEnchants, func(enchant item.Enchantment) bool {
-			return lastEnchant.Type().CompatibleWithEnchantment(enchant.Type())
-		}); len(availableEnchants) == 0 {
+		// Filter kept the accepted elements in order in a new slice. The list
+		// was made here and is only ever narrowed by this loop and the delete
+		// below, which already writes into it, so nothing else can see the
+		// array: the kept elements are packed into its front instead, in the
+		// same order, and the type of the last enchantment is read once rather
+		// than once per candidate.
+		lastType := lastEnchant.Type()
+		kept := availableEnchants[:0]
+		for _, enchant := range availableEnchants {
+			if lastType.CompatibleWithEnchantment(enchant.Type()) {
+				kept = append(kept, enchant)
+			}
+		}
+		if availableEnchants = kept; len(availableEnchants) == 0 {
 			// We've exhausted all available enchantments.
 			break
 		}

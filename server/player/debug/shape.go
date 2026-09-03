@@ -28,7 +28,12 @@ func (s *shape) ShapeID() int {
 	if id := s.id.Load(); id != 0 {
 		return int(id)
 	}
-	s.id.CompareAndSwap(0, nextShapeID.Add(1))
+	// A won swap means s.id now holds id, so the extra atomic load the reload
+	// used to do returns exactly that value; only a lost race still reloads.
+	id := nextShapeID.Add(1)
+	if s.id.CompareAndSwap(0, id) {
+		return int(id)
+	}
 	return int(s.id.Load())
 }
 

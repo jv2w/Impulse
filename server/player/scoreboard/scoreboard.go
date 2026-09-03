@@ -79,12 +79,17 @@ func (board *Scoreboard) RemovePadding() {
 func (board *Scoreboard) Lines() []string {
 	lines := slices.Clone(board.lines)
 	if board.padding {
+		// The name never changes inside the loop, so its length is read once
+		// instead of twice per line, and the padding width the branch already
+		// computed is reused by strings.Repeat.
+		nameLen := len(board.name)
 		for i, line := range lines {
-			if len(board.name)-len(line)-2 <= 0 {
+			pad := nameLen - len(line) - 2
+			if pad <= 0 {
 				lines[i] = " " + line + " "
 				continue
 			}
-			lines[i] = " " + line + strings.Repeat(" ", len(board.name)-len(line)-2)
+			lines[i] = " " + line + strings.Repeat(" ", pad)
 		}
 	}
 	if board.descending {

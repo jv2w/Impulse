@@ -47,12 +47,21 @@ func (chat *Chat) WriteString(s string) (n int, err error) {
 func (chat *Chat) Writet(t Translation, a ...any) {
 	chat.m.Lock()
 	defer chat.m.Unlock()
+	// F only checks the argument count and String only formats, neither has a
+	// side effect, so the fallback text is built at most once and reused for
+	// every subscriber that cannot translate. The first such subscriber still
+	// triggers the same panic on a wrong argument count, and a chat with only
+	// translating subscribers still builds nothing.
+	fallback, built := "", false
 	for _, subscriber := range chat.subscribers {
 		if translator, ok := subscriber.(Translator); ok {
 			translator.Messaget(t, a...)
 			continue
 		}
-		subscriber.Message(t.F(a...).String())
+		if !built {
+			fallback, built = t.F(a...).String(), true
+		}
+		subscriber.Message(fallback)
 	}
 }
 
