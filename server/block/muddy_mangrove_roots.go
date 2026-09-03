@@ -53,7 +53,10 @@ func (m MuddyMangroveRoots) EncodeBlock() (string, map[string]any) {
 
 // allMuddyMangroveRoots ...
 func allMuddyMangroveRoots() (roots []world.Block) {
-	for _, axis := range cube.Axes() {
+	// One block per axis, so the final length is known before the loop.
+	axes := cube.Axes()
+	roots = make([]world.Block, 0, len(axes))
+	for _, axis := range axes {
 		roots = append(roots, MuddyMangroveRoots{Axis: axis})
 	}
 	return

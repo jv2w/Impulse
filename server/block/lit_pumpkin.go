@@ -48,6 +48,8 @@ func (l LitPumpkin) EncodeBlock() (name string, properties map[string]any) {
 }
 
 func allLitPumpkins() (pumpkins []world.Block) {
+	// The four horizontal directions give four states, known before the loop.
+	pumpkins = make([]world.Block, 0, 4)
 	for i := cube.Direction(0); i <= 3; i++ {
 		pumpkins = append(pumpkins, LitPumpkin{Facing: i})
 	}

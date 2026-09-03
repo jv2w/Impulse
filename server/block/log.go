@@ -72,45 +72,52 @@ func (l Log) Strip() (world.Block, world.Sound, bool) {
 	return Log{Axis: l.Axis, Wood: l.Wood, Stripped: true}, nil, !l.Stripped
 }
 
+// logName gives the encoded name of a log of a wood type.
+var logName = enumNamer(WoodTypes(), func(w WoodType) string {
+	switch w {
+	case CrimsonWood(), WarpedWood():
+		return w.String() + "_stem"
+	default:
+		return w.String() + "_log"
+	}
+})
+
+// strippedLogName gives the encoded name of a stripped log of a wood type.
+var strippedLogName = enumNamer(WoodTypes(), func(w WoodType) string {
+	switch w {
+	case CrimsonWood(), WarpedWood():
+		return "stripped_" + w.String() + "_stem"
+	default:
+		return "stripped_" + w.String() + "_log"
+	}
+})
+
 // EncodeItem ...
 func (l Log) EncodeItem() (name string, meta int16) {
+	// enumNamer prepends "minecraft:" to the same suffix the switch built and
+	// falls back to building it for a wood type outside the list, so the name is
+	// unchanged while the registered types only cost a lookup.
 	if !l.Stripped {
-		switch l.Wood {
-		case CrimsonWood(), WarpedWood():
-			return "minecraft:" + l.Wood.String() + "_stem", 0
-		default:
-			return "minecraft:" + l.Wood.String() + "_log", 0
-		}
+		return logName(l.Wood), 0
 	}
-	switch l.Wood {
-	case CrimsonWood(), WarpedWood():
-		return "minecraft:stripped_" + l.Wood.String() + "_stem", 0
-	default:
-		return "minecraft:stripped_" + l.Wood.String() + "_log", 0
-	}
+	return strippedLogName(l.Wood), 0
 }
 
 // EncodeBlock ...
 func (l Log) EncodeBlock() (name string, properties map[string]any) {
 	if !l.Stripped {
-		switch l.Wood {
-		case CrimsonWood(), WarpedWood():
-			return "minecraft:" + l.Wood.String() + "_stem", map[string]any{"pillar_axis": l.Axis.String()}
-		default:
-			return "minecraft:" + l.Wood.String() + "_log", map[string]any{"pillar_axis": l.Axis.String()}
-		}
+		return logName(l.Wood), map[string]any{"pillar_axis": l.Axis.String()}
 	}
-	switch l.Wood {
-	case CrimsonWood(), WarpedWood():
-		return "minecraft:stripped_" + l.Wood.String() + "_stem", map[string]any{"pillar_axis": l.Axis.String()}
-	default:
-		return "minecraft:stripped_" + l.Wood.String() + "_log", map[string]any{"pillar_axis": l.Axis.String()}
-	}
+	return strippedLogName(l.Wood), map[string]any{"pillar_axis": l.Axis.String()}
 }
 
 // allLogs returns a list of all possible log states.
 func allLogs() (logs []world.Block) {
-	for _, w := range WoodTypes() {
+	// Every wood type but bamboo gives three axes times a stripped and an
+	// unstripped log, so the final length is known before the loop.
+	woods := WoodTypes()
+	logs = make([]world.Block, 0, (len(woods)-1)*6)
+	for _, w := range woods {
 		if w == BambooWood() {
 			continue
 		}

@@ -60,7 +60,10 @@ func (l Loom) EncodeBlock() (name string, properties map[string]any) {
 
 // allLooms ...
 func allLooms() (looms []world.Block) {
-	for _, d := range cube.Directions() {
+	// One loom per direction, so the final length is known before the loop.
+	dirs := cube.Directions()
+	looms = make([]world.Block, 0, len(dirs))
+	for _, d := range dirs {
 		looms = append(looms, Loom{Facing: d})
 	}
 	return

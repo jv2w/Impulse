@@ -109,6 +109,8 @@ func (m MelonSeeds) EncodeBlock() (name string, properties map[string]any) {
 
 // allMelonStems ...
 func allMelonStems() (stems []world.Block) {
+	// Eight growth stages times six faces, a length known before the loops.
+	stems = make([]world.Block, 0, 8*6)
 	for i := 0; i <= 7; i++ {
 		for j := cube.Face(0); j <= 5; j++ {
 			stems = append(stems, MelonSeeds{crop: crop{Growth: i}, Direction: j})
