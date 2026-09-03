@@ -161,36 +161,45 @@ func (p *Player) XUID() string {
 // DeviceID returns the device ID of the player. If the Player is not connected to a network session, an empty string is
 // returned. Otherwise, the device ID the network session sent in the ClientData is returned.
 func (p *Player) DeviceID() string {
-	if p.session() == session.Nop {
+	// The session is set when the player is created and never replaced, so one
+	// lookup answers both the guard and the read.
+	s := p.session()
+	if s == session.Nop {
 		return ""
 	}
-	return string(p.session().ClientData().DeviceID)
+	return string(s.ClientData().DeviceID)
 }
 
 // DeviceModel returns the device model of the player. If the Player is not connected to a network session, an empty
 // string is returned. Otherwise, the device model the network session sent in the ClientData is returned.
 func (p *Player) DeviceModel() string {
-	if p.session() == session.Nop {
+	// One session lookup serves the guard and the read; it never changes.
+	s := p.session()
+	if s == session.Nop {
 		return ""
 	}
-	return p.session().ClientData().DeviceModel
+	return s.ClientData().DeviceModel
 }
 
 // SelfSignedID returns the self-signed ID of the player. If the Player is not connected to a network session, an empty
 // string is returned. Otherwise, the self-signed ID the network session sent in the ClientData is returned.
 func (p *Player) SelfSignedID() string {
-	if p.session() == session.Nop {
+	// One session lookup serves the guard and the read; it never changes.
+	s := p.session()
+	if s == session.Nop {
 		return ""
 	}
-	return p.session().ClientData().SelfSignedID
+	return s.ClientData().SelfSignedID
 }
 
 // Addr returns the net.Addr of the Player. If the Player is not connected to a network session, nil is returned.
 func (p *Player) Addr() net.Addr {
-	if p.session() == session.Nop {
+	// One session lookup serves the guard and the read; it never changes.
+	s := p.session()
+	if s == session.Nop {
 		return nil
 	}
-	return p.session().Addr()
+	return s.Addr()
 }
 
 // Skin returns the skin that a player is currently using. This skin will be visible to other players
@@ -288,15 +297,19 @@ func (p *Player) FallDistance() float64 {
 // If non-empty, the subtitle is shown in a smaller font below the title. The same counts for the action text
 // of the title, which is shown in a font similar to that of a tip/popup.
 func (p *Player) SendTitle(t title.Title) {
-	p.session().SetTitleDurations(t.FadeInDuration(), t.Duration(), t.FadeOutDuration())
-	if t.Text() != "" || t.Subtitle() != "" {
-		p.session().SendTitle(t.Text())
-		if t.Subtitle() != "" {
-			p.session().SendSubtitle(t.Subtitle())
+	// The title is a value that cannot change here and the session is never
+	// replaced, so each of the four is read once instead of up to three times.
+	// Text and action text were already read unconditionally.
+	s, text, subtitle, action := p.session(), t.Text(), t.Subtitle(), t.ActionText()
+	s.SetTitleDurations(t.FadeInDuration(), t.Duration(), t.FadeOutDuration())
+	if text != "" || subtitle != "" {
+		s.SendTitle(text)
+		if subtitle != "" {
+			s.SendSubtitle(subtitle)
 		}
 	}
-	if t.ActionText() != "" {
-		p.session().SendActionBarMessage(t.ActionText())
+	if action != "" {
+		s.SendActionBarMessage(action)
 	}
 }
 
@@ -679,7 +692,11 @@ func (p *Player) Hurt(dmg float64, src world.DamageSource) (float64, bool) {
 
 	if src.ReducedByArmour() {
 		p.Exhaust(0.1)
-		p.Armour().Damage(dmg, p.damageItem)
+		// The armour inventory is created with the player and never replaced,
+		// so one lookup serves both uses, and the bound damageItem method value
+		// is built once instead of once per use.
+		armour, damage := p.Armour(), p.damageItem
+		armour.Damage(dmg, damage)
 
 		var origin world.Entity
 		if s, ok := src.(entity.AttackDamageSource); ok {
@@ -688,7 +705,7 @@ func (p *Player) Hurt(dmg float64, src world.DamageSource) (float64, bool) {
 			origin = s.Owner
 		}
 		if l, ok := origin.(entity.Living); ok {
-			if thornsDmg := p.Armour().ThornsDamage(p.damageItem); thornsDmg > 0 {
+			if thornsDmg := armour.ThornsDamage(damage); thornsDmg > 0 {
 				l.Hurt(thornsDmg, enchantment.ThornsDamageSource{Owner: p})
 			}
 		}
@@ -963,12 +980,17 @@ func (p *Player) dropItems() {
 	p.session().SendExperience(p.ExperienceLevel(), p.ExperienceProgress())
 
 	p.MoveItemsToInventory()
-	for _, it := range append(p.inv.Clear(), append(p.armour.Clear(), p.offHand.Clear()...)...) {
-		if _, ok := it.Enchantment(enchantment.CurseOfVanishing); ok {
-			continue
+	// The three Clear calls keep the order they had as arguments of the nested
+	// appends, and the items are visited in the order those appends produced,
+	// so only the two joined slices they allocated are gone.
+	for _, cleared := range [3][]item.Stack{p.inv.Clear(), p.armour.Clear(), p.offHand.Clear()} {
+		for _, it := range cleared {
+			if _, ok := it.Enchantment(enchantment.CurseOfVanishing); ok {
+				continue
+			}
+			opts := world.EntitySpawnOpts{Position: pos, Velocity: mgl64.Vec3{rand.Float64()*0.2 - 0.1, 0.2, rand.Float64()*0.2 - 0.1}}
+			p.tx.AddEntity(entity.NewItem(opts, it))
 		}
-		opts := world.EntitySpawnOpts{Position: pos, Velocity: mgl64.Vec3{rand.Float64()*0.2 - 0.1, 0.2, rand.Float64()*0.2 - 0.1}}
-		p.tx.AddEntity(entity.NewItem(opts, it))
 	}
 }
 
@@ -1710,14 +1732,22 @@ func (p *Player) canRelease() bool {
 	if p.GameMode().CreativeInventory() {
 		return true
 	}
-	for _, req := range releasable.Requirements() {
+	reqs := releasable.Requirements()
+	if len(reqs) == 0 {
+		return true
+	}
+	// The off-hand stack does not change inside the loop, so Empty and the
+	// item name are resolved once instead of once per requirement. The check
+	// above keeps that resolve off the path with nothing to compare against.
+	leftName, leftFilled := "", !left.Empty()
+	if leftFilled {
+		leftName, _ = left.Item().EncodeItem()
+	}
+	for _, req := range reqs {
 		reqName, _ := req.Item().EncodeItem()
 
-		if !left.Empty() {
-			leftName, _ := left.Item().EncodeItem()
-			if leftName == reqName {
-				continue
-			}
+		if leftFilled && leftName == reqName {
+			continue
 		}
 
 		_, found := p.Inventory().FirstFunc(func(stack item.Stack) bool {
@@ -2131,20 +2161,25 @@ func (p *Player) placeBlock(pos cube.Pos, b world.Block, ignoreBBox bool) bool {
 // If the only entity preventing the block from being placed is the player
 // itself, the second bool returned is true too.
 func (p *Player) obstructedPos(pos cube.Pos, b world.Block) (obstructed, selfOnly bool) {
+	// pos never changes, so its vector form is built once for the translation
+	// loop and the search box instead of once per block box.
+	posVec := pos.Vec3()
 	blockBoxes := b.Model().BBox(pos, p.tx)
 	for i, box := range blockBoxes {
-		blockBoxes[i] = box.Translate(pos.Vec3())
+		blockBoxes[i] = box.Translate(posVec)
 	}
 
-	for e := range p.tx.EntitiesWithin(cube.Box(-3, -3, -3, 3, 3, 3).Translate(pos.Vec3())) {
-		t := e.H().Type()
+	for e := range p.tx.EntitiesWithin(cube.Box(-3, -3, -3, 3, 3, 3).Translate(posVec)) {
+		// One handle read serves the type lookup and the identity check below.
+		h := e.H()
+		t := h.Type()
 		switch t {
 		case entity.ItemType, entity.ArrowType, entity.ExperienceOrbType:
 			continue
 		default:
 			if cube.AnyIntersections(blockBoxes, t.BBox(e).Translate(e.Position()).Grow(-1e-4)) {
 				obstructed = true
-				if e.H() == p.handle {
+				if h == p.handle {
 					continue
 				}
 				return true, false
@@ -2166,7 +2201,10 @@ func (p *Player) BreakBlock(pos cube.Pos) {
 		p.resendNearbyBlocks(pos)
 		return
 	}
-	if _, breakable := b.(block.Breakable); !breakable && !p.GameMode().CreativeInventory() {
+	// b is read once and never reassigned, so the three Breakable checks that
+	// followed all answered the same; one assertion serves them all.
+	breakable, isBreakable := b.(block.Breakable)
+	if !isBreakable && !p.GameMode().CreativeInventory() {
 		p.resendNearbyBlocks(pos)
 		return
 	}
@@ -2174,7 +2212,7 @@ func (p *Player) BreakBlock(pos cube.Pos) {
 	drops := p.drops(held, b)
 
 	xp := 0
-	if breakable, ok := b.(block.Breakable); ok && !p.GameMode().CreativeInventory() {
+	if isBreakable && !p.GameMode().CreativeInventory() {
 		if _, hasSilkTouch := held.Enchantment(enchantment.SilkTouch); !hasSilkTouch {
 			xp = breakable.BreakInfo().XPDrops.RandomValue()
 		}
@@ -2191,7 +2229,7 @@ func (p *Player) BreakBlock(pos cube.Pos) {
 	p.tx.SetBlock(pos, nil, nil)
 	p.tx.AddParticle(pos.Vec3Centre(), particle.BlockBreak{Block: b})
 
-	if breakable, ok := b.(block.Breakable); ok {
+	if isBreakable {
 		info := breakable.BreakInfo()
 		if info.BreakHandler != nil {
 			info.BreakHandler(pos, p.tx, p)
@@ -2224,8 +2262,12 @@ func (p *Player) drops(held item.Stack, b world.Block) []item.Stack {
 	}
 	var drops []item.Stack
 	if breakable, ok := b.(block.Breakable); ok && !p.GameMode().CreativeInventory() {
-		if breakable.BreakInfo().Harvestable(t) {
-			drops = breakable.BreakInfo().Drops(t, held.Enchantments())
+		// BreakInfo rebuilds the whole struct, closures included, on every call
+		// and reads nothing but the block value, so one build answers both the
+		// harvest check and the drop list.
+		info := breakable.BreakInfo()
+		if info.Harvestable(t) {
+			drops = info.Drops(t, held.Enchantments())
 		}
 	} else if it, ok := b.(world.Item); ok && !p.GameMode().CreativeInventory() {
 		drops = []item.Stack{item.NewStack(it, 1)}
@@ -2576,8 +2618,11 @@ func (p *Player) mendItems(xp int) int {
 		return xp
 	}
 	foundItem := mendingItems[rand.IntN(length)]
-	repairAmount := math.Min(float64(foundItem.MaxDurability()-foundItem.Durability()), float64(xp*2))
-	repairedItem := foundItem.WithDurability(foundItem.Durability() + int(repairAmount))
+	// The stack does not change between the two reads, so its durability is
+	// asked for once.
+	durability := foundItem.Durability()
+	repairAmount := math.Min(float64(foundItem.MaxDurability()-durability), float64(xp*2))
+	repairedItem := foundItem.WithDurability(durability + int(repairAmount))
 	if repairAmount >= 2 {
 		// mending removes 1 experience point for every 2 durability points. If the repaired durability is less than 2,
 		// then no experience is removed.
@@ -2587,8 +2632,13 @@ func (p *Player) mendItems(xp int) int {
 		p.SetHeldItems(held, repairedItem)
 	} else if held.Equal(foundItem) {
 		p.SetHeldItems(repairedItem, offHand)
-	} else if slot, ok := p.Armour().Inventory().First(foundItem); ok {
-		_ = p.Armour().Inventory().SetItem(slot, repairedItem)
+	} else {
+		// The armour inventory is the same value for both calls, so it is
+		// fetched once. The branch had no else, so the shape is unchanged.
+		inv := p.Armour().Inventory()
+		if slot, ok := inv.First(foundItem); ok {
+			_ = inv.SetItem(slot, repairedItem)
+		}
 	}
 	return xp
 }
@@ -2612,24 +2662,27 @@ func (p *Player) Drop(s item.Stack) int {
 // present at that location, OpenBlockContainer does nothing.
 // OpenBlockContainer will also do nothing if the player has no session connected to it.
 func (p *Player) OpenBlockContainer(pos cube.Pos, tx *world.Tx) {
-	if p.session() != session.Nop {
-		p.session().OpenBlockContainer(pos, tx)
+	// One session lookup serves the guard and the call; it never changes.
+	if s := p.session(); s != session.Nop {
+		s.OpenBlockContainer(pos, tx)
 	}
 }
 
 // HideEntity hides a world.Entity from the Player so that it can under no circumstance see it. Hidden entities can be
 // made visible again through a call to ShowEntity.
 func (p *Player) HideEntity(e world.Entity) {
-	if p.session() != session.Nop && p.H() != e.H() {
-		p.session().StopShowingEntity(e)
+	// One session lookup serves the guard and the call; it never changes.
+	if s := p.session(); s != session.Nop && p.H() != e.H() {
+		s.StopShowingEntity(e)
 	}
 }
 
 // ShowEntity shows a world.Entity previously hidden from the Player using HideEntity. It does nothing if the entity
 // wasn't currently hidden.
 func (p *Player) ShowEntity(e world.Entity) {
-	if p.session() != session.Nop {
-		p.session().StartShowingEntity(e)
+	// One session lookup serves the guard and the call; it never changes.
+	if s := p.session(); s != session.Nop {
+		s.StartShowingEntity(e)
 	}
 }
 
@@ -2638,10 +2691,12 @@ func (p *Player) ShowEntity(e world.Entity) {
 // The latency returned is updated continuously and is half the round trip time (RTT).
 // If the Player does not have a session associated with it, Latency returns 0.
 func (p *Player) Latency() time.Duration {
-	if p.session() == session.Nop {
+	// One session lookup serves the guard and the read; it never changes.
+	s := p.session()
+	if s == session.Nop {
 		return 0
 	}
-	return p.session().Latency()
+	return s.Latency()
 }
 
 // Tick ticks the entity, performing actions such as checking if the player is still breaking a block.
@@ -2720,24 +2775,33 @@ func (p *Player) Tick(tx *world.Tx, current int64) {
 		p.ContinueBreaking(p.breakingFace)
 	}
 
-	for it, ti := range p.cooldowns {
-		if time.Now().After(ti) {
-			delete(p.cooldowns, it)
+	if len(p.cooldowns) > 0 {
+		// The clock is read once for the whole sweep instead of once per entry.
+		// The loop only deletes, so the same entries expire; one that lapses
+		// during the sweep is removed on the next tick instead.
+		now := time.Now()
+		for it, ti := range p.cooldowns {
+			if now.After(ti) {
+				delete(p.cooldowns, it)
+			}
 		}
 	}
 
 	// A Tx holds one world for its whole life and only closes once the callback
 	// that owns it returns, so the four reads below all answer the same.
 	w := tx.World()
-	p.session().SendDebugShapes(w.Dimension())
-	p.session().SendHudUpdates()
+	// The session is set when the player is created and never replaced, so one
+	// lookup answers all three uses below.
+	s := p.session()
+	s.SendDebugShapes(w.Dimension())
+	s.SendHudUpdates()
 
 	if p.prevWorld != w && p.prevWorld != nil {
 		p.Handler().HandleChangeWorld(p, p.prevWorld, w)
 	}
 	p.prevWorld = w
 
-	if p.session() == session.Nop && !p.Immobile() {
+	if s == session.Nop && !p.Immobile() {
 		m := p.mc.TickMovement(p, p.Position(), p.Velocity(), p.Rotation(), p.tx)
 		m.Send()
 
@@ -3213,10 +3277,20 @@ func (p *Player) updateState() {
 // have the water breathing or conduit power effect, this returns false.
 // If the player is in creative or spectator mode, Breathing always returns true.
 func (p *Player) Breathing() bool {
-	_, breathing := p.Effect(effect.WaterBreathing)
+	// The liquid read and the two effect lookups are pure, so answering with
+	// the term that already decided the disjunction returns the same bool
+	// while skipping the ones that no longer matter.
+	if !p.GameMode().AllowsTakingDamage() {
+		return true
+	}
+	if _, submerged := p.tx.Liquid(cube.PosFromVec3(entity.EyePosition(p))); !submerged {
+		return true
+	}
+	if _, breathing := p.Effect(effect.WaterBreathing); breathing {
+		return true
+	}
 	_, conduitPower := p.Effect(effect.ConduitPower)
-	_, submerged := p.tx.Liquid(cube.PosFromVec3(entity.EyePosition(p)))
-	return !p.GameMode().AllowsTakingDamage() || !submerged || breathing || conduitPower
+	return conduitPower
 }
 
 // SwingArm makes the player swing its arm.
@@ -3287,22 +3361,28 @@ func (p *Player) RemoveAllDebugShapes() {
 // LockInput applies an input lock to the player, disabling the specified input and immediately sending the
 // updated lock state to the client.
 func (p *Player) LockInput(l input.Lock) {
-	p.session().LockInput(l)
-	p.session().SendInputLocks()
+	// One session lookup serves both calls; it never changes.
+	s := p.session()
+	s.LockInput(l)
+	s.SendInputLocks()
 }
 
 // UnlockInput removes an input lock from the player, re-enabling the specified input and immediately sending
 // the updated lock state to the client.
 func (p *Player) UnlockInput(l input.Lock) {
-	p.session().UnlockInput(l)
-	p.session().SendInputLocks()
+	// One session lookup serves both calls; it never changes.
+	s := p.session()
+	s.UnlockInput(l)
+	s.SendInputLocks()
 }
 
 // ClearInputLocks removes all input locks from the player, re-enabling all inputs and immediately sending the
 // updated lock state to the client.
 func (p *Player) ClearInputLocks() {
-	p.session().ClearInputLocks()
-	p.session().SendInputLocks()
+	// One session lookup serves both calls; it never changes.
+	s := p.session()
+	s.ClearInputLocks()
+	s.SendInputLocks()
 }
 
 // InputLocked checks if a specific input lock is currently applied to the player.
@@ -3362,9 +3442,13 @@ func (p *Player) addNewItem(ctx *item.UseContext) {
 // canReach checks if a player can reach a position with its current range. The range depends on if the player
 // is either survival or creative mode.
 func (p *Player) canReach(pos mgl64.Vec3) bool {
+	// The distance costs a square root and has no side effect, so it is only
+	// taken once the two cheap guards that could already refuse have passed.
+	if p.Dead() || !p.GameMode().AllowsInteraction() {
+		return false
+	}
 	dist := entity.EyePosition(p).Sub(pos).Len()
-	return !p.Dead() && p.GameMode().AllowsInteraction() &&
-		(dist <= 8.0 || (dist <= 14.0 && p.GameMode().CreativeInventory()))
+	return dist <= 8.0 || (dist <= 14.0 && p.GameMode().CreativeInventory())
 }
 
 // Disconnect closes the player and removes it from the world.
@@ -3556,7 +3640,9 @@ func (p *Player) viewers() []world.Viewer {
 
 // withinChunkRadius checks if the position provided is within the chunk radius of the player.
 func (p *Player) withinChunkRadius(pos mgl64.Vec3) bool {
-	playerChunkX, playerChunkZ := int(p.Position().X())>>4, int(p.Position().Z())>>4
+	// One position read serves both axes; nothing changes it in between.
+	playerPos := p.Position()
+	playerChunkX, playerChunkZ := int(playerPos.X())>>4, int(playerPos.Z())>>4
 	posChunkX, posChunkZ := int(pos.X())>>4, int(pos.Z())>>4
 	dx, dz := playerChunkX-posChunkX, playerChunkZ-posChunkZ
 	if dx < 0 {
@@ -3583,7 +3669,10 @@ func (p *Player) resendNearbyBlocks(pos cube.Pos, faces ...cube.Face) {
 
 // resendNearbyBlock resends a block at cube.Pos if it is within the player's render distance.
 func (p *Player) resendNearbyBlock(pos cube.Pos) {
-	if p.session() == session.Nop {
+	// The session is set when the player is created and never replaced, so one
+	// lookup answers the guard and both updates below.
+	s := p.session()
+	if s == session.Nop {
 		return
 	}
 	if !p.withinChunkRadius(pos.Vec3()) {
@@ -3593,10 +3682,10 @@ func (p *Player) resendNearbyBlock(pos cube.Pos) {
 		return
 	}
 	b := p.tx.Block(pos)
-	p.session().ViewBlockUpdate(pos, b, 0)
+	s.ViewBlockUpdate(pos, b, 0)
 	if _, ok := b.(world.LiquidDisplacer); ok {
 		liq, _ := p.tx.Liquid(pos)
-		p.session().ViewBlockUpdate(pos, liq, 1)
+		s.ViewBlockUpdate(pos, liq, 1)
 	}
 }
 

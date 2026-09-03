@@ -96,7 +96,9 @@ func (f Custom) SubmitJSON(b []byte, submitter Submitter, tx *world.Tx) error {
 	v := reflect.New(reflect.TypeOf(f.submittable)).Elem()
 	v.Set(reflect.ValueOf(f.submittable))
 
-	for i := 0; i < v.NumField(); i++ {
+	// The field count of a reflect.Value cannot change while it is being read,
+	// so it is asked for once instead of once per iteration.
+	for i, n := 0, v.NumField(); i < n; i++ {
 		fieldV := v.Field(i)
 		if !fieldV.CanSet() {
 			continue
@@ -196,11 +198,14 @@ func (f Custom) parseValue(elem Element, s any) (reflect.Value, error) {
 func (f Custom) verify() {
 	el := reflect.TypeOf((*Element)(nil)).Elem()
 
-	v := reflect.New(reflect.TypeOf(f.submittable)).Elem()
-	v.Set(reflect.ValueOf(f.submittable))
+	// The dynamic type of f.submittable is asked for once and shared by both
+	// uses, and the field count is hoisted out of the loop.
 
 	t := reflect.TypeOf(f.submittable)
-	for i := 0; i < v.NumField(); i++ {
+	v := reflect.New(t).Elem()
+	v.Set(reflect.ValueOf(f.submittable))
+
+	for i, n := 0, v.NumField(); i < n; i++ {
 		if !v.Field(i).CanSet() {
 			continue
 		}

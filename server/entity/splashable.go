@@ -31,9 +31,12 @@ func potionSplash(durMul float64, pot potion.Potion, linger bool) func(e *Ent, t
 	return func(e *Ent, tx *world.Tx, res trace.Result) {
 		pos := e.Position()
 		effects := pot.Effects()
-		box := e.H().Type().BBox(e).Translate(pos)
 
 		if len(effects) > 0 {
+			// Only these two branches need the box, and the calls building it are
+			// pure, so a potion with no effects that is not water no longer pays
+			// for them. Each branch still builds it exactly once.
+			box := e.H().Type().BBox(e).Translate(pos)
 			reach := box.GrowVec3(mgl64.Vec3{4.125, 2.125, 4.125})
 			// res never changes while the loop runs and Entity() is a plain field
 			// read, so the hit entity's handle is resolved once instead of once
@@ -125,7 +128,7 @@ func potionSplash(durMul float64, pot potion.Potion, linger bool) func(e *Ent, t
 			// Same inlining of filterLiving as above: no iterator closure and no
 			// extra yield hop, with the Living check kept ahead of the
 			// SplashableEntity check so the same entities are splashed in order.
-			for otherE := range tx.EntitiesWithin(box.GrowVec3(mgl64.Vec3{8.25, 4.25, 8.25})) {
+			for otherE := range tx.EntitiesWithin(e.H().Type().BBox(e).Translate(pos).GrowVec3(mgl64.Vec3{8.25, 4.25, 8.25})) {
 				if _, ok := otherE.(Living); !ok {
 					continue
 				}
