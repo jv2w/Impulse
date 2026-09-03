@@ -48,9 +48,12 @@ func (s Sword) BaseMiningEfficiency(b world.Block) float64 {
 
 // DurabilityInfo ...
 func (s Sword) DurabilityInfo() DurabilityInfo {
+	// brokenIntoNothing is the same simpleItem(Stack{}) this built on every
+	// call: it returns the same zero Stack by value, so sharing one closure
+	// instead of allocating a new one is indistinguishable.
 	return DurabilityInfo{
 		MaxDurability:    s.Tier.Durability,
-		BrokenItem:       simpleItem(Stack{}),
+		BrokenItem:       brokenIntoNothing,
 		AttackDurability: 1,
 		BreakDurability:  2,
 	}

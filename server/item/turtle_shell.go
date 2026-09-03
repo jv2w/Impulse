@@ -14,9 +14,12 @@ func (TurtleShell) Use(_ *world.Tx, _ User, ctx *UseContext) bool {
 
 // DurabilityInfo ...
 func (TurtleShell) DurabilityInfo() DurabilityInfo {
+	// brokenIntoNothing is the same simpleItem(Stack{}) this built on every
+	// call: it returns the same zero Stack by value, so sharing one closure
+	// instead of allocating a new one is indistinguishable.
 	return DurabilityInfo{
 		MaxDurability: 276,
-		BrokenItem:    simpleItem(Stack{}),
+		BrokenItem:    brokenIntoNothing,
 	}
 }
 

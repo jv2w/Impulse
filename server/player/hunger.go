@@ -22,56 +22,62 @@ func newHungerManager() *hungerManager {
 // Food returns the current food level of a player. The level returned is guaranteed to always be between 0
 // and 20.
 func (m *hungerManager) Food() int {
+	// A single field read cannot panic, so the deferred unlock is replaced by a
+	// direct one. The lock is held over exactly the same read.
 	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.foodLevel
+	level := m.foodLevel
+	m.mu.RUnlock()
+	return level
 }
 
 // SetFood sets the food level of a player. The level passed must be in a range of 0-20. If the level passed
 // is negative, the food level will be set to 0. If the level exceeds 20, the food level will be set to 20.
 func (m *hungerManager) SetFood(level int) {
+	// max/min on ints are builtins that cannot panic, so the deferred unlock is
+	// replaced by a direct one over the same critical section.
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	m.foodLevel = max(min(level, 20), 0)
+	m.mu.Unlock()
 }
 
 // AddFood adds a number of food points to the current food level of a player.
 func (m *hungerManager) AddFood(points int) {
+	// Same as SetFood: the critical section is one arithmetic field update that
+	// cannot panic, so no defer frame is needed.
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	m.foodLevel = max(min(m.foodLevel+points, 20), 0)
+	m.mu.Unlock()
 }
 
 // Reset resets the hunger manager to its default values, identical to those set when creating a new manager
 // using newHungerManager.
 func (m *hungerManager) Reset() {
+	// Four constant field writes cannot panic, so the defer frame is dropped.
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	m.foodLevel = 20
 	m.saturationLevel = 5
 	m.exhaustionLevel = 0
 	m.foodTick = 1
+	m.mu.Unlock()
 }
 
 // ResetExhaustion resets the player's exhaustion level to 0. It prevents the
 // player's food level from decreasing immediately after cancelling food loss.
 func (m *hungerManager) resetExhaustion() {
+	// Three constant field writes cannot panic, so the defer frame is dropped.
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	m.exhaustionLevel = 0
 	m.saturationLevel = 0
 	m.foodTick = 1
+	m.mu.Unlock()
 }
 
 // exhaust exhausts the player by the amount of points passed. If the total exhaustion level exceeds 4, a
 // saturation point, or food point, if saturation is 0, will be subtracted.
 func (m *hungerManager) exhaust(points float64) {
+	// desaturate only reads and writes fields of m, so nothing in the loop can
+	// panic and the deferred unlock is replaced by a direct one.
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	m.exhaustionLevel += points
 	for m.exhaustionLevel >= 4 {
 		// Maximum exhaustion value is 4, so keep removing one saturation point until the exhaustion level
@@ -79,16 +85,18 @@ func (m *hungerManager) exhaust(points float64) {
 		m.exhaustionLevel -= 4
 		m.desaturate()
 	}
+	m.mu.Unlock()
 }
 
 // saturate saturates the player's food and saturation by the amount of points passed. Note that the total
 // saturation will never exceed the total food value.
 func (m *hungerManager) saturate(food int, saturation float64) {
+	// Arithmetic on two fields with builtin max/min cannot panic, so the defer
+	// frame is dropped.
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	m.foodLevel = max(min(m.foodLevel+food, 20), 0)
 	m.saturationLevel = max(min(m.saturationLevel+saturation, float64(m.foodLevel)), 0)
+	m.mu.Unlock()
 }
 
 // desaturate removes one saturation point from the player. If the saturation level of the player is already
@@ -106,10 +114,11 @@ func (m *hungerManager) desaturate() {
 // and the player still has saturation left.
 // The rate of regeneration is 1/0.5 seconds.
 func (m *hungerManager) canQuicklyRegenerate() bool {
+	// Two field reads cannot panic, so the defer frame is dropped.
 	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	return m.foodLevel == 20 && m.saturationLevel > 0
+	quick := m.foodLevel == 20 && m.saturationLevel > 0
+	m.mu.RUnlock()
+	return quick
 }
 
 // canRegenerate checks if the player with the amount of food levels in the hunger manager can regenerate.

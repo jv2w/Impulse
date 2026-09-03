@@ -24,10 +24,10 @@ type Divider struct{}
 
 // MarshalJSON ...
 func (d Divider) MarshalJSON() ([]byte, error) {
-	return json.Marshal(map[string]any{
-		"type": "divider",
-		"text": "",
-	})
+	// encoding/json writes map keys in ascending order, so a struct whose
+	// fields are declared in that same order produces byte-identical output
+	// without the temporary map and its boxed values.
+	return json.Marshal(textElement{Text: "", Type: "divider"})
 }
 
 // Header represents a header element on a form. It displays larger, emphasised text for section titles.
@@ -43,10 +43,8 @@ func NewHeader(text string) Header {
 
 // MarshalJSON ...
 func (h Header) MarshalJSON() ([]byte, error) {
-	return json.Marshal(map[string]any{
-		"type": "header",
-		"text": h.Text,
-	})
+	// Same sorted key order as the map it replaces, so the bytes are identical.
+	return json.Marshal(textElement{Text: h.Text, Type: "header"})
 }
 
 // Label represents a static label on a form. It serves only to display a box of text, and users cannot
@@ -63,10 +61,8 @@ func NewLabel(text string) Label {
 
 // MarshalJSON ...
 func (l Label) MarshalJSON() ([]byte, error) {
-	return json.Marshal(map[string]any{
-		"type": "label",
-		"text": l.Text,
-	})
+	// Same sorted key order as the map it replaces, so the bytes are identical.
+	return json.Marshal(textElement{Text: l.Text, Type: "label"})
 }
 
 // Input represents a text input box element. Submitters may write any text in these boxes with no specific
@@ -100,16 +96,16 @@ func (i Input) WithTooltip(tooltip string) Input {
 
 // MarshalJSON ...
 func (i Input) MarshalJSON() ([]byte, error) {
-	m := map[string]any{
-		"type":        "input",
-		"text":        i.Text,
-		"default":     i.Default,
-		"placeholder": i.Placeholder,
-	}
-	if i.Tooltip != "" {
-		m["tooltip"] = i.Tooltip
-	}
-	return json.Marshal(m)
+	// Fields are declared in the sorted key order the map produced and
+	// omitempty drops the tooltip on exactly the empty string the old
+	// condition tested, so the bytes are identical.
+	return json.Marshal(inputElement{
+		Default:     i.Default,
+		Placeholder: i.Placeholder,
+		Text:        i.Text,
+		Tooltip:     i.Tooltip,
+		Type:        "input",
+	})
 }
 
 // Value returns the value filled out by the user.
@@ -144,15 +140,13 @@ func (t Toggle) WithTooltip(tooltip string) Toggle {
 
 // MarshalJSON ...
 func (t Toggle) MarshalJSON() ([]byte, error) {
-	m := map[string]any{
-		"type":    "toggle",
-		"text":    t.Text,
-		"default": t.Default,
-	}
-	if t.Tooltip != "" {
-		m["tooltip"] = t.Tooltip
-	}
-	return json.Marshal(m)
+	// Sorted key order kept and omitempty matches the old tooltip condition.
+	return json.Marshal(toggleElement{
+		Default: t.Default,
+		Text:    t.Text,
+		Tooltip: t.Tooltip,
+		Type:    "toggle",
+	})
 }
 
 // Value returns the value filled out by the user.
@@ -193,18 +187,16 @@ func (s Slider) WithTooltip(tooltip string) Slider {
 
 // MarshalJSON ...
 func (s Slider) MarshalJSON() ([]byte, error) {
-	m := map[string]any{
-		"type":    "slider",
-		"text":    s.Text,
-		"min":     s.Min,
-		"max":     s.Max,
-		"step":    s.StepSize,
-		"default": s.Default,
-	}
-	if s.Tooltip != "" {
-		m["tooltip"] = s.Tooltip
-	}
-	return json.Marshal(m)
+	// Sorted key order kept and omitempty matches the old tooltip condition.
+	return json.Marshal(sliderElement{
+		Default: s.Default,
+		Max:     s.Max,
+		Min:     s.Min,
+		Step:    s.StepSize,
+		Text:    s.Text,
+		Tooltip: s.Tooltip,
+		Type:    "slider",
+	})
 }
 
 // Value returns the value filled out by the user.
@@ -243,16 +235,14 @@ func (d Dropdown) WithTooltip(tooltip string) Dropdown {
 
 // MarshalJSON ...
 func (d Dropdown) MarshalJSON() ([]byte, error) {
-	m := map[string]any{
-		"type":    "dropdown",
-		"text":    d.Text,
-		"default": d.DefaultIndex,
-		"options": d.Options,
-	}
-	if d.Tooltip != "" {
-		m["tooltip"] = d.Tooltip
-	}
-	return json.Marshal(m)
+	// Sorted key order kept and omitempty matches the old tooltip condition.
+	return json.Marshal(dropdownElement{
+		Default: d.DefaultIndex,
+		Options: d.Options,
+		Text:    d.Text,
+		Tooltip: d.Tooltip,
+		Type:    "dropdown",
+	})
 }
 
 // Value returns the value that the Submitter submitted. The value is an index pointing to the selected option
@@ -278,16 +268,14 @@ func (s StepSlider) WithTooltip(tooltip string) StepSlider {
 
 // MarshalJSON ...
 func (s StepSlider) MarshalJSON() ([]byte, error) {
-	m := map[string]any{
-		"type":    "step_slider",
-		"text":    s.Text,
-		"default": s.DefaultIndex,
-		"steps":   s.Options,
-	}
-	if s.Tooltip != "" {
-		m["tooltip"] = s.Tooltip
-	}
-	return json.Marshal(m)
+	// Sorted key order kept and omitempty matches the old tooltip condition.
+	return json.Marshal(stepSliderElement{
+		Default: s.DefaultIndex,
+		Steps:   s.Options,
+		Text:    s.Text,
+		Tooltip: s.Tooltip,
+		Type:    "step_slider",
+	})
 }
 
 // Value returns the value that the Submitter submitted. The value is an index pointing to the selected option
@@ -315,18 +303,85 @@ func NewButton(text, image string) Button {
 
 // MarshalJSON ...
 func (b Button) MarshalJSON() ([]byte, error) {
-	m := map[string]any{
-		"type": "button",
-		"text": b.Text,
-	}
+	// The outer and inner objects keep the sorted key order of the two maps
+	// they replace, and a nil image pointer is omitted exactly where the old
+	// code left the key out, so the bytes are identical.
+	e := buttonElement{Text: b.Text, Type: "button"}
 	if b.Image != "" {
 		buttonType := "path"
 		if strings.HasPrefix(b.Image, "http:") || strings.HasPrefix(b.Image, "https:") {
 			buttonType = "url"
 		}
-		m["image"] = map[string]any{"type": buttonType, "data": b.Image}
+		e.Image = &buttonImage{Data: b.Image, Type: buttonType}
 	}
-	return json.Marshal(m)
+	return json.Marshal(e)
+}
+
+// textElement is the JSON shape of the elements that carry nothing but a text
+// and a type. Field order matches the ascending key order encoding/json used
+// for the maps these replace.
+type textElement struct {
+	Text string `json:"text"`
+	Type string `json:"type"`
+}
+
+// inputElement is the JSON shape of an Input.
+type inputElement struct {
+	Default     string `json:"default"`
+	Placeholder string `json:"placeholder"`
+	Text        string `json:"text"`
+	Tooltip     string `json:"tooltip,omitempty"`
+	Type        string `json:"type"`
+}
+
+// toggleElement is the JSON shape of a Toggle.
+type toggleElement struct {
+	Default bool   `json:"default"`
+	Text    string `json:"text"`
+	Tooltip string `json:"tooltip,omitempty"`
+	Type    string `json:"type"`
+}
+
+// sliderElement is the JSON shape of a Slider.
+type sliderElement struct {
+	Default float64 `json:"default"`
+	Max     float64 `json:"max"`
+	Min     float64 `json:"min"`
+	Step    float64 `json:"step"`
+	Text    string  `json:"text"`
+	Tooltip string  `json:"tooltip,omitempty"`
+	Type    string  `json:"type"`
+}
+
+// dropdownElement is the JSON shape of a Dropdown.
+type dropdownElement struct {
+	Default int      `json:"default"`
+	Options []string `json:"options"`
+	Text    string   `json:"text"`
+	Tooltip string   `json:"tooltip,omitempty"`
+	Type    string   `json:"type"`
+}
+
+// stepSliderElement is the JSON shape of a StepSlider.
+type stepSliderElement struct {
+	Default int      `json:"default"`
+	Steps   []string `json:"steps"`
+	Text    string   `json:"text"`
+	Tooltip string   `json:"tooltip,omitempty"`
+	Type    string   `json:"type"`
+}
+
+// buttonElement is the JSON shape of a Button.
+type buttonElement struct {
+	Image *buttonImage `json:"image,omitempty"`
+	Text  string       `json:"text"`
+	Type  string       `json:"type"`
+}
+
+// buttonImage is the JSON shape of the optional image of a Button.
+type buttonImage struct {
+	Data string `json:"data"`
+	Type string `json:"type"`
 }
 
 func (Divider) elem()    {}

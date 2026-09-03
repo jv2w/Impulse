@@ -1,11 +1,11 @@
 package item
 
 import (
+	"cmp"
 	"fmt"
 	"maps"
 	"reflect"
 	"slices"
-	"sort"
 	"strings"
 	"sync/atomic"
 
@@ -134,7 +134,11 @@ func (s Stack) WithDurability(d int) Stack {
 	if !ok {
 		return s
 	}
-	maxDurability := durable.DurabilityInfo().MaxDurability
+	// One DurabilityInfo call feeds both the maximum and the broken item. The
+	// second call it replaces ran on the same durable with nothing in
+	// between, so it returned the same info.
+	info := durable.DurabilityInfo()
+	maxDurability := info.MaxDurability
 	if d > maxDurability {
 		// A durability bigger than the max, so the item has no damage at all.
 		s.damage = 0
@@ -142,7 +146,7 @@ func (s Stack) WithDurability(d int) Stack {
 	}
 	if d == 0 {
 		// A durability of 0, so the item is broken.
-		return durable.DurabilityInfo().BrokenItem()
+		return info.BrokenItem()
 	}
 	s.damage = maxDurability - d
 	return s
@@ -185,7 +189,9 @@ func (s Stack) Empty() bool {
 // Item returns the item that the stack holds. If the stack is considered empty (Stack.Empty()), Item will
 // always return nil.
 func (s Stack) Item() world.Item {
-	if s.Empty() || s.item == nil {
+	// Empty returns true for a nil item, so the second check could never be
+	// the one that fired.
+	if s.Empty() {
 		return nil
 	}
 	return s.item
@@ -249,6 +255,12 @@ func (s Stack) Lore() []string {
 // WithValue stores Values by encoding them using the encoding/gob package. Users of WithValue must ensure
 // that their value is valid for encoding with this package.
 func (s Stack) WithValue(key string, val any) Stack {
+	if val == nil && s.data == nil {
+		// Clearing a key of a Stack that holds no data left s.data nil again
+		// after the clone, the delete and the length check below, so the
+		// Stack returned is this one and the map is never allocated.
+		return s
+	}
 	s.data = cloneMap(s.data)
 	if val != nil {
 		s.data[key] = val
@@ -278,8 +290,16 @@ func (s Stack) WithEnchantments(enchants ...Enchantment) Stack {
 		s.item = EnchantedBook{}
 	}
 	s.enchantments = cloneMap(s.enchantments)
+	// Item runs Empty, which reaches EncodeItem, and s.item is not written
+	// again below, so the assertion gives the same answer on every iteration.
+	// It stays behind the length check so a call with no enchantments still
+	// makes no Item call at all.
+	var enchantedBook bool
+	if len(enchants) > 0 {
+		_, enchantedBook = s.Item().(EnchantedBook)
+	}
 	for _, enchant := range enchants {
-		if _, ok := s.Item().(EnchantedBook); !ok && !enchant.t.CompatibleWithItem(s.item) {
+		if !enchantedBook && !enchant.t.CompatibleWithItem(s.item) {
 			// Enchantment is not compatible with the item.
 			continue
 		}
@@ -349,10 +369,14 @@ func (s Stack) Enchantments() []Enchantment {
 	for _, enchant := range s.enchantments {
 		e = append(e, enchant)
 	}
-	sort.Slice(e, func(i, j int) bool {
-		id1, _ := EnchantmentID(e[i].t)
-		id2, _ := EnchantmentID(e[j].t)
-		return id1 < id2
+	// slices.SortFunc runs the same pdqsort over the same key but drops the
+	// any boxing of e and the reflect-based swapper. The key is a unique
+	// enchantment id, so no two elements can compare equal and the order the
+	// two produce is the same one.
+	slices.SortFunc(e, func(a, b Enchantment) int {
+		id1, _ := EnchantmentID(a.t)
+		id2, _ := EnchantmentID(b.t)
+		return cmp.Compare(id1, id2)
 	})
 	return e
 }
@@ -406,7 +430,10 @@ func (s Stack) AddStack(s2 Stack) (a, b Stack) {
 		// zero-count stack that does carry its item type.
 		return s, s2
 	}
-	if s.Count() >= s.MaxCount() {
+	// MaxCount asserts on the item and calls into it. Nothing between the two
+	// places that used it writes s.item, so one call feeds both.
+	maxCount := s.MaxCount()
+	if s.Count() >= maxCount {
 		// No more items could be added to the original stack.
 		return s, s2
 	}
@@ -414,7 +441,7 @@ func (s Stack) AddStack(s2 Stack) (a, b Stack) {
 		// The items are not comparable and thus cannot be stacked together.
 		return s, s2
 	}
-	diff := s.MaxCount() - s.Count()
+	diff := maxCount - s.Count()
 	if s2.Count() < diff {
 		diff = s2.Count()
 	}
@@ -452,8 +479,10 @@ func (s Stack) Comparable(s2 Stack) bool {
 	if len(s.enchantments) != len(s2.enchantments) {
 		return false
 	}
-	for i := range s.enchantments {
-		if s.enchantments[i] != s2.enchantments[i] {
+	// The range yields the value the second lookup went back for, so one map
+	// access per enchantment is gone.
+	for i, enchant := range s.enchantments {
+		if enchant != s2.enchantments[i] {
 			return false
 		}
 	}
