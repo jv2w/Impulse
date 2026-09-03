@@ -112,10 +112,21 @@ func (p paletteSize) padded() bool {
 	return p == 3 || p == 5 || p == 6
 }
 
+// validSizes has a true at every index that is a size in sizes. It is built from sizes itself, so the two
+// cannot drift apart, and it turns the scan in valid into a single load.
+var validSizes = func() (v [17]bool) {
+	for _, size := range sizes {
+		v[size] = true
+	}
+	return
+}()
+
 // valid reports whether p is one of the sizes the storage format defines. Any other size makes uint32s report
 // a count that paletteIndex and setPaletteIndex then index past, without a bounds check.
 func (p paletteSize) valid() bool {
-	return slices.Contains(sizes[:], p)
+	// Same set of sizes as the scan over sizes this replaces: every size in sizes is at most 16, so any
+	// larger p was not in it either.
+	return int(p) < len(validSizes) && validSizes[p]
 }
 
 // paletteSizeFor finds a suitable paletteSize for the amount of values passed n.

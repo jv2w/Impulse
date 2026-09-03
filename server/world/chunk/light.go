@@ -5,8 +5,11 @@ import "github.com/jv2w/Impulse/server/block/cube"
 // insertBlockLightNodes iterates over the chunk and looks for blocks that have a light level of at least 1.
 // If one is found, a node is added for it to the node queue.
 func (a *lightArea) insertBlockLightNodes(queue *lightQueue) {
+	// a.br never changes while the area is iterated, so the bound method value is built once here instead
+	// of once for every block visited. It is the same function value either way.
+	lightBlock := a.br.LightBlock
 	a.iterSubChunks(a.anyLightBlocks, func(pos cube.Pos) {
-		if level := a.highest(pos, a.br.LightBlock); level > 0 {
+		if level := a.highest(pos, lightBlock); level > 0 {
 			queue.push(node(pos, level, BlockLight))
 		}
 	})
@@ -27,6 +30,8 @@ func (a *lightArea) anyLightBlocks(sub *SubChunk) bool {
 // insertSkyLightNodes iterates over the chunk and inserts a light node anywhere at the highest block in the
 // chunk. In addition, any skylight above those nodes will be set to 15.
 func (a *lightArea) insertSkyLightNodes(queue *lightQueue) {
+	// Built once instead of once per column: a.br does not change during the iteration.
+	filteringBlock := a.br.FilteringBlock
 	a.iterHeightmap(func(x, z int, height, highestNeighbour, highestY, lowestY int) {
 		pos := cube.Pos{x, height, z}
 		if height <= a.r.Max() {
@@ -34,7 +39,7 @@ func (a *lightArea) insertSkyLightNodes(queue *lightQueue) {
 			a.setLight(pos, SkyLight, 15)
 
 			if pos[1] > lowestY {
-				if level := a.highest(pos.Sub(cube.Pos{0, 1}), a.br.FilteringBlock); level != 15 && level != 0 {
+				if level := a.highest(pos.Sub(cube.Pos{0, 1}), filteringBlock); level != 15 && level != 0 {
 					// If we hit a block like water or leaves (something that diffuses but does not block light), we
 					// need a node above this block regardless of the neighbours.
 					queue.push(node(pos, 15, SkyLight))
@@ -58,15 +63,17 @@ func (a *lightArea) insertSkyLightNodes(queue *lightQueue) {
 // insertLightSpreadingNodes inserts light nodes into the node queue passed which, when propagated, will
 // spread into the neighbouring chunks.
 func (a *lightArea) insertLightSpreadingNodes(queue *lightQueue, lt light) {
+	// Built once instead of once or twice per edge block: a.br does not change during the iteration.
+	filteringBlock := a.br.FilteringBlock
 	a.iterEdges(a.nodesNeeded(lt), func(pa, pb cube.Pos) {
 		la, lb := a.light(pa, lt), a.light(pb, lt)
 		if la == lb || la-1 == lb || lb-1 == la {
 			// No chance for this to spread. Don't check for the highest filtering blocks on the side.
 			return
 		}
-		if filter := a.highest(pb, a.br.FilteringBlock) + 1; la > filter && la-filter > lb {
+		if filter := a.highest(pb, filteringBlock) + 1; la > filter && la-filter > lb {
 			queue.push(node(pb, la-filter, lt))
-		} else if filter = a.highest(pa, a.br.FilteringBlock) + 1; lb > filter && lb-filter > la {
+		} else if filter = a.highest(pa, filteringBlock) + 1; lb > filter && lb-filter > la {
 			queue.push(node(pa, lb-filter, lt))
 		}
 	})

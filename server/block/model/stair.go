@@ -19,13 +19,20 @@ type Stair struct {
 // BBox returns a slice of physics.BBox depending on if the Stair is upside down and which direction it is facing.
 // Additionally, these BBoxs depend on the Stair blocks surrounding this one, which can influence the model.
 func (s Stair) BBox(pos cube.Pos, bs world.BlockSource) []cube.BBox {
+	t := s.cornerType(pos, bs)
+	// Only an inner corner appends the extension box, so the corner type gives the
+	// exact final length. cornerType only reads neighbouring blocks, so computing it
+	// before the slice exists changes nothing it sees or returns.
+	n := 2
+	if t == cornerRightInner || t == cornerLeftInner {
+		n = 3
+	}
 	// The slab half, plus the step and, on an inner corner, its extension.
-	b := make([]cube.BBox, 1, 3)
+	b := make([]cube.BBox, 1, n)
 	b[0] = cube.Box(0, 0, 0, 1, 0.5, 1)
 	if s.UpsideDown {
 		b[0] = cube.Box(0, 0.5, 0, 1, 1, 1)
 	}
-	t := s.cornerType(pos, bs)
 
 	face, oppositeFace := s.Facing.Face(), s.Facing.Opposite().Face()
 	switch t {
@@ -53,8 +60,12 @@ func (s Stair) BBox(pos cube.Pos, bs world.BlockSource) []cube.BBox {
 			ExtendTowards(s.Facing.RotateLeft().Face(), 0.5))
 	}
 	if s.UpsideDown {
-		for i := range b[1:] {
-			b[i+1] = b[i+1].Translate(mgl64.Vec3{0, -0.5})
+		// The offset is the same for every box, and indexing straight from 1 drops the
+		// sub-slice header and the per-iteration add; the same boxes are translated by
+		// the same vector in the same order.
+		down := mgl64.Vec3{0, -0.5}
+		for i := 1; i < len(b); i++ {
+			b[i] = b[i].Translate(down)
 		}
 	}
 	return b

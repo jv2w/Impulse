@@ -43,7 +43,11 @@ func (q *lightQueue) push(n lightNode) {
 		q.grow()
 	}
 	q.nodes[q.tail] = n
-	q.tail = (q.tail + 1) % len(q.nodes)
+	// head and tail start at 0, are only ever advanced by this wrap or reset by grow, so both stay below
+	// len(q.nodes): wrapping on equality is the same value the remainder gave, without a hardware divide.
+	if q.tail++; q.tail == len(q.nodes) {
+		q.tail = 0
+	}
 	q.size++
 }
 
@@ -53,7 +57,10 @@ func (q *lightQueue) pop() (lightNode, bool) {
 		return lightNode{}, false
 	}
 	n := q.nodes[q.head]
-	q.head = (q.head + 1) % len(q.nodes)
+	// Same wrap as in push: head is always below len(q.nodes), so this is the remainder without a divide.
+	if q.head++; q.head == len(q.nodes) {
+		q.head = 0
+	}
 	q.size--
 	return n, true
 }
@@ -160,10 +167,13 @@ func (a *lightArea) iterEdges(filter func(a, b *SubChunk) bool, f func(a, b cube
 		u := cu << 4
 		for cv := 0; cv < a.w; cv++ {
 			v := cv << 4
+			// The X and Z of both corners do not depend on cy, so they are added once per column of
+			// sheets instead of once per sub chunk layer.
+			xaX, xaZ, zaX, zaZ := a.baseX+u, a.baseZ+v, a.baseX+v, a.baseZ+u
 			for cy := minY; cy < maxY; cy++ {
 				baseY := cy << 4
 
-				xa, za := cube.Pos{a.baseX + u, baseY, a.baseZ + v}, cube.Pos{a.baseX + v, baseY, a.baseZ + u}
+				xa, za := cube.Pos{xaX, baseY, xaZ}, cube.Pos{zaX, baseY, zaZ}
 				xb, zb := xa.Side(cube.FaceWest), za.Side(cube.FaceNorth)
 
 				addX, addZ := filter(a.sub(xa), a.sub(xb)), filter(a.sub(za), a.sub(zb))
@@ -191,13 +201,16 @@ func (a *lightArea) iterEdges(filter func(a, b *SubChunk) bool, f func(a, b cube
 // iterHeightmap iterates over the height map of the lightArea and calls the function f with the height map value, the
 // height map value of the highest neighbour and the Y value of the highest non-empty SubChunk.
 func (a *lightArea) iterHeightmap(f func(x, z int, height, highestNeighbour, highestY, lowestY int)) {
-	m, highestY := a.c[0].HeightMap(), a.c[0].Range().Min()
+	// The same chunk was reached through a.c[0] six times: resolving it once drops those repeated loads
+	// and a bounds checked index per sub chunk.
+	c := a.c[0]
+	m, highestY := c.HeightMap(), c.Range().Min()
 	lowestY := highestY
-	for index := range a.c[0].sub {
-		if a.c[0].sub[index].Empty() {
+	for index, sub := range c.sub {
+		if sub.Empty() {
 			continue
 		}
-		highestY = int(a.c[0].SubY(int16(index))) + 15
+		highestY = int(c.SubY(int16(index))) + 15
 	}
 	for x := uint8(0); x < 16; x++ {
 		for z := uint8(0); z < 16; z++ {
@@ -268,8 +281,10 @@ func (a *lightArea) initialiseLightSlices() {
 		for index >= 0 {
 			// Fill up the rest of the sub chunks with empty light. We will do light calculation for these sub chunks
 			// later on.
-			c.sub[index].skyLight = noLight
-			c.sub[index].blockLight = noLight
+			// One indexed load for both writes: the same sub chunk was resolved twice before.
+			sub := c.sub[index]
+			sub.skyLight = noLight
+			sub.blockLight = noLight
 			index--
 		}
 	}
