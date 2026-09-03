@@ -29,9 +29,12 @@ func (s Stair) BBox(pos cube.Pos, bs world.BlockSource) []cube.BBox {
 	}
 	// The slab half, plus the step and, on an inner corner, its extension.
 	b := make([]cube.BBox, 1, n)
-	b[0] = cube.Box(0, 0, 0, 1, 0.5, 1)
+	// The bottom half was written and then overwritten whenever the stair is upside
+	// down; only the surviving box is stored now, and it is the same one either way.
 	if s.UpsideDown {
 		b[0] = cube.Box(0, 0.5, 0, 1, 1, 1)
+	} else {
+		b[0] = cube.Box(0, 0, 0, 1, 0.5, 1)
 	}
 
 	face, oppositeFace := s.Facing.Face(), s.Facing.Opposite().Face()

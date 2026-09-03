@@ -84,7 +84,9 @@ func (db *DB) LoadPlayerSpawnPosition(id uuid.UUID) (pos cube.Pos, exists bool, 
 
 // loadPlayerData loads the data stored in a LevelDB database for a specific UUID.
 func (db *DB) loadPlayerData(id uuid.UUID) (serverData map[string]any, key string, exists bool, err error) {
-	data, err := db.ldb.Get([]byte("player_"+id.String()), nil)
+	// id does not change, so both uses see the same string; it is formatted once instead of twice.
+	idStr := id.String()
+	data, err := db.ldb.Get([]byte("player_"+idStr), nil)
 	if errors.Is(err, leveldb.ErrNotFound) {
 		return nil, "", false, nil
 	} else if err != nil {
@@ -95,7 +97,7 @@ func (db *DB) loadPlayerData(id uuid.UUID) (serverData map[string]any, key strin
 	if err := nbt.UnmarshalEncoding(data, &d, nbt.LittleEndian); err != nil {
 		return nil, "", true, fmt.Errorf("error decoding player data for uuid %v: %w", id, err)
 	}
-	if d.UUID != id.String() || d.ServerID == "" {
+	if d.UUID != idStr || d.ServerID == "" {
 		return nil, d.ServerID, true, fmt.Errorf("invalid player data for uuid %v: %v", id, d)
 	}
 	serverDB, err := db.ldb.Get([]byte(d.ServerID), nil)
@@ -111,16 +113,23 @@ func (db *DB) loadPlayerData(id uuid.UUID) (serverData map[string]any, key strin
 
 // SavePlayerSpawnPosition saves the player spawn position passed to the levelDB database.
 func (db *DB) SavePlayerSpawnPosition(id uuid.UUID, pos cube.Pos) error {
-	_, err := db.ldb.Get([]byte("player_"+id.String()), nil)
-	d := make(map[string]any)
-	k := "player_server_" + id.String()
+	// id does not change, so every use sees the same string; it is formatted once instead of four times, and
+	// the get and the put share the one key buffer, neither of which writes to it.
+	idStr := id.String()
+	playerKey := []byte("player_" + idStr)
+	_, err := db.ldb.Get(playerKey, nil)
 
+	// The map and the server key are only kept when no player data existed yet; the other branch overwrote
+	// both with what loadPlayerData returned, so building them there was wasted.
+	var d map[string]any
+	var k string
 	if errors.Is(err, leveldb.ErrNotFound) {
-		data, err := nbt.MarshalEncoding(playerData{UUID: id.String(), ServerID: k}, nbt.LittleEndian)
+		d, k = make(map[string]any), "player_server_"+idStr
+		data, err := nbt.MarshalEncoding(playerData{UUID: idStr, ServerID: k}, nbt.LittleEndian)
 		if err != nil {
 			panic(err)
 		}
-		if err := db.ldb.Put([]byte("player_"+id.String()), data, nil); err != nil {
+		if err := db.ldb.Put(playerKey, data, nil); err != nil {
 			return fmt.Errorf("write player data (uuid=%v): %w", id, err)
 		}
 	} else if d, k, _, err = db.loadPlayerData(id); err != nil {
@@ -235,9 +244,12 @@ func (db *DB) subChunks(k dbKey) ([][]byte, error) {
 	r := k.dim.Range()
 	sub := make([][]byte, (r.Height()>>4)+1)
 
+	// r never changes in the loop, so the shift is the same value every iteration.
+	base := r[0] >> 4
+
 	var err error
 	for i := range sub {
-		y := uint8(i + (r[0] >> 4))
+		y := uint8(i + base)
 		sub[i], err = db.ldb.Get(k.Sum(keySubChunkData, y), nil)
 		if errors.Is(err, leveldb.ErrNotFound) {
 			// No sub chunk present at this Y level. We skip this one and move
@@ -252,7 +264,11 @@ func (db *DB) subChunks(k dbKey) ([][]byte, error) {
 
 func (db *DB) entities(k dbKey) ([]chunk.Entity, error) {
 	// https://learn.microsoft.com/en-us/minecraft/creator/documents/actorstorage
-	ids, err := db.ldb.Get(append([]byte(keyEntityIdentifiers), index(k.pos, k.dim)...), nil)
+	// Same bytes as before: the prefix and the index are written into one buffer that is large enough for
+	// both, so the append no longer has to grow a buffer that only held the prefix.
+	idsKey := make([]byte, 0, len(keyEntityIdentifiers)+12)
+	idsKey = append(append(idsKey, keyEntityIdentifiers...), index(k.pos, k.dim)...)
+	ids, err := db.ldb.Get(idsKey, nil)
 	if err != nil {
 		// Key not found, try old method of loading entities.
 		return db.entitiesOld(k)
@@ -344,10 +360,11 @@ func (db *DB) scheduledUpdates(k dbKey) ([]chunk.ScheduledBlockUpdate, int64, er
 		return nil, 0, fmt.Errorf("read nbt: %s", err.Error())
 	}
 	updates := make([]chunk.ScheduledBlockUpdate, len(m.TickList))
+	// db.conf.Blocks does not change in the loop, so every iteration built the same encoding value.
+	bpe := chunk.BlockPaletteEncoding{Blocks: db.conf.Blocks}
 	for i, tick := range m.TickList {
 		t, _ := tick["time"].(int64)
 		bl, _ := tick["blockState"].(map[string]any)
-		bpe := chunk.BlockPaletteEncoding{Blocks: db.conf.Blocks}
 		block, err := bpe.DecodeBlockState(bl)
 		if err != nil {
 			db.conf.Log.Error("read scheduled updates: decode block state: " + err.Error())
@@ -408,8 +425,10 @@ func (db *DB) storeBiomes(batch *leveldb.Batch, k dbKey, biomes []byte) {
 }
 
 func (db *DB) storeSubChunks(batch *leveldb.Batch, k dbKey, subChunks [][]byte, r cube.Range) {
+	// r never changes in the loop, so the shift is the same value every iteration.
+	base := r[0] >> 4
 	for i, sub := range subChunks {
-		batch.Put(k.Sum(keySubChunkData, byte(i+(r[0]>>4))), sub)
+		batch.Put(k.Sum(keySubChunkData, byte(i+base)), sub)
 	}
 }
 
@@ -423,7 +442,10 @@ func (db *DB) storeFinalisation(batch *leveldb.Batch, k dbKey, finalisation uint
 // of the records the chunk no longer references. It returns an error if the index already on disk is damaged,
 // in which case batch is left incomplete and must not be written.
 func (db *DB) storeEntities(batch *leveldb.Batch, k dbKey, entities []chunk.Entity) error {
-	idsKey := append([]byte(keyEntityIdentifiers), index(k.pos, k.dim)...)
+	// Same bytes as before: the prefix and the index are written into one buffer that is large enough for
+	// both, so the append no longer has to grow a buffer that only held the prefix.
+	idsKey := make([]byte, 0, len(keyEntityIdentifiers)+12)
+	idsKey = append(append(idsKey, keyEntityIdentifiers...), index(k.pos, k.dim)...)
 
 	// load the ids of the previous entities
 	var previousIDs []int64
@@ -437,6 +459,9 @@ func (db *DB) storeEntities(batch *leveldb.Batch, k dbKey, entities []chunk.Enti
 		if len(digpPrev)%8 != 0 {
 			return fmt.Errorf("chunk entity index has %v bytes, want a multiple of 8", len(digpPrev))
 		}
+		// The length is already known to be a whole number of IDs, so the slice is sized once instead of
+		// being grown; the elements appended are the same ones in the same order.
+		previousIDs = make([]int64, 0, len(digpPrev)/8)
 		for i := 0; i < len(digpPrev); i += 8 {
 			previousIDs = append(previousIDs, int64(binary.LittleEndian.Uint64(digpPrev[i:])))
 		}
@@ -477,7 +502,10 @@ func (db *DB) storeEntities(batch *leveldb.Batch, k dbKey, entities []chunk.Enti
 }
 
 func entityIndex(id int64) []byte {
-	return binary.LittleEndian.AppendUint64([]byte(keyEntity), uint64(id))
+	// Same bytes as before: the buffer starts out large enough for the prefix and the ID, so the append no
+	// longer has to grow a buffer that only held the prefix.
+	b := make([]byte, 0, len(keyEntity)+8)
+	return binary.LittleEndian.AppendUint64(append(b, keyEntity...), uint64(id))
 }
 
 func (db *DB) storeBlockEntities(batch *leveldb.Batch, k dbKey, blockEntities []chunk.BlockEntity) {

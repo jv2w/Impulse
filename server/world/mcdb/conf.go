@@ -42,15 +42,19 @@ func (conf Config) Open(dir string) (*DB, error) {
 		conf.LDBOptions.BlockSize = 16 * opt.KiB
 	}
 
-	_ = os.MkdirAll(filepath.Join(dir, "db"), 0777)
+	// dir does not change, so the two joins produce the same strings they did before; each is now built once
+	// instead of twice.
+	dbDir, ldatPath := filepath.Join(dir, "db"), filepath.Join(dir, "level.dat")
+
+	_ = os.MkdirAll(dbDir, 0777)
 
 	db := &DB{conf: conf, dir: dir, ldat: &leveldat.Data{}}
 	db.SetBlockRegistry(conf.Blocks)
-	if _, err := os.Stat(filepath.Join(dir, "level.dat")); os.IsNotExist(err) {
+	if _, err := os.Stat(ldatPath); os.IsNotExist(err) {
 		// A level.dat was not currently present for the world.
 		db.ldat.FillDefault()
 	} else {
-		ldat, err := leveldat.ReadFile(filepath.Join(dir, "level.dat"))
+		ldat, err := leveldat.ReadFile(ldatPath)
 		if err != nil {
 			return nil, fmt.Errorf("open db: read level.dat: %w", err)
 		}
@@ -63,7 +67,7 @@ func (conf Config) Open(dir string) (*DB, error) {
 		}
 	}
 	db.set = db.ldat.Settings()
-	ldb, err := leveldb.OpenFile(filepath.Join(dir, "db"), conf.LDBOptions)
+	ldb, err := leveldb.OpenFile(dbDir, conf.LDBOptions)
 	if err != nil {
 		return nil, fmt.Errorf("open db: leveldb: %w", err)
 	}

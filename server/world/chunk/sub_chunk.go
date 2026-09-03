@@ -62,7 +62,15 @@ func cloneLight(light []uint8) []uint8 {
 // Empty checks if the SubChunk is considered empty. This is the case if the SubChunk has 0 block storages or if it has
 // a single one that is completely filled with air.
 func (sub *SubChunk) Empty() bool {
-	return len(sub.storages) == 0 || (len(sub.storages) == 1 && len(sub.storages[0].palette.values) == 1 && sub.storages[0].palette.values[0] == sub.air)
+	// The single storage and its palette were reached twice before: resolving them once drops a bounds
+	// checked index and two pointer loads. The same conditions are checked, and nothing in between can
+	// change them, so the result is the same.
+	n := len(sub.storages)
+	if n != 1 {
+		return n == 0
+	}
+	values := sub.storages[0].palette.values
+	return len(values) == 1 && values[0] == sub.air
 }
 
 // Layer returns a certain block storage/layer from a sub chunk. If no storage at the layer exists, the layer

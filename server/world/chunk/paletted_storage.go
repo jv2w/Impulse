@@ -41,7 +41,9 @@ type PalettedStorage struct {
 // The bits per block are calculated using the length of the uint32 slice.
 func newPalettedStorage(indices []uint32, palette *Palette) *PalettedStorage {
 	var (
-		bitsPerIndex       = uint16(len(indices) / uint32BitSize / uint32ByteSize)
+		// len is never negative, so dividing it as an unsigned value is the same division without the
+		// sign correction the compiler has to emit for a signed one.
+		bitsPerIndex       = uint16(uint(len(indices)) / uint32BitSize / uint32ByteSize)
 		indexMask          = (uint32(1) << bitsPerIndex) - 1
 		filledBitsPerIndex uint16
 	)
@@ -187,10 +189,12 @@ func (storage *PalettedStorage) resize(newPaletteSize paletteSize) {
 // relatively heavy task which should only happen right before the sub chunk holding this PalettedStorage is
 // saved to disk. compact also shrinks the palette size if possible.
 func (storage *PalettedStorage) compact() {
-	if storage.palette.Len() == 0 {
+	// The palette length is read once: nothing below changes it before it is used again.
+	paletteLen := storage.palette.Len()
+	if paletteLen == 0 {
 		return
 	}
-	if storage.palette.Len() == 1 {
+	if paletteLen == 1 {
 		// A single unique value can always be represented using 0 bits per index. This avoids scanning the
 		// entire storage and drops any backing indices slice.
 		storage.bitsPerIndex = 0
@@ -201,7 +205,7 @@ func (storage *PalettedStorage) compact() {
 		return
 	}
 
-	usedIndices := make([]bool, storage.palette.Len())
+	usedIndices := make([]bool, paletteLen)
 	for x := byte(0); x < 16; x++ {
 		for y := byte(0); y < 16; y++ {
 			for z := byte(0); z < 16; z++ {
@@ -211,14 +215,14 @@ func (storage *PalettedStorage) compact() {
 	}
 
 	usedCount := 0
-	allUsed := true
 	for _, used := range usedIndices {
 		if used {
 			usedCount++
-		} else {
-			allUsed = false
 		}
 	}
+	// Every entry being used is exactly the count reaching the length, so the flag no longer has to be
+	// written inside the loop.
+	allUsed := usedCount == len(usedIndices)
 
 	// If every palette entry is used and the palette size cannot shrink, nothing changes.
 	// This avoids allocating a new indices slice and palette values slice for already-optimal storages.
