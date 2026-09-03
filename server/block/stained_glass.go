@@ -35,8 +35,10 @@ func (g StainedGlass) EncodeBlock() (name string, properties map[string]any) {
 
 // allStainedGlass returns stained-glass blocks with all possible colours.
 func allStainedGlass() []world.Block {
+	// coloursByID holds the same sixteen colours in the same order, so ranging over it appends the
+	// same blocks without item.Colours() building a fresh slice.
 	b := make([]world.Block, 0, 16)
-	for _, c := range item.Colours() {
+	for _, c := range coloursByID {
 		b = append(b, StainedGlass{Colour: c})
 	}
 	return b

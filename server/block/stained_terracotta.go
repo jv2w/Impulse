@@ -46,8 +46,10 @@ func (t StainedTerracotta) EncodeBlock() (name string, properties map[string]any
 
 // allStainedTerracotta returns stained terracotta blocks with all possible colours.
 func allStainedTerracotta() []world.Block {
+	// coloursByID holds the same sixteen colours in the same order, so ranging over it appends the
+	// same blocks without item.Colours() building a fresh slice.
 	b := make([]world.Block, 0, 16)
-	for _, c := range item.Colours() {
+	for _, c := range coloursByID {
 		b = append(b, StainedTerracotta{Colour: c})
 	}
 	return b

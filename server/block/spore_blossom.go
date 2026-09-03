@@ -20,7 +20,9 @@ func (s SporeBlossom) HasLiquidDrops() bool {
 
 // NeighbourUpdateTick ...
 func (s SporeBlossom) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
-	if !tx.Block(pos.Side(cube.FaceUp)).Model().FaceSolid(pos.Side(cube.FaceUp), cube.FaceDown, tx) {
+	// pos.Side(cube.FaceUp) is pure and was computed twice; one value serves both uses.
+	above := pos.Side(cube.FaceUp)
+	if !tx.Block(above).Model().FaceSolid(above, cube.FaceDown, tx) {
 		breakBlock(s, pos, tx)
 	}
 }
@@ -31,7 +33,9 @@ func (s SporeBlossom) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx 
 	if !used {
 		return
 	}
-	if !tx.Block(pos.Side(cube.FaceUp)).Model().FaceSolid(pos.Side(cube.FaceUp), cube.FaceDown, tx) {
+	// pos.Side(cube.FaceUp) is pure and was computed twice; one value serves both uses.
+	above := pos.Side(cube.FaceUp)
+	if !tx.Block(above).Model().FaceSolid(above, cube.FaceDown, tx) {
 		return
 	}
 

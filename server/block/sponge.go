@@ -62,10 +62,13 @@ func (s Sponge) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *world
 	}
 
 	place(tx, pos, s, user, ctx)
-	if particles && placed(ctx) {
+	// placed only reads ctx.CountSub, which AddParticle does not touch, so the one read below
+	// answers both the particle check and the return.
+	ok := placed(ctx)
+	if particles && ok {
 		tx.AddParticle(pos.Side(cube.FaceUp).Vec3(), particle.Evaporate{})
 	}
-	return placed(ctx)
+	return ok
 }
 
 // NeighbourUpdateTick checks for nearby water flow. If water could be found and the sponge is dry, it will absorb the
@@ -103,6 +106,9 @@ func (s Sponge) absorbWater(pos cube.Pos, tx *world.Tx) int {
 
 	// A sponge can only absorb up to 65 water blocks.
 	replaced := 0
+	// The world range does not change inside a transaction, so it is read once instead of per
+	// queue entry.
+	r := tx.Range()
 	for replaced < 65 {
 		if len(queue) == 0 {
 			break
@@ -123,7 +129,7 @@ func (s Sponge) absorbWater(pos cube.Pos, tx *world.Tx) int {
 					}
 				}
 			}
-		}, tx.Range())
+		}, r)
 	}
 
 	return replaced
