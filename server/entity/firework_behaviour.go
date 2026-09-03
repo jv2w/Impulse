@@ -117,8 +117,17 @@ func (f *FireworkBehaviour) explode(e *Ent, tx *world.Tx) {
 	}
 
 	force := float64(len(explosions)*2) + 5.0
-	src := ProjectileDamageSource{Owner: owner, Projectile: e}
-	for victim := range filterLiving(tx.EntitiesWithin(e.H().Type().BBox(e).Translate(pos).Grow(5.25))) {
+	// Boxing the source once instead of at every Hurt call: the struct is copied
+	// into the interface, so each callee receives the same value it did before.
+	var src world.DamageSource = ProjectileDamageSource{Owner: owner, Projectile: e}
+	// filterLiving allocated an iterator closure and made each entity cross an
+	// extra yield hop only to have Living asserted again in the body. This walks
+	// the same entities in the same order.
+	for victim := range tx.EntitiesWithin(e.H().Type().BBox(e).Translate(pos).Grow(5.25)) {
+		living, ok := victim.(Living)
+		if !ok {
+			continue
+		}
 		tpos := victim.Position()
 		dist := pos.Sub(tpos).Len()
 		if dist > 5.0 {
@@ -128,11 +137,11 @@ func (f *FireworkBehaviour) explode(e *Ent, tx *world.Tx) {
 		dmg := force * math.Sqrt((5.0-dist)/5.0)
 
 		if pos == tpos {
-			victim.(Living).Hurt(dmg, src)
+			living.Hurt(dmg, src)
 			continue
 		}
 		if _, ok := trace.Perform(pos, tpos, tx, victim.H().Type().BBox(victim).Grow(0.3), nil); ok {
-			victim.(Living).Hurt(dmg, src)
+			living.Hurt(dmg, src)
 		}
 	}
 }

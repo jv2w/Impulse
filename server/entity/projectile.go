@@ -186,8 +186,14 @@ func (lt *ProjectileBehaviour) Tick(e *Ent, tx *world.Tx) *Movement {
 		return m
 	}
 
-	for i := 0; i < lt.conf.ParticleCount; i++ {
-		tx.AddParticle(result.Position(), lt.conf.Particle)
+	if n := lt.conf.ParticleCount; n > 0 {
+		// result is an interface, so Position was dispatched once per particle for
+		// the very same stored vector. With no particles nothing is called at all,
+		// exactly as before.
+		rpos := result.Position()
+		for i := 0; i < n; i++ {
+			tx.AddParticle(rpos, lt.conf.Particle)
+		}
 	}
 	if lt.conf.Sound != nil {
 		tx.PlaySound(result.Position(), lt.conf.Sound)
@@ -226,10 +232,18 @@ func (lt *ProjectileBehaviour) Tick(e *Ent, tx *world.Tx) *Movement {
 // projectile is still attached to a block and if it can be picked up.
 func (lt *ProjectileBehaviour) tickAttached(e *Ent, tx *world.Tx) bool {
 	boxes := tx.Block(lt.collisionPos).Model().BBox(lt.collisionPos, tx)
+	if len(boxes) == 0 {
+		// The loop below could not run, so the entity box and the collision
+		// position vector were built for nothing.
+		return false
+	}
 	box := e.H().Type().BBox(e).Translate(e.Position())
+	// lt.collisionPos does not change inside the loop, so its vector form is the
+	// same for every box.
+	collisionVec := lt.collisionPos.Vec3()
 
 	for _, bb := range boxes {
-		if box.IntersectsWith(bb.Translate(lt.collisionPos.Vec3()).Grow(0.05)) {
+		if box.IntersectsWith(bb.Translate(collisionVec).Grow(0.05)) {
 			if lt.ageCollided > 5 && !lt.conf.DisablePickup {
 				lt.tryPickup(e, tx)
 			}
@@ -376,8 +390,13 @@ func (lt *ProjectileBehaviour) ignores(e *Ent) trace.EntityFilter {
 				itself := e.H() == h
 				damageable := DamageableEntity(other)
 				owner := e.data.Age < time.Second/4 && lt.conf.Owner == h
-				collidedEntity := slices.Contains(lt.collidedEntities, h)
-				if spectator || itself || !damageable || owner || collidedEntity {
+				if spectator || itself || !damageable || owner {
+					continue
+				}
+				// slices.Contains walks the whole slice and is free of side
+				// effects, so running it only once the cheap tests have passed
+				// leaves the result of the combined condition unchanged.
+				if slices.Contains(lt.collidedEntities, h) {
 					continue
 				}
 				if !yield(other) {

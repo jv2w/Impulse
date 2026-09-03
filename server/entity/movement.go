@@ -32,6 +32,11 @@ type Movement struct {
 func (m *Movement) Send() {
 	posChanged := !m.dpos.ApproxEqualThreshold(zeroVec3, epsilon)
 	velChanged := !m.dvel.ApproxEqualThreshold(zeroVec3, epsilon)
+	if !posChanged && !velChanged {
+		// The loop below called nothing on any viewer in this case, so walking
+		// the viewer list at all was pure waste.
+		return
+	}
 
 	for _, v := range m.v {
 		if posChanged {
@@ -126,24 +131,28 @@ func (c *MovementComputer) CheckCollision(tx *world.Tx, e world.Entity, pos, vel
 	entityBBox := e.H().Type().BBox(e).Translate(pos)
 	blocks := blockBBoxsAround(tx, entityBBox.Extend(vel))
 
-	if !mgl64.FloatEqualThreshold(deltaY, 0, epsilon) {
-		// First we move the entity BBox on the Y axis.
-		for _, blockBBox := range blocks {
-			deltaY = entityBBox.YOffset(blockBBox, deltaY)
+	// With no block box around, none of the three loops below could change a
+	// delta and entityBBox is dead after them, so the whole axis pass is skipped.
+	if len(blocks) != 0 {
+		if !mgl64.FloatEqualThreshold(deltaY, 0, epsilon) {
+			// First we move the entity BBox on the Y axis.
+			for _, blockBBox := range blocks {
+				deltaY = entityBBox.YOffset(blockBBox, deltaY)
+			}
+			entityBBox = entityBBox.Translate(mgl64.Vec3{0, deltaY})
 		}
-		entityBBox = entityBBox.Translate(mgl64.Vec3{0, deltaY})
-	}
-	if !mgl64.FloatEqualThreshold(deltaX, 0, epsilon) {
-		// Then on the X axis.
-		for _, blockBBox := range blocks {
-			deltaX = entityBBox.XOffset(blockBBox, deltaX)
+		if !mgl64.FloatEqualThreshold(deltaX, 0, epsilon) {
+			// Then on the X axis.
+			for _, blockBBox := range blocks {
+				deltaX = entityBBox.XOffset(blockBBox, deltaX)
+			}
+			entityBBox = entityBBox.Translate(mgl64.Vec3{deltaX})
 		}
-		entityBBox = entityBBox.Translate(mgl64.Vec3{deltaX})
-	}
-	if !mgl64.FloatEqualThreshold(deltaZ, 0, epsilon) {
-		// And finally on the Z axis.
-		for _, blockBBox := range blocks {
-			deltaZ = entityBBox.ZOffset(blockBBox, deltaZ)
+		if !mgl64.FloatEqualThreshold(deltaZ, 0, epsilon) {
+			// And finally on the Z axis.
+			for _, blockBBox := range blocks {
+				deltaZ = entityBBox.ZOffset(blockBBox, deltaZ)
+			}
 		}
 	}
 	if !mgl64.FloatEqual(vel[1], 0) {
@@ -184,15 +193,24 @@ func blockBBoxsAround(tx *world.Tx, box cube.BBox) []cube.BBox {
 	predicted := (maxX-minX)*(maxY-minY)*(maxZ-minZ) + 2
 	var blockBBoxs []cube.BBox
 	for y := minY; y < maxY; y++ {
+		// The int to float64 conversions of the block position were redone for
+		// every box of every block; y and x are fixed for their whole subtree and
+		// the offset vector is the same for all boxes of one block.
+		fy := float64(y)
 		for x := minX; x < maxX; x++ {
+			fx := float64(x)
 			for z := minZ; z < maxZ; z++ {
 				pos := cube.Pos{x, y, z}
 				boxes := tx.Block(pos).Model().BBox(pos, tx)
-				if len(boxes) != 0 && blockBBoxs == nil {
+				if len(boxes) == 0 {
+					continue
+				}
+				if blockBBoxs == nil {
 					blockBBoxs = make([]cube.BBox, 0, predicted)
 				}
+				offset := mgl64.Vec3{fx, fy, float64(z)}
 				for _, box := range boxes {
-					blockBBoxs = append(blockBBoxs, box.Translate(mgl64.Vec3{float64(x), float64(y), float64(z)}))
+					blockBBoxs = append(blockBBoxs, box.Translate(offset))
 				}
 			}
 		}

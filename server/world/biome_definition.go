@@ -58,20 +58,23 @@ func BiomeDefinitions() ([]protocol.BiomeDefinition, []string) {
 			biomeID = int16(id)
 		}
 
+		// The colour and the rainfall are each read once instead of four and two times. Nothing between the
+		// reads can change what the biome returns, so the encoded values are the same.
+		colour, rainfall := b.WaterColour(), b.Rainfall()
 		def := protocol.BiomeDefinition{
 			NameIndex:   int16(nameIndex),
 			BiomeID:     biomeID,
 			Temperature: float32(b.Temperature()),
-			Downfall:    float32(b.Rainfall()),
+			Downfall:    float32(rainfall),
 			Depth:       float32(b.Depth()),
 			Scale:       float32(b.Scale()),
 			MapWaterColour: int32(binary.BigEndian.Uint32([]byte{
-				b.WaterColour().A,
-				b.WaterColour().R,
-				b.WaterColour().G,
-				b.WaterColour().B,
+				colour.A,
+				colour.R,
+				colour.G,
+				colour.B,
 			})),
-			Rain: b.Rainfall() > 0,
+			Rain: rainfall > 0,
 			Tags: protocol.Option[[]uint16](tagIndices),
 		}
 

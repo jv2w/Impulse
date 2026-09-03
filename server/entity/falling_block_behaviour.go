@@ -63,7 +63,9 @@ func (f *FallingBlockBehaviour) tick(e *Ent, tx *world.Tx) {
 	pos := e.Position()
 	bpos := cube.PosFromVec3(pos)
 	if a, ok := f.block.(Solidifiable); (ok && a.Solidifies(bpos, tx)) || f.passive.mc.OnGround() {
-		f.solidify(e, pos, tx)
+		// solidify used to derive the block position from pos again; bpos is the
+		// same cube.PosFromVec3(pos) already computed here.
+		f.solidify(e, pos, bpos, tx)
 	}
 }
 
@@ -71,9 +73,7 @@ func (f *FallingBlockBehaviour) tick(e *Ent, tx *world.Tx) {
 // also deals damage to any entities standing at that position. If the block at
 // the position could not be replaced by the falling block, the block will drop
 // as an item.
-func (f *FallingBlockBehaviour) solidify(e *Ent, pos mgl64.Vec3, tx *world.Tx) {
-	bpos := cube.PosFromVec3(pos)
-
+func (f *FallingBlockBehaviour) solidify(e *Ent, pos mgl64.Vec3, bpos cube.Pos, tx *world.Tx) {
 	if d, ok := f.block.(damager); ok {
 		f.damageEntities(e, d, pos, tx)
 	}
@@ -99,10 +99,20 @@ func (f *FallingBlockBehaviour) damageEntities(e *Ent, d damager, pos mgl64.Vec3
 		return
 	}
 	dmg := math.Min(math.Floor(dist*damagePerBlock), maxDamage)
-	src := block.DamageSource{Block: f.block}
+	// Boxing the source once instead of at every Hurt call: the struct is copied
+	// into the interface, so every callee saw the same value before as well, and
+	// f.block is only reassigned after this loop.
+	var src world.DamageSource = block.DamageSource{Block: f.block}
 
-	for e := range filterLiving(tx.EntitiesWithin(e.H().Type().BBox(e).Translate(pos).Grow(0.05))) {
-		e.(Living).Hurt(dmg, src)
+	// filterLiving allocated an iterator closure and made each entity cross an
+	// extra yield hop only to have Living asserted a second time in the body.
+	// This yields the same entities in the same order.
+	for e := range tx.EntitiesWithin(e.H().Type().BBox(e).Translate(pos).Grow(0.05)) {
+		l, ok := e.(Living)
+		if !ok {
+			continue
+		}
+		l.Hurt(dmg, src)
 	}
 	if b, ok := f.block.(breakable); ok && dmg > 0.0 && rand.Float64() < (dist+1)*0.05 {
 		f.block = b.Break()
