@@ -70,7 +70,10 @@ func (b BambooBlock) EncodeBlock() (name string, properties map[string]any) {
 
 // allBambooBlocks ...
 func allBambooBlocks() (blocks []world.Block) {
-	for _, axis := range cube.Axes() {
+	axes := cube.Axes()
+	// The count is known before the loop, so the list is sized once instead of grown.
+	blocks = make([]world.Block, 0, len(axes)*2)
+	for _, axis := range axes {
 		blocks = append(blocks, BambooBlock{Axis: axis})
 		blocks = append(blocks, BambooBlock{Axis: axis, Stripped: true})
 	}

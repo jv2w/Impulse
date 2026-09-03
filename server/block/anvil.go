@@ -96,8 +96,12 @@ func (a Anvil) EncodeBlock() (string, map[string]any) {
 
 // allAnvils ...
 func allAnvils() (anvils []world.Block) {
-	for _, t := range AnvilTypes() {
-		for _, d := range cube.Directions() {
+	types, dirs := AnvilTypes(), cube.Directions()
+	// The count is known before the loop, so the list is sized once instead of grown. The same
+	// values are appended in the same order.
+	anvils = make([]world.Block, 0, len(types)*len(dirs))
+	for _, t := range types {
+		for _, d := range dirs {
 			anvils = append(anvils, Anvil{Type: t, Facing: d})
 		}
 	}

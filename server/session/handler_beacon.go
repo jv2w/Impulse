@@ -35,11 +35,16 @@ func (h *ItemStackRequestHandler) handleBeaconPayment(a *protocol.BeaconPaymentS
 		return fmt.Errorf("item %#v in beacon slot cannot be used as payment", payment)
 	}
 
+	// beacon is a copy that nothing below writes to, so every read of its level
+	// gave this number. Reading it once also stops the whole beacon being
+	// copied into validBeaconEffect on each call.
+	level := beacon.Level()
+
 	// Check if the effects are valid and allowed for the beacon's level.
-	if !h.validBeaconEffect(a.PrimaryEffect, beacon) {
-		return fmt.Errorf("primary effect selected is not allowed: %v for level %v", a.PrimaryEffect, beacon.Level())
-	} else if !h.validBeaconEffect(a.SecondaryEffect, beacon) || (beacon.Level() < 4 && a.SecondaryEffect != 0) {
-		return fmt.Errorf("secondary effect selected is not allowed: %v for level %v", a.SecondaryEffect, beacon.Level())
+	if !h.validBeaconEffect(a.PrimaryEffect, level) {
+		return fmt.Errorf("primary effect selected is not allowed: %v for level %v", a.PrimaryEffect, level)
+	} else if !h.validBeaconEffect(a.SecondaryEffect, level) || (level < 4 && a.SecondaryEffect != 0) {
+		return fmt.Errorf("secondary effect selected is not allowed: %v for level %v", a.SecondaryEffect, level)
 	}
 
 	primary, pOk := effect.ByID(int(a.PrimaryEffect))
@@ -61,16 +66,16 @@ func (h *ItemStackRequestHandler) handleBeaconPayment(a *protocol.BeaconPaymentS
 }
 
 // validBeaconEffect checks if the ID passed is a valid beacon effect.
-func (h *ItemStackRequestHandler) validBeaconEffect(id int32, beacon block.Beacon) bool {
+func (h *ItemStackRequestHandler) validBeaconEffect(id int32, level int) bool {
 	switch id {
 	case 1, 3:
-		return beacon.Level() >= 1
+		return level >= 1
 	case 8, 11:
-		return beacon.Level() >= 2
+		return level >= 2
 	case 5:
-		return beacon.Level() >= 3
+		return level >= 3
 	case 10:
-		return beacon.Level() >= 4
+		return level >= 4
 	case 0:
 		return true
 	}

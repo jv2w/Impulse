@@ -57,17 +57,22 @@ func (b BlockActorDataHandler) handleSign(pk *packet.BlockActorData, pos cube.Po
 func (b BlockActorDataHandler) textFromNBTData(data map[string]any, frontSide bool) (string, error) {
 	var sideData map[string]any
 	var side string
+	// The error paths looked the tag up a second time to print it. The value
+	// is held instead, so the map is read once and the printed value is the
+	// same one the assertion rejected.
 	if frontSide {
-		frontSide, ok := data["FrontText"].(map[string]any)
+		raw := data["FrontText"]
+		frontSide, ok := raw.(map[string]any)
 		if !ok {
-			return "", fmt.Errorf("sign block actor data 'FrontText' tag was not found or was not a map: %#v", data["FrontText"])
+			return "", fmt.Errorf("sign block actor data 'FrontText' tag was not found or was not a map: %#v", raw)
 		}
 		sideData = frontSide
 		side = "front"
 	} else {
-		backSide, ok := data["BackText"].(map[string]any)
+		raw := data["BackText"]
+		backSide, ok := raw.(map[string]any)
 		if !ok {
-			return "", fmt.Errorf("sign block actor data 'BackText' tag was not found or was not a map: %#v", data["BackText"])
+			return "", fmt.Errorf("sign block actor data 'BackText' tag was not found or was not a map: %#v", raw)
 		}
 		sideData = backSide
 		side = "back"
@@ -99,12 +104,16 @@ func canReach(c Controllable, pos mgl64.Vec3) bool {
 		creativeRange = 14.0
 		survivalRange = 8.0
 	)
-	if !c.GameMode().AllowsInteraction() {
+	// Nothing between the two reads changes the game mode, so the one value is
+	// what both of them saw. GameMode goes through the Controllable interface,
+	// so it is asked once instead of twice.
+	gm := c.GameMode()
+	if !gm.AllowsInteraction() {
 		return false
 	}
 
 	eyes := entity.EyePosition(c)
-	if c.GameMode().CreativeInventory() {
+	if gm.CreativeInventory() {
 		return eyes.Sub(pos).Len() <= creativeRange && !c.Dead()
 	}
 	return eyes.Sub(pos).Len() <= survivalRange && !c.Dead()

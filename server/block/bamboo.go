@@ -180,8 +180,12 @@ func (b Bamboo) growthLayout(newHeight, amount int) []world.Block {
 	case newHeight == 4:
 		return []world.Block{bigLeavesBlock, smallLeavesBlock, stemBlock, stemBlock}
 	case newHeight > 4:
-		newBlocks := []world.Block{bigLeavesBlock, bigLeavesBlock, smallLeavesBlock}
-		for i, mx := 0, min(amount, newHeight-len(newBlocks)); i < mx; i++ {
+		// The three leaf blocks are always present, so len(newBlocks) in the old bound was 3 and the
+		// final length is known before the first append. Same blocks in the same order, sized once.
+		mx := min(amount, newHeight-3)
+		newBlocks := make([]world.Block, 0, 3+mx)
+		newBlocks = append(newBlocks, bigLeavesBlock, bigLeavesBlock, smallLeavesBlock)
+		for range mx {
 			newBlocks = append(newBlocks, stemBlock)
 		}
 		return newBlocks
@@ -191,9 +195,13 @@ func (b Bamboo) growthLayout(newHeight, amount int) []world.Block {
 
 // allBamboos ...
 func allBamboos() (bamboos []world.Block) {
+	sizes := BambooLeafSizes()
+	// The count is known before the loop, so the list is sized once instead of grown, and the leaf
+	// size list is built once rather than on every pass of the outer loops.
+	bamboos = make([]world.Block, 0, 4*len(sizes))
 	for _, thick := range []bool{false, true} {
 		for _, ready := range []bool{false, true} {
-			for _, leafSize := range BambooLeafSizes() {
+			for _, leafSize := range sizes {
 				bamboos = append(bamboos, Bamboo{Thick: thick, Ready: ready, LeafSize: leafSize})
 			}
 		}
