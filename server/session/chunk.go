@@ -29,6 +29,10 @@ func (s *Session) ViewChunk(pos world.ChunkPos, dim world.Dimension, blockEntiti
 func (s *Session) ViewSubChunks(centre world.SubChunkPos, offsets []protocol.SubChunkOffset, tx *world.Tx) {
 	r := tx.Range()
 
+	// The cache flag is fixed for the lifetime of the connection, so the two
+	// reads below see the same value the single read here does.
+	cacheEnabled := s.conn.ClientCacheEnabled()
+
 	entries := make([]protocol.SubChunkEntry, 0, len(offsets))
 	transaction := make(map[uint64]struct{})
 	for _, offset := range offsets {
@@ -47,7 +51,7 @@ func (s *Session) ViewSubChunks(centre world.SubChunkPos, offsets []protocol.Sub
 		}
 		entries = append(entries, s.subChunkEntry(offset, ind, col, transaction))
 	}
-	if s.conn.ClientCacheEnabled() && len(transaction) > 0 {
+	if cacheEnabled && len(transaction) > 0 {
 		s.blobMu.Lock()
 		s.openChunkTransactions = append(s.openChunkTransactions, transaction)
 		s.blobMu.Unlock()
@@ -56,7 +60,7 @@ func (s *Session) ViewSubChunks(centre world.SubChunkPos, offsets []protocol.Sub
 	s.writePacket(&packet.SubChunk{
 		Dimension:       int32(dim),
 		Position:        protocol.SubChunkPos(centre),
-		CacheEnabled:    s.conn.ClientCacheEnabled(),
+		CacheEnabled:    cacheEnabled,
 		SubChunkEntries: entries,
 	})
 }
@@ -196,9 +200,15 @@ func (s *Session) sendBlobHashes(pos world.ChunkPos, dim world.Dimension, c *chu
 
 	// Length of 1 byte for the border block count.
 	raw := bytes.NewBuffer(make([]byte, 1, 32))
-	enc := nbt.NewEncoderWithEncoding(raw, nbt.NetworkLittleEndian)
+	// Most chunks hold no block entity that writes NBT. The encoder is built on
+	// the first one that does, so the common case allocates none. The encoder
+	// keeps no state between Encode calls that the eager one carried over.
+	var enc *nbt.Encoder
 	for bp, b := range blockEntities {
 		if n, ok := b.(world.NBTer); ok {
+			if enc == nil {
+				enc = nbt.NewEncoderWithEncoding(raw, nbt.NetworkLittleEndian)
+			}
 			d := n.EncodeNBT()
 			d["x"], d["y"], d["z"] = int32(bp[0]), int32(bp[1]), int32(bp[2])
 			_ = enc.Encode(d)

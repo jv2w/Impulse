@@ -25,10 +25,16 @@ func (GoatHorn) Cooldown() time.Duration {
 	return time.Second * 7
 }
 
+// goatHornRelease is the scheduled release of every goat horn. releaseItem
+// never reads its receiver, so a single method value bound to a zero GoatHorn
+// runs exactly what g.releaseItem ran, without allocating a bound method value
+// on each use.
+var goatHornRelease = GoatHorn{}.releaseItem
+
 // Use ...
 func (g GoatHorn) Use(tx *world.Tx, user User, _ *UseContext) bool {
 	tx.PlaySound(user.Position(), sound.GoatHorn{Horn: g.Type})
-	user.H().DoAfter(time.Second, g.releaseItem)
+	user.H().DoAfter(time.Second, goatHornRelease)
 	return true
 }
 

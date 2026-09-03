@@ -29,7 +29,9 @@ func (f Farmland) SoilFor(block world.Block) bool {
 
 // NeighbourUpdateTick ...
 func (f Farmland) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
-	if solid := tx.Block(pos.Side(cube.FaceUp)).Model().FaceSolid(pos.Side(cube.FaceUp), cube.FaceDown, tx); solid {
+	// Both uses want the same position above pos, so it is worked out once.
+	up := pos.Side(cube.FaceUp)
+	if solid := tx.Block(up).Model().FaceSolid(up, cube.FaceDown, tx); solid {
 		tx.SetBlock(pos, Dirt{}, nil)
 	}
 }
@@ -56,9 +58,13 @@ func (f Farmland) RandomTick(pos cube.Pos, tx *world.Tx, _ *rand.Rand) {
 func (f Farmland) hydrated(pos cube.Pos, tx *world.Tx) bool {
 	posX, posY, posZ := pos.X(), pos.Y(), pos.Z()
 	for y := 0; y <= 1; y++ {
+		// The Y and X sums do not depend on the inner loops, so each is added once per level
+		// instead of once per position. Integer addition gives the same coordinates.
+		py := posY + y
 		for x := -4; x <= 4; x++ {
+			px := posX + x
 			for z := -4; z <= 4; z++ {
-				if liquid, ok := tx.Liquid(cube.Pos{posX + x, posY + y, posZ + z}); ok {
+				if liquid, ok := tx.Liquid(cube.Pos{px, py, posZ + z}); ok {
 					if _, ok := liquid.(Water); ok {
 						return true
 					}
@@ -106,6 +112,8 @@ func (f Farmland) EncodeItem() (name string, meta int16) {
 
 // allFarmland returns all possible states that a block of farmland can be in.
 func allFarmland() (b []world.Block) {
+	// Hydration runs over a fixed range of eight values, which is the final length.
+	b = make([]world.Block, 0, 8)
 	for i := 0; i <= 7; i++ {
 		b = append(b, Farmland{Hydration: i})
 	}

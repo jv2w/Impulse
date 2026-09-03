@@ -55,9 +55,11 @@ func (h Helmet) EnchantmentValue() int {
 
 // DurabilityInfo ...
 func (h Helmet) DurabilityInfo() DurabilityInfo {
+	// The shared brokenIntoNothing replaces a closure built on every call: it
+	// returns the same zero Stack by value.
 	return DurabilityInfo{
 		MaxDurability: int(h.Tier.BaseDurability()),
-		BrokenItem:    simpleItem(Stack{}),
+		BrokenItem:    brokenIntoNothing,
 	}
 }
 
