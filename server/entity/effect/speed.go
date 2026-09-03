@@ -15,16 +15,20 @@ type speed struct {
 
 // Start ...
 func (speed) Start(e world.Entity, lvl int) {
-	speed := 1 + float64(lvl)*0.2
 	if l, ok := e.(living); ok {
+		// The multiplier is only used here, so computing it inside the branch
+		// skips it for entities that are not living. The expression and the
+		// order of its float operations are unchanged.
+		speed := 1 + float64(lvl)*0.2
 		l.SetSpeed(l.Speed() * speed)
 	}
 }
 
 // End ...
 func (speed) End(e world.Entity, lvl int) {
-	speed := 1 + float64(lvl)*0.2
 	if l, ok := e.(living); ok {
+		// Same as in Start: the multiplier is dead unless the entity is living.
+		speed := 1 + float64(lvl)*0.2
 		l.SetSpeed(l.Speed() / speed)
 	}
 }

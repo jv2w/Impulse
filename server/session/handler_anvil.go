@@ -48,29 +48,42 @@ func (h *ItemStackRequestHandler) handleCraftRecipeOptional(a *protocol.CraftRec
 	}, s, tx)
 	result := input
 
+	// material is never reassigned below, so the three later Empty checks all
+	// report what this one does. Empty walks into the item's EncodeItem, so
+	// reading it once here is the same answer for less work.
+	materialEmpty := material.Empty()
+
 	// The sum of the input's anvil cost as well as the material's anvil cost.
 	anvilCost := input.AnvilCost()
-	if !material.Empty() {
+	if !materialEmpty {
 		anvilCost += material.AnvilCost()
 	}
 
 	// The material input may be empty (if the player is only renaming, for example).
 	var actionCost, renameCost, repairCount int
-	if !material.Empty() {
+	if !materialEmpty {
+		// input is not reassigned in this block, so every read of Item below
+		// returned this same value. Item calls Empty, which calls EncodeItem,
+		// so this is read once instead of up to three times.
+		inputItem := input.Item()
+
 		// First check if we are trying to repair the item with a material.
-		if repairable, ok := input.Item().(item.Repairable); ok && repairable.RepairableBy(material) {
+		if repairable, ok := inputItem.(item.Repairable); ok && repairable.RepairableBy(material) {
 			result, actionCost, repairCount, err = repairItemWithMaterial(input, material, result)
 			if err != nil {
 				return err
 			}
 		} else {
-			_, book := material.Item().(item.EnchantedBook)
-			_, durable := input.Item().(item.Durable)
+			// Same for material: both reads of its Item in this branch saw
+			// this value.
+			materialItem := material.Item()
+			_, book := materialItem.(item.EnchantedBook)
+			_, durable := inputItem.(item.Durable)
 
 			// Ensure that the input item is repairable, or the material item is an enchanted book. If not, this is an
 			// invalid scenario, and we should return an error.
 			enchantedBook := book && len(material.Enchantments()) > 0
-			if !enchantedBook && (input.Item() != material.Item() || !durable) {
+			if !enchantedBook && (inputItem != materialItem || !durable) {
 				return fmt.Errorf("input item is not repairable/same type or material item is not an enchanted book")
 			}
 
@@ -127,7 +140,7 @@ func (h *ItemStackRequestHandler) handleCraftRecipeOptional(a *protocol.CraftRec
 	// If we had a result item, we need to calculate the new anvil cost and update it on the item.
 	if !result.Empty() {
 		updatedAnvilCost := result.AnvilCost()
-		if !material.Empty() && updatedAnvilCost < material.AnvilCost() {
+		if !materialEmpty && updatedAnvilCost < material.AnvilCost() {
 			updatedAnvilCost = material.AnvilCost()
 		}
 		if renameCost != actionCost || renameCost == 0 {
@@ -171,32 +184,49 @@ func (h *ItemStackRequestHandler) handleCraftRecipeOptional(a *protocol.CraftRec
 // repairItemWithMaterial is a helper function that repairs an item stack with a given material stack. It returns the new item
 // stack, the cost, and the repaired items count.
 func repairItemWithMaterial(input item.Stack, material item.Stack, result item.Stack) (item.Stack, int, int, error) {
+	// MaxDurability type asserts the item and builds its DurabilityInfo, and
+	// input never changes, so both reads of it gave this number.
+	inputMax := input.MaxDurability()
+
 	// Calculate the durability delta using the maximum durability and the current durability.
-	delta := min(input.MaxDurability()-input.Durability(), input.MaxDurability()/4)
+	delta := min(inputMax-input.Durability(), inputMax/4)
 	if delta <= 0 {
 		return item.Stack{}, 0, 0, fmt.Errorf("input item is already fully repaired")
 	}
 
 	// While the durability delta is more than zero and the repaired count is under the material count, increase
 	// the durability of the result by the durability delta.
+	// The post statement is written out at the end of the body instead: the
+	// body holds no continue, so the order of body then post is unchanged, and
+	// the delta expression reads the same updated result it read before while
+	// asking it for its maximum durability once rather than twice.
 	var cost, count int
-	for ; delta > 0 && count < material.Count(); count, delta = count+1, min(result.MaxDurability()-result.Durability(), result.MaxDurability()/4) {
+	for delta > 0 && count < material.Count() {
 		result = result.WithDurability(result.Durability() + delta)
 		cost++
+
+		count++
+		resultMax := result.MaxDurability()
+		delta = min(resultMax-result.Durability(), resultMax/4)
 	}
 	return result, cost, count, nil
 }
 
 // repairItemWithDurable is a helper function that repairs an item with another durable item stack.
 func repairItemWithDurable(input item.Stack, durable item.Stack, result item.Stack) (item.Stack, int) {
-	durability := input.Durability() + durable.Durability() + input.MaxDurability()*12/100
-	if durability > input.MaxDurability() {
-		durability = input.MaxDurability()
+	// input is never reassigned here, so the three MaxDurability reads and the
+	// two Durability reads all gave these numbers. Both walk the item's
+	// DurabilityInfo, so each is asked once.
+	inputMax, inputDurability := input.MaxDurability(), input.Durability()
+
+	durability := inputDurability + durable.Durability() + inputMax*12/100
+	if durability > inputMax {
+		durability = inputMax
 	}
 
 	// Ensure the durability is higher than the input's current durability.
 	var cost int
-	if durability > input.Durability() {
+	if durability > inputDurability {
 		result = result.WithDurability(durability)
 		cost += 2
 	}
@@ -206,18 +236,34 @@ func repairItemWithDurable(input item.Stack, durable item.Stack, result item.Sta
 // mergeEnchantments merges the enchantments of the material item stack onto the result item stack and returns the result
 // item stack, booleans indicating whether the enchantments had any compatible or incompatible enchantments, and the cost.
 func mergeEnchantments(input item.Stack, material item.Stack, result item.Stack, cost int, enchantedBook bool) (item.Stack, bool, bool, int) {
+	// With nothing to merge the loop below never ran and left every result
+	// untouched, so the same values are returned here without reading the
+	// input at all.
+	materialEnchants := material.Enchantments()
+	if len(materialEnchants) == 0 {
+		return result, false, false, cost
+	}
+
+	// input is never reassigned in the loop, so all three of these were the
+	// same on every pass. Item walks EncodeItem, and Enchantments builds and
+	// sorts a fresh slice on every call, so both are done once for the whole
+	// loop instead of once per material enchantment.
+	inputItem := input.Item()
+	_, inputBook := inputItem.(item.EnchantedBook)
+	inputEnchants := input.Enchantments()
+
 	var hasCompatible, hasIncompatible bool
-	for _, enchant := range material.Enchantments() {
+	for _, enchant := range materialEnchants {
 		// First ensure that the enchantment type is compatible with the input item.
 		enchantType := enchant.Type()
-		compatible := enchantType.CompatibleWithItem(input.Item())
-		if _, ok := input.Item().(item.EnchantedBook); ok {
+		compatible := enchantType.CompatibleWithItem(inputItem)
+		if inputBook {
 			compatible = true
 		}
 
 		// Then ensure that each input enchantment is compatible with this material enchantment. If one is not compatible,
 		// increase the cost by one.
-		for _, otherEnchant := range input.Enchantments() {
+		for _, otherEnchant := range inputEnchants {
 			if otherType := otherEnchant.Type(); enchantType != otherType && !enchantType.CompatibleWithEnchantment(otherType) {
 				compatible = false
 				cost++

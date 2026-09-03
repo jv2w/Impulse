@@ -15,22 +15,26 @@ type slowness struct {
 
 // Start ...
 func (slowness) Start(e world.Entity, lvl int) {
-	slowness := 1 - float64(lvl)*0.15
-	if slowness <= 0 {
-		slowness = 0.00001
-	}
 	if l, ok := e.(living); ok {
+		// The multiplier is only used here, so computing it inside the branch
+		// skips it for entities that are not living. The expression, the clamp
+		// and the order of the float operations are unchanged.
+		slowness := 1 - float64(lvl)*0.15
+		if slowness <= 0 {
+			slowness = 0.00001
+		}
 		l.SetSpeed(l.Speed() * slowness)
 	}
 }
 
 // End ...
 func (slowness) End(e world.Entity, lvl int) {
-	slowness := 1 - float64(lvl)*0.15
-	if slowness <= 0 {
-		slowness = 0.00001
-	}
 	if l, ok := e.(living); ok {
+		// Same as in Start: the multiplier is dead unless the entity is living.
+		slowness := 1 - float64(lvl)*0.15
+		if slowness <= 0 {
+			slowness = 0.00001
+		}
 		l.SetSpeed(l.Speed() / slowness)
 	}
 }

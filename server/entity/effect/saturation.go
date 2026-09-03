@@ -18,7 +18,11 @@ func (saturation) Apply(e world.Entity, eff Effect) {
 	if i, ok := e.(interface {
 		Saturate(food int, saturation float64)
 	}); ok {
-		i.Saturate(eff.Level(), 2*float64(eff.Level()))
+		// Read the level once. Level only returns the level stored in the
+		// Effect and eff is a local copy that nothing here writes to, so both
+		// reads returned the same value.
+		lvl := eff.Level()
+		i.Saturate(lvl, 2*float64(lvl))
 	}
 }
 

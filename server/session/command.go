@@ -16,7 +16,11 @@ func (s *Session) SendCommandOutput(output *cmd.Output, l language.Tag) {
 	if s == Nop {
 		return
 	}
-	messages := make([]protocol.CommandOutputMessage, 0, output.MessageCount()+output.ErrorCount())
+	// MessageCount only reports the length of the message slice, and nothing
+	// below adds to the output, so the count read here is the one the packet
+	// field read a second time before.
+	messageCount := output.MessageCount()
+	messages := make([]protocol.CommandOutputMessage, 0, messageCount+output.ErrorCount())
 	for _, message := range output.Messages() {
 		om := protocol.CommandOutputMessage{Success: true, Message: message.String()}
 		if t, ok := message.(translation); ok {
@@ -35,7 +39,7 @@ func (s *Session) SendCommandOutput(output *cmd.Output, l language.Tag) {
 	s.writePacket(&packet.CommandOutput{
 		CommandOrigin:  s.handlers[packet.IDCommandRequest].(*CommandRequestHandler).origin,
 		OutputType:     packet.CommandOutputTypeAllOutput,
-		SuccessCount:   uint32(output.MessageCount()),
+		SuccessCount:   uint32(messageCount),
 		OutputMessages: messages,
 	})
 }
@@ -90,6 +94,13 @@ func BuildAvailableCommands(
 		}
 
 		for i, params := range params {
+			// Exactly one parameter is appended per element below, so the list
+			// grows to len(params) either way: presizing only skips the
+			// intermediate growth allocations. An empty overload is left with
+			// the nil slice it had, so no field turns from nil into empty.
+			if len(params) > 0 {
+				overloads[i].Parameters = make([]protocol.CommandParameter, 0, len(params))
+			}
 			for _, paramInfo := range params {
 				t, enum := valueToParamType(paramInfo, src)
 				suffix := paramInfo.Suffix
@@ -154,6 +165,11 @@ func BuildAvailableCommands(
 	pk.Enums = make([]protocol.CommandEnum, 0, len(enums))
 	for _, enum := range enums {
 		protoEnum := protocol.CommandEnum{Type: enum.Type}
+		// One index is appended per option, so the final length is known here.
+		// An enum without options keeps the nil slice it had.
+		if len(enum.Options) > 0 {
+			protoEnum.ValueIndices = make([]uint32, 0, len(enum.Options))
+		}
 		for _, opt := range enum.Options {
 			index, ok := enumValueIndices[opt]
 			if !ok {
@@ -266,8 +282,12 @@ func (s *Session) enums(co Controllable) (map[string]cmd.Enum, map[string][]stri
 			for _, params := range c.Params(co) {
 				for _, paramInfo := range params {
 					if enum, ok := paramInfo.Value.(cmd.Enum); ok {
-						enums[enum.Type()] = enum
-						enumValues[enum.Type()] = enum.Options(co)
+						// Both maps were keyed on the same Type() result, and
+						// nothing between the two writes could change it, so
+						// reading it once keys them the same way.
+						t := enum.Type()
+						enums[t] = enum
+						enumValues[t] = enum.Options(co)
 					}
 				}
 			}
