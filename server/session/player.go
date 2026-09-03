@@ -154,11 +154,14 @@ func (s *Session) sendRecipes() {
 				RecipeNetworkID: networkID,
 			})
 		case recipe.Shaped:
+			// The shape is read once instead of twice; it is a stored value with no side effect, so the
+			// width and height below come from the same shape as before.
+			shape := i.Shape()
 			shapedRecipes = append(shapedRecipes, protocol.ShapedRecipe{
 				RecipeID:        uuid.New().String(),
 				Priority:        int32(i.Priority()),
-				Width:           int32(i.Shape().Width()),
-				Height:          int32(i.Shape().Height()),
+				Width:           int32(shape.Width()),
+				Height:          int32(shape.Height()),
 				Input:           stacksToIngredientItems(s.br, i.Input()),
 				Output:          stacksToRecipeStacks(s.br, i.Output()),
 				Block:           i.Block(),
@@ -187,8 +190,10 @@ func (s *Session) sendRecipes() {
 				RecipeNetworkID: networkID,
 			})
 		case recipe.Potion:
-			inputRuntimeID, inputMeta, _ := world.ItemRuntimeID(i.Input()[0].(item.Stack).Item())
-			reagentRuntimeID, reagentMeta, _ := world.ItemRuntimeID(i.Input()[1].(item.Stack).Item())
+			// Input returns the stored slice, so reading it once names the same two ingredients.
+			potionInput := i.Input()
+			inputRuntimeID, inputMeta, _ := world.ItemRuntimeID(potionInput[0].(item.Stack).Item())
+			reagentRuntimeID, reagentMeta, _ := world.ItemRuntimeID(potionInput[1].(item.Stack).Item())
 			outputRuntimeID, outputMeta, _ := world.ItemRuntimeID(i.Output()[0].Item())
 
 			potionRecipes = append(potionRecipes, protocol.PotionRecipe{
@@ -201,8 +206,10 @@ func (s *Session) sendRecipes() {
 			})
 
 		case recipe.PotionContainerChange:
-			inputRuntimeID, _, _ := world.ItemRuntimeID(i.Input()[0].(item.Stack).Item())
-			reagentRuntimeID, _, _ := world.ItemRuntimeID(i.Input()[1].(item.Stack).Item())
+			// Input returns the stored slice, so reading it once names the same two ingredients.
+			containerInput := i.Input()
+			inputRuntimeID, _, _ := world.ItemRuntimeID(containerInput[0].(item.Stack).Item())
+			reagentRuntimeID, _, _ := world.ItemRuntimeID(containerInput[1].(item.Stack).Item())
 			outputRuntimeID, _, _ := world.ItemRuntimeID(i.Output()[0].Item())
 
 			potionContainerChange = append(potionContainerChange, protocol.PotionContainerChangeRecipe{
@@ -230,8 +237,10 @@ func (s *Session) sendArmourTrimData() {
 	var trimPatterns []protocol.TrimPattern
 	var trimMaterials []protocol.TrimMaterial
 
+	// The netherite upgrade template is a constant value, so it is built once instead of once per template.
+	netheriteUpgrade := item.TemplateNetheriteUpgrade()
 	for _, t := range item.SmithingTemplates() {
-		if t == item.TemplateNetheriteUpgrade() {
+		if t == netheriteUpgrade {
 			continue
 		}
 		name, _ := item.SmithingTemplate{Template: t}.EncodeItem()
@@ -589,8 +598,11 @@ func (s *Session) SendHealth(health, max, absorption float64) {
 
 // SendEffect sends an effects passed to the player.
 func (s *Session) SendEffect(e effect.Effect) {
-	s.SendEffectRemoval(e.Type())
-	id, _ := effect.ID(e.Type())
+	// The effect type is read once instead of twice. Sending the removal does not change the effect value,
+	// so the ID looked up below belongs to the same type as before.
+	t := e.Type()
+	s.SendEffectRemoval(t)
+	id, _ := effect.ID(t)
 	dur := e.Duration() / (time.Second / 20)
 	if e.Infinite() {
 		dur = -1
@@ -1183,8 +1195,11 @@ func protocolToSkin(sk protocol.Skin) (s skin.Skin, err error) {
 	// then ask for the full unwrapped size here. Repeating the check in the same int arithmetic the
 	// constructors use ties every allocation below to the length of the data actually received.
 	skinWidth, skinHeight := int(sk.SkinImageWidth), int(sk.SkinImageHeight)
-	if skinWidth*skinHeight*4 != len(sk.SkinData) {
-		return skin.Skin{}, fmt.Errorf("skin of %vx%v needs %v bytes of pixel data, but got %v", skinWidth, skinHeight, skinWidth*skinHeight*4, len(sk.SkinData))
+	// The required size is computed once and reused by the message, so the check and the message still
+	// report the same number in the same int arithmetic.
+	skinSize := skinWidth * skinHeight * 4
+	if skinSize != len(sk.SkinData) {
+		return skin.Skin{}, fmt.Errorf("skin of %vx%v needs %v bytes of pixel data, but got %v", skinWidth, skinHeight, skinSize, len(sk.SkinData))
 	}
 
 	s = skin.New(skinWidth, skinHeight)
@@ -1195,8 +1210,9 @@ func protocolToSkin(sk protocol.Skin) (s skin.Skin, err error) {
 	s.FullID = sk.FullID
 
 	capeWidth, capeHeight := int(sk.CapeImageWidth), int(sk.CapeImageHeight)
-	if capeWidth*capeHeight*4 != len(sk.CapeData) {
-		return skin.Skin{}, fmt.Errorf("cape of %vx%v needs %v bytes of pixel data, but got %v", capeWidth, capeHeight, capeWidth*capeHeight*4, len(sk.CapeData))
+	capeSize := capeWidth * capeHeight * 4
+	if capeSize != len(sk.CapeData) {
+		return skin.Skin{}, fmt.Errorf("cape of %vx%v needs %v bytes of pixel data, but got %v", capeWidth, capeHeight, capeSize, len(sk.CapeData))
 	}
 
 	s.Cape = skin.NewCape(capeWidth, capeHeight)
@@ -1225,8 +1241,9 @@ func protocolToSkin(sk protocol.Skin) (s skin.Skin, err error) {
 		}
 
 		animWidth, animHeight := int(anim.ImageWidth), int(anim.ImageHeight)
-		if animWidth*animHeight*4 != len(anim.ImageData) {
-			return skin.Skin{}, fmt.Errorf("animation of %vx%v needs %v bytes of pixel data, but got %v", animWidth, animHeight, animWidth*animHeight*4, len(anim.ImageData))
+		animSize := animWidth * animHeight * 4
+		if animSize != len(anim.ImageData) {
+			return skin.Skin{}, fmt.Errorf("animation of %vx%v needs %v bytes of pixel data, but got %v", animWidth, animHeight, animSize, len(anim.ImageData))
 		}
 
 		animation := skin.NewAnimation(animWidth, animHeight, int(anim.ExpressionType), t)

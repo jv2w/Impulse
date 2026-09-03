@@ -285,11 +285,14 @@ func createEnchantments(random *rand.Rand, stack item.Stack, value, level int) [
 func searchBookshelves(tx *world.Tx, pos cube.Pos) (shelves int) {
 	for x := -1; x <= 1; x++ {
 		for z := -1; z <= 1; z++ {
+			if x == 0 && z == 0 {
+				// Ignore the centre block.
+				continue
+			}
+			// The check does not depend on y, and when it held both passes of
+			// the y loop did nothing but skip, so the whole column is skipped
+			// here instead. No block is read that was read before.
 			for y := 0; y <= 1; y++ {
-				if x == 0 && z == 0 {
-					// Ignore the centre block.
-					continue
-				}
 				if _, ok := tx.Block(pos.Add(cube.Pos{x, y, z})).(block.Air); !ok {
 					// There must be a one block space between the bookshelf and the player.
 					continue

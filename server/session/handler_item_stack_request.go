@@ -153,10 +153,14 @@ func (h *ItemStackRequestHandler) handleTransfer(from, to protocol.StackRequestS
 	if i.Count() < int(count) {
 		return fmt.Errorf("client tried subtracting %v from item count, but there are only %v", count, i.Count())
 	}
-	if (dest.Count()+int(count) > dest.MaxCount()) && !dest.Empty() {
-		return fmt.Errorf("client tried adding %v to item count %v, but max is %v", count, dest.Count(), dest.MaxCount())
+	// dest is not written to until after both checks, so the reads below all
+	// gave these values. MaxCount type asserts the item and Empty walks into
+	// its EncodeItem, so each is asked once instead of up to twice.
+	destMax, destEmpty := dest.MaxCount(), dest.Empty()
+	if (dest.Count()+int(count) > destMax) && !destEmpty {
+		return fmt.Errorf("client tried adding %v to item count %v, but max is %v", count, dest.Count(), destMax)
 	}
-	if dest.Empty() {
+	if destEmpty {
 		dest = i.Grow(-math.MaxInt32)
 	}
 
@@ -327,15 +331,21 @@ func (h *ItemStackRequestHandler) verifySlot(slot protocol.StackRequestSlotInfo,
 	if len(h.responseChanges) > 256 {
 		return fmt.Errorf("too many unacknowledged request slot changes")
 	}
-	inv, _ := s.invByID(int32(slot.Container.ContainerID), tx)
-
 	i, err := h.itemInSlot(slot, s, tx)
 	if err != nil {
 		return err
 	}
-	clientID, err := h.resolveID(inv, slot)
-	if err != nil {
-		return err
+	// resolveID hands a non-negative stack network ID straight back without
+	// looking at the inventory, and for an opened container invByID reads the
+	// block at the container position to find it. The lookup is therefore only
+	// done on the negative path, where it was already the only user of it.
+	// Neither call has an effect, so doing it after itemInSlot changes nothing.
+	clientID := slot.StackNetworkID
+	if clientID < 0 {
+		inv, _ := s.invByID(int32(slot.Container.ContainerID), tx)
+		if clientID, err = h.resolveID(inv, slot); err != nil {
+			return err
+		}
 	}
 	// The client seems to send negative stack network IDs for predictions, which we can ignore. We'll simply
 	// override this network ID later.
@@ -478,7 +488,11 @@ func (h *ItemStackRequestHandler) resolve(id int32, s *Session) {
 		ContainerInfo: info,
 	}}})
 
-	h.changes = map[byte]map[byte]changeInfo{}
+	// Emptying the map in place leaves the handler with the same empty map a
+	// fresh one gave it: nothing outside the handler holds a reference to it,
+	// and the packet above copied out every value it needed. The buckets are
+	// reused instead of being allocated again for the next request.
+	clear(h.changes)
 	h.pendingResults = nil
 }
 
@@ -493,13 +507,20 @@ func (h *ItemStackRequestHandler) reject(id int32, s *Session, tx *world.Tx) {
 
 	// Revert changes that we already made for valid actions.
 	for container, slots := range h.changes {
+		// The lookup only depends on the container, and writing a slot back
+		// cannot change which inventory that container maps to, so the result
+		// was the same on every slot. For an opened container the lookup reads
+		// the block at the container position, so it is done once per
+		// container rather than once per slot.
+		inv, _ := s.invByID(int32(container), tx)
 		for slot, info := range slots {
-			inv, _ := s.invByID(int32(container), tx)
 			_ = inv.SetItem(int(slot), info.before)
 		}
 	}
 
-	h.changes = map[byte]map[byte]changeInfo{}
+	// Same as in resolve: the map is emptied in place rather than replaced, so
+	// the handler is left holding an empty map either way.
+	clear(h.changes)
 	h.pendingResults = nil
 }
 
