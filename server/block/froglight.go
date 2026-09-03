@@ -54,8 +54,13 @@ func (f Froglight) EncodeBlock() (name string, properties map[string]any) {
 
 // allFrogLight ...
 func allFroglight() (froglight []world.Block) {
-	for _, axis := range cube.Axes() {
-		for _, t := range FroglightTypes() {
+	// FroglightTypes does not depend on the axis and hands back a freshly built
+	// slice on every call, so it is read once. The block list itself is still
+	// built per call, only sized up front.
+	axes, types := cube.Axes(), FroglightTypes()
+	froglight = make([]world.Block, 0, len(axes)*len(types))
+	for _, axis := range axes {
+		for _, t := range types {
 			froglight = append(froglight, Froglight{Type: t, Axis: axis})
 		}
 	}

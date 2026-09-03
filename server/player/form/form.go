@@ -11,6 +11,10 @@ import (
 	"github.com/jv2w/Impulse/server/world"
 )
 
+// elementType is the reflect.Type of the Element interface, resolved once
+// because it never changes.
+var elementType = reflect.TypeOf((*Element)(nil)).Elem()
+
 // Form represents a form that may be sent to a Submitter. The three types of forms, custom forms, menu forms
 // and modal forms implement this interface.
 type Form interface {
@@ -27,11 +31,18 @@ type Custom struct {
 
 // MarshalJSON ...
 func (f Custom) MarshalJSON() ([]byte, error) {
-	return json.Marshal(map[string]any{
-		"type":    "custom_form",
-		"title":   f.title,
-		"content": f.Elements(),
-	})
+	// encoding/json writes map keys in ascending order, so a struct with the
+	// fields declared in that order writes the same bytes without the
+	// temporary map and its three boxed values.
+	return json.Marshal(customForm{Content: f.Elements(), Title: f.title, Type: "custom_form"})
+}
+
+// customForm is the JSON shape of a Custom form. The field order matches the
+// ascending key order encoding/json used for the map it replaces.
+type customForm struct {
+	Content []Element `json:"content"`
+	Title   string    `json:"title"`
+	Type    string    `json:"type"`
 }
 
 // New creates a new (custom) form with the title passed and returns it. The title is formatted according to
@@ -196,10 +207,11 @@ func (f Custom) parseValue(elem Element, s any) (reflect.Value, error) {
 // verify verifies if the form is valid, checking if the fields all implement the Element interface. It panics
 // if the form is not valid.
 func (f Custom) verify() {
-	el := reflect.TypeOf((*Element)(nil)).Elem()
-
-	// The dynamic type of f.submittable is asked for once and shared by both
-	// uses, and the field count is hoisted out of the loop.
+	// The Element interface type is a constant of the package, so it is looked
+	// up once at init instead of on every form construction. The dynamic type
+	// of f.submittable is also asked for once and shared by both uses, and the
+	// field count is hoisted out of the loop.
+	el := elementType
 
 	t := reflect.TypeOf(f.submittable)
 	v := reflect.New(t).Elem()

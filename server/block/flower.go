@@ -114,7 +114,11 @@ func (f Flower) EncodeBlock() (string, map[string]any) {
 
 // allFlowers ...
 func allFlowers() (b []world.Block) {
-	for _, f := range FlowerTypes() {
+	types := FlowerTypes()
+	// The list is still built fresh on every call; only the growth of the slice
+	// is avoided by sizing it to the number of flower types up front.
+	b = make([]world.Block, 0, len(types))
+	for _, f := range types {
 		b = append(b, Flower{Type: f})
 	}
 	return

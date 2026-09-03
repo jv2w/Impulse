@@ -130,7 +130,8 @@ func invertColour(c item.Colour) int16 {
 
 // coloursByID holds the sixteen colours indexed by their ID. item.Colours() returns a freshly
 // built slice on every call, so the list is built once here. Only element values are read from it
-// and the slice never leaves this file, so nothing can observe that it is shared.
+// and it is never returned to a caller, so nothing outside the package can observe that it is
+// shared.
 var coloursByID = item.Colours()
 
 // invertColourID converts the int16 passed the returns the item.Colour inverted.
