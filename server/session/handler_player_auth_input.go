@@ -32,7 +32,11 @@ func (h PlayerAuthInputHandler) handleMovement(pk *packet.PlayerAuthInput, s *Se
 	reference := []float64{pitch, yaw, yaw, pos[0], pos[1], pos[2]}
 	for i, v := range [...]*float32{&pk.Pitch, &pk.Yaw, &pk.HeadYaw, &pk.Position[0], &pk.Position[1], &pk.Position[2]} {
 		f := float64(*v)
-		if math.IsNaN(f) || math.IsInf(f, 1) || math.IsInf(f, 0) {
+		// IsInf with sign 0 already reports both infinities, so the sign 1 test
+		// that stood in front of it could never be the only one to hold. The
+		// same values are replaced as before, one comparison less per field on
+		// a packet that arrives every tick.
+		if math.IsNaN(f) || math.IsInf(f, 0) {
 			// Sometimes, the PlayerAuthInput packet is in fact sent with NaN/INF after being teleported (to another
 			// world), see #425. For this reason, we don't actually return an error if this happens, because this will
 			// result in the player being kicked. Just log it and replace the NaN value with the one we have tracked

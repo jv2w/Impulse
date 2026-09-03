@@ -13,7 +13,6 @@ type InteractHandler struct{}
 // Handle ...
 func (h *InteractHandler) Handle(p packet.Packet, s *Session, _ *world.Tx, c Controllable) error {
 	pk := p.(*packet.Interact)
-	pos := c.Position()
 
 	switch pk.ActionType {
 	case packet.InteractActionMouseOverEntity:
@@ -25,6 +24,10 @@ func (h *InteractHandler) Handle(p packet.Packet, s *Session, _ *world.Tx, c Con
 			return nil
 		}
 		s.invOpened = true
+		// The position is only used by the packet below, and reading it has no
+		// effect on anything, so it is read on the one path that needs it
+		// instead of on every interact packet.
+		pos := c.Position()
 		s.writePacket(&packet.ContainerOpen{
 			WindowID:                0,
 			ContainerType:           0xff,

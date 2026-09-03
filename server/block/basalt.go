@@ -53,7 +53,10 @@ func (b Basalt) EncodeBlock() (name string, properties map[string]any) {
 
 // allBasalt ...
 func allBasalt() (basalt []world.Block) {
-	for _, axis := range cube.Axes() {
+	axes := cube.Axes()
+	// The count is known before the loop, so the list is sized once instead of grown.
+	basalt = make([]world.Block, 0, len(axes)*2)
+	for _, axis := range axes {
 		basalt = append(basalt, Basalt{Axis: axis, Polished: false})
 		basalt = append(basalt, Basalt{Axis: axis, Polished: true})
 	}

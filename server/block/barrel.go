@@ -186,6 +186,8 @@ func (b Barrel) EncodeItem() (name string, meta int16) {
 
 // allBarrels ...
 func allBarrels() (b []world.Block) {
+	// Six faces with two open states each, so the list is sized once instead of grown.
+	b = make([]world.Block, 0, 12)
 	for i := cube.Face(0); i < 6; i++ {
 		b = append(b, Barrel{Facing: i})
 		b = append(b, Barrel{Facing: i, Open: true})

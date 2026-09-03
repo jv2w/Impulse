@@ -38,7 +38,10 @@ func (h *ItemStackRequestHandler) handleGrindstoneCraft(s *Session, tx *world.Tx
 		Container: protocol.FullContainerName{ContainerID: protocol.ContainerGrindstoneAdditional},
 		Slot:      grindstoneSecondInputSlot,
 	}, s, tx)
-	if firstInput.Empty() && secondInput.Empty() {
+	// firstInput is never reassigned, so both of the checks below saw this
+	// answer. Empty walks into the item's EncodeItem, so it is asked once.
+	firstEmpty := firstInput.Empty()
+	if firstEmpty && secondInput.Empty() {
 		return fmt.Errorf("input item(s) are empty")
 	}
 	if firstInput.Count() > 1 || secondInput.Count() > 1 {
@@ -46,13 +49,16 @@ func (h *ItemStackRequestHandler) handleGrindstoneCraft(s *Session, tx *world.Tx
 	}
 
 	resultStack := nonZeroItem(firstInput, secondInput)
-	if !firstInput.Empty() && !secondInput.Empty() {
-		name, meta := firstInput.Item().EncodeItem()
+	if !firstEmpty && !secondInput.Empty() {
+		// Item itself calls Empty, and firstInput has not changed, so the two
+		// reads of it here returned the same item.
+		firstItem := firstInput.Item()
+		name, meta := firstItem.EncodeItem()
 		name2, meta2 := secondInput.Item().EncodeItem()
 		if name != name2 || meta != meta2 {
 			return fmt.Errorf("input items must be the same type")
 		}
-		if _, ok := firstInput.Item().(item.Durable); !ok {
+		if _, ok := firstItem.(item.Durable); !ok {
 			return fmt.Errorf("input items must be durable")
 		}
 
