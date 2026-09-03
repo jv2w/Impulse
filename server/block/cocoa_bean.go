@@ -61,14 +61,18 @@ func (c CocoaBean) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *wo
 	}
 
 	var woodType WoodType
-	oppositePos := pos.Side(face.Opposite())
-	if log, ok := tx.Block(oppositePos).(Log); ok {
+	// The opposite face and the block behind it are each read once: face does not
+	// change here and nothing between the two old reads could change that block.
+	opposite := face.Opposite()
+	oppositePos := pos.Side(opposite)
+	behind := tx.Block(oppositePos)
+	if log, ok := behind.(Log); ok {
 		woodType = log.Wood
-	} else if wood, ok := tx.Block(oppositePos).(Wood); ok {
+	} else if wood, ok := behind.(Wood); ok {
 		woodType = wood.Wood
 	}
 	if woodType == JungleWood() {
-		c.Facing = face.Opposite().Direction()
+		c.Facing = opposite.Direction()
 		ctx.IgnoreBBox = true
 
 		place(tx, pos, c, user, ctx)
@@ -118,6 +122,9 @@ func (c CocoaBean) Model() world.BlockModel {
 
 // allCocoaBeans ...
 func allCocoaBeans() (cocoa []world.Block) {
+	// Four directions times three ages, so the list is sized once instead of grown.
+	// Still a fresh slice with the same blocks in the same order.
+	cocoa = make([]world.Block, 0, 12)
 	for i := cube.Direction(0); i <= 3; i++ {
 		cocoa = append(cocoa, CocoaBean{Facing: i, Age: 0})
 		cocoa = append(cocoa, CocoaBean{Facing: i, Age: 1})

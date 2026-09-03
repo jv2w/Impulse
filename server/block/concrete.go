@@ -36,7 +36,9 @@ func (c Concrete) EncodeBlock() (name string, properties map[string]any) {
 // allConcrete returns concrete blocks with all possible colours.
 func allConcrete() []world.Block {
 	b := make([]world.Block, 0, 16)
-	for _, c := range item.Colours() {
+	// coloursByID holds the same sixteen colours in the same order, so ranging over
+	// it drops the freshly built list. Colours are values, so the copy is the same.
+	for _, c := range coloursByID {
 		b = append(b, Concrete{Colour: c})
 	}
 	return b

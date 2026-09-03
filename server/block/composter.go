@@ -116,14 +116,17 @@ func (c Composter) fill(it item.Stack, pos cube.Pos, tx *world.Tx) bool {
 	if !ok {
 		return false
 	}
-	tx.AddParticle(pos.Vec3(), particle.BoneMeal{})
+	// pos does not change here, so its vector is built once and the same value
+	// reaches every particle and sound below.
+	v := pos.Vec3()
+	tx.AddParticle(v, particle.BoneMeal{})
 	if rand.Float64() > compostable.CompostChance() {
-		tx.PlaySound(pos.Vec3(), sound.ComposterFill{})
+		tx.PlaySound(v, sound.ComposterFill{})
 		return true
 	}
 	c.Level++
 	tx.SetBlock(pos, c, nil)
-	tx.PlaySound(pos.Vec3(), sound.ComposterFillLayer{})
+	tx.PlaySound(v, sound.ComposterFillLayer{})
 	if c.Level == 7 {
 		tx.ScheduleBlockUpdate(pos, c, time.Second)
 	}
@@ -152,6 +155,9 @@ func (c Composter) EncodeBlock() (string, map[string]any) {
 
 // allComposters ...
 func allComposters() (all []world.Block) {
+	// Nine fill levels, so the list is sized once instead of grown. Still a fresh
+	// slice with the same blocks in the same order.
+	all = make([]world.Block, 0, 9)
 	for i := 0; i < 9; i++ {
 		all = append(all, Composter{Level: i})
 	}

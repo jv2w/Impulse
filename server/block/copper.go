@@ -64,22 +64,40 @@ func (c Copper) RandomTick(pos cube.Pos, tx *world.Tx, r *rand.Rand) {
 	attemptOxidation(pos, tx, r, c)
 }
 
+// copperName gives the encoded name of a copper block of a type, oxidation and
+// waxed state. The joins that built the name on every encode run once at start
+// instead. enumNamer prepends "minecraft:" on a hit and on a miss alike, so a
+// type or oxidation outside the table joins the same strings and panics the
+// same way it did before.
+var copperName = func() func(Copper) string {
+	types, oxidations := CopperTypes(), OxidationTypes()
+	keys := make([]Copper, 0, len(types)*len(oxidations)*2)
+	for _, t := range types {
+		for _, o := range oxidations {
+			keys = append(keys, Copper{Type: t, Oxidation: o}, Copper{Type: t, Oxidation: o, Waxed: true})
+		}
+	}
+	return enumNamer(keys, func(c Copper) string {
+		name := "copper"
+		if c.Type != NormalCopper() {
+			name = c.Type.String() + "_" + name
+		}
+		if c.Oxidation != UnoxidisedOxidation() {
+			name = c.Oxidation.String() + "_" + name
+		}
+		if c.Waxed {
+			name = "waxed_" + name
+		}
+		return name
+	})
+}()
+
 // EncodeItem ...
 func (c Copper) EncodeItem() (name string, meta int16) {
 	if c.Type == NormalCopper() && c.Oxidation == UnoxidisedOxidation() && !c.Waxed {
 		return "minecraft:copper_block", 0
 	}
-	name = "copper"
-	if c.Type != NormalCopper() {
-		name = c.Type.String() + "_" + name
-	}
-	if c.Oxidation != UnoxidisedOxidation() {
-		name = c.Oxidation.String() + "_" + name
-	}
-	if c.Waxed {
-		name = "waxed_" + name
-	}
-	return "minecraft:" + name, 0
+	return copperName(c), 0
 }
 
 // EncodeBlock ...
@@ -87,24 +105,19 @@ func (c Copper) EncodeBlock() (string, map[string]any) {
 	if c.Type == NormalCopper() && c.Oxidation == UnoxidisedOxidation() && !c.Waxed {
 		return "minecraft:copper_block", nil
 	}
-	name := "copper"
-	if c.Type != NormalCopper() {
-		name = c.Type.String() + "_" + name
-	}
-	if c.Oxidation != UnoxidisedOxidation() {
-		name = c.Oxidation.String() + "_" + name
-	}
-	if c.Waxed {
-		name = "waxed_" + name
-	}
-	return "minecraft:" + name, nil
+	return copperName(c), nil
 }
 
 // allCopper returns a list of all copper block variants.
 func allCopper() (c []world.Block) {
+	// The type and oxidation lists are built once instead of once per loop pass,
+	// and the final count is known so the list is sized once. Same blocks, same
+	// order, still a fresh slice on every call.
+	types, oxidations := CopperTypes(), OxidationTypes()
+	c = make([]world.Block, 0, len(types)*len(oxidations)*2)
 	f := func(waxed bool) {
-		for _, t := range CopperTypes() {
-			for _, o := range OxidationTypes() {
+		for _, t := range types {
+			for _, o := range oxidations {
 				c = append(c, Copper{Type: t, Oxidation: o, Waxed: waxed})
 			}
 		}
