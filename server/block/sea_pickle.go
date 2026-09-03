@@ -1,7 +1,6 @@
 package block
 
 import (
-	"math"
 	"math/rand/v2"
 
 	"github.com/go-gl/mathgl/mgl64"
@@ -26,8 +25,10 @@ type SeaPickle struct {
 
 // canSurvive ...
 func (SeaPickle) canSurvive(pos cube.Pos, tx *world.Tx) bool {
-	below := tx.Block(pos.Side(cube.FaceDown))
-	if !below.Model().FaceSolid(pos.Side(cube.FaceDown), cube.FaceUp, tx) {
+	// pos.Side(cube.FaceDown) is pure and was computed twice; one value serves both uses.
+	belowPos := pos.Side(cube.FaceDown)
+	below := tx.Block(belowPos)
+	if !below.Model().FaceSolid(belowPos, cube.FaceUp, tx) {
 		return false
 	}
 	if liquid, ok := tx.Liquid(pos); ok {
@@ -56,7 +57,9 @@ func (s SeaPickle) BoneMeal(pos cube.Pos, tx *world.Tx) item.BoneMealResult {
 	}
 
 	for x := -2; x <= 2; x++ {
-		distance := -int(math.Abs(float64(x))) + 2
+		// x is a small int, so the float round trip was exact: -int(math.Abs(float64(x)))+2 is
+		// exactly 2-abs(x) for every x in the loop, without the two conversions.
+		distance := 2 - abs(x)
 		for z := -distance; z <= distance; z++ {
 			for y := -1; y < 1; y++ {
 				if (x == 0 && y == 0 && z == 0) || rand.IntN(6) != 0 {
@@ -175,6 +178,9 @@ func (s SeaPickle) EncodeBlock() (string, map[string]any) {
 
 // allSeaPickles ...
 func allSeaPickles() (b []world.Block) {
+	// Four counts with a dead and an alive variant each, so the slice is presized to its final
+	// length and grows without reallocating. The same blocks are appended in the same order.
+	b = make([]world.Block, 0, 8)
 	for i := 0; i <= 3; i++ {
 		b = append(b, SeaPickle{AdditionalCount: i})
 		b = append(b, SeaPickle{AdditionalCount: i, Dead: true})

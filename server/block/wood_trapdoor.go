@@ -85,25 +85,36 @@ func (t WoodTrapdoor) SideClosed(cube.Pos, cube.Pos, *world.Tx) bool {
 	return false
 }
 
+// woodTrapdoorName gives the encoded name of a trapdoor of a wood type, oak
+// keeping its own legacy name. The join runs once at start instead of on every
+// encode, and enumNamer joins the same strings on a miss, so a wood type
+// outside the table panics in String exactly as it did before.
+var woodTrapdoorName = enumNamer(WoodTypes(), func(w WoodType) string {
+	if w == OakWood() {
+		return "trapdoor"
+	}
+	return w.String() + "_trapdoor"
+})
+
 // EncodeItem ...
 func (t WoodTrapdoor) EncodeItem() (name string, meta int16) {
-	if t.Wood == OakWood() {
-		return "minecraft:trapdoor", 0
-	}
-	return "minecraft:" + t.Wood.String() + "_trapdoor", 0
+	return woodTrapdoorName(t.Wood), 0
 }
 
 // EncodeBlock ...
 func (t WoodTrapdoor) EncodeBlock() (name string, properties map[string]any) {
-	if t.Wood == OakWood() {
-		return "minecraft:trapdoor", map[string]any{"direction": int32(math.Abs(float64(t.Facing) - 3)), "open_bit": t.Open, "upside_down_bit": t.Top}
-	}
-	return "minecraft:" + t.Wood.String() + "_trapdoor", map[string]any{"direction": int32(math.Abs(float64(t.Facing) - 3)), "open_bit": t.Open, "upside_down_bit": t.Top}
+	// Both branches built the same property map; only the name differed.
+	return woodTrapdoorName(t.Wood), map[string]any{"direction": int32(math.Abs(float64(t.Facing) - 3)), "open_bit": t.Open, "upside_down_bit": t.Top}
 }
 
 // allTrapdoors returns a list of all trapdoor types
 func allTrapdoors() (trapdoors []world.Block) {
-	for _, w := range WoodTypes() {
+	// Four trapdoors per direction and four directions per wood type, so the slice is presized to
+	// its final length and grows without reallocating. The same blocks are appended in the same
+	// order.
+	woods := WoodTypes()
+	trapdoors = make([]world.Block, 0, len(woods)*4*4)
+	for _, w := range woods {
 		for i := cube.Direction(0); i <= 3; i++ {
 			trapdoors = append(trapdoors, WoodTrapdoor{Wood: w, Facing: i, Open: false, Top: false})
 			trapdoors = append(trapdoors, WoodTrapdoor{Wood: w, Facing: i, Open: false, Top: true})
