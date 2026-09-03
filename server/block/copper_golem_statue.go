@@ -28,6 +28,11 @@ type CopperGolemStatue struct {
 	Waxed bool
 }
 
+// copperGolemPoses holds the four poses. CopperGolemPoses builds a fresh list on
+// every call and this one is only ever read, so a single package level list
+// gives the same poses in the same order without building one per lookup.
+var copperGolemPoses = CopperGolemPoses()
+
 // BreakInfo ...
 func (c CopperGolemStatue) BreakInfo() BreakInfo {
 	return newBreakInfo(3, alwaysHarvestable, pickaxeEffective, oneOf(c)).withBlastResistance(6)
@@ -40,12 +45,11 @@ func (c CopperGolemStatue) Activate(pos cube.Pos, _ cube.Face, tx *world.Tx, u i
 		// copper golems can't be activated while holding an item.
 		return false
 	}
-	poses := CopperGolemPoses()
 	nextIndex := int(c.Pose.Uint8()) + 1
-	if nextIndex >= len(poses) {
+	if nextIndex >= len(copperGolemPoses) {
 		nextIndex = 0
 	}
-	c.Pose = poses[nextIndex]
+	c.Pose = copperGolemPoses[nextIndex]
 	tx.SetBlock(pos, c, nil)
 	return true
 }
@@ -108,7 +112,7 @@ func (c CopperGolemStatue) RandomTick(pos cube.Pos, tx *world.Tx, r *rand.Rand) 
 // DecodeNBT ...
 func (c CopperGolemStatue) DecodeNBT(data map[string]any) any {
 	// A pose this build has no name for is left at the receiver's rather than stored to panic on a later lookup.
-	if p := pose(nbtconv.Int32(data, "Pose")); int(p) < len(CopperGolemPoses()) {
+	if p := pose(nbtconv.Int32(data, "Pose")); int(p) < len(copperGolemPoses) {
 		c.Pose = CopperGolemPose{p}
 	}
 	return c
@@ -134,9 +138,14 @@ func (c CopperGolemStatue) EncodeBlock() (string, map[string]any) {
 
 // allCopperGolemStatues ...
 func allCopperGolemStatues() (golems []world.Block) {
+	// The oxidation and direction lists are read once instead of once per loop
+	// pass, and the final count is known so the list is sized once. Same blocks in
+	// the same order.
+	oxidations, directions := OxidationTypes(), cube.Directions()
+	golems = make([]world.Block, 0, len(oxidations)*len(directions)*2)
 	f := func(waxed bool) {
-		for _, o := range OxidationTypes() {
-			for _, direction := range cube.Directions() {
+		for _, o := range oxidations {
+			for _, direction := range directions {
 				golems = append(golems, CopperGolemStatue{Facing: direction, Oxidation: o, Waxed: waxed})
 			}
 		}

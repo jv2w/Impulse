@@ -75,15 +75,18 @@ func (d CopperDoor) NeighbourUpdateTick(pos, changedNeighbour cube.Pos, tx *worl
 	if pos == changedNeighbour {
 		return
 	}
+	// The position below is the same in both branches and pos never changes here,
+	// so it is computed once instead of up to three times.
+	below := pos.Side(cube.FaceDown)
 	if d.Top {
-		if b, ok := tx.Block(pos.Side(cube.FaceDown)).(CopperDoor); !ok {
+		if b, ok := tx.Block(below).(CopperDoor); !ok {
 			breakBlockNoDrops(d, pos, tx)
 		} else if d.Oxidation != b.Oxidation || d.Waxed != b.Waxed {
 			d.Oxidation = b.Oxidation
 			d.Waxed = b.Waxed
 			tx.SetBlock(pos, d, nil)
 		}
-	} else if solid := tx.Block(pos.Side(cube.FaceDown)).Model().FaceSolid(pos.Side(cube.FaceDown), cube.FaceUp, tx); !solid {
+	} else if solid := tx.Block(below).Model().FaceSolid(below, cube.FaceUp, tx); !solid {
 		// CopperDoor is pickaxeHarvestable, so don't use breakBlock() here.
 		breakBlockNoDrops(d, pos, tx)
 		dropItem(tx, item.NewStack(d, 1), pos.Vec3Centre())
@@ -104,7 +107,13 @@ func (d CopperDoor) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *w
 	}
 	below := pos
 	pos = pos.Side(cube.FaceUp)
-	if !replaceableWith(tx, pos, d) || !replaceableWith(tx, pos.Side(cube.FaceUp), d) {
+	if !replaceableWith(tx, pos, d) {
+		return false
+	}
+	// Splitting the || keeps the same short circuit: the position above is still
+	// only computed once the first check passes, and now only once in total.
+	above := pos.Side(cube.FaceUp)
+	if !replaceableWith(tx, above, d) {
 		return false
 	}
 	if !tx.Block(below).Model().FaceSolid(below, cube.FaceUp, tx) {
@@ -127,7 +136,7 @@ func (d CopperDoor) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *w
 
 	ctx.IgnoreBBox = true
 	place(tx, pos, d, user, ctx)
-	place(tx, pos.Side(cube.FaceUp), CopperDoor{Oxidation: d.Oxidation, Waxed: d.Waxed, Facing: d.Facing, Top: true, Right: d.Right}, user, ctx)
+	place(tx, above, CopperDoor{Oxidation: d.Oxidation, Waxed: d.Waxed, Facing: d.Facing, Top: true, Right: d.Right}, user, ctx)
 	ctx.CountSub = 1
 	return placed(ctx)
 }
@@ -178,8 +187,12 @@ func (d CopperDoor) EncodeBlock() (name string, properties map[string]any) {
 
 // allCopperDoors returns a list of all copper door types
 func allCopperDoors() (doors []world.Block) {
+	// The oxidation list is built once instead of once per call of f, and the final
+	// count is known so the list is sized once. Same blocks in the same order.
+	oxidations := OxidationTypes()
+	doors = make([]world.Block, 0, len(oxidations)*4*8*2)
 	f := func(waxed bool) {
-		for _, o := range OxidationTypes() {
+		for _, o := range oxidations {
 			for i := cube.Direction(0); i <= 3; i++ {
 				doors = append(doors, CopperDoor{Oxidation: o, Waxed: waxed, Facing: i, Open: false, Top: false, Right: false})
 				doors = append(doors, CopperDoor{Oxidation: o, Waxed: waxed, Facing: i, Open: false, Top: true, Right: false})

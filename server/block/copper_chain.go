@@ -105,9 +105,14 @@ func (c CopperChain) Model() world.BlockModel {
 
 // allCopperChains ...
 func allCopperChains() (chains []world.Block) {
+	// The oxidation and axis lists are built once instead of once per loop pass,
+	// and the final count is known so the list is sized once. Same blocks in the
+	// same order.
+	oxidations, axes := OxidationTypes(), cube.Axes()
+	chains = make([]world.Block, 0, len(oxidations)*len(axes)*2)
 	f := func(waxed bool) {
-		for _, o := range OxidationTypes() {
-			for _, axis := range cube.Axes() {
+		for _, o := range oxidations {
+			for _, axis := range axes {
 				chains = append(chains, CopperChain{Axis: axis, Oxidation: o, Waxed: waxed})
 			}
 		}

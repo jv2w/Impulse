@@ -79,8 +79,12 @@ func (c CopperGrate) EncodeBlock() (string, map[string]any) {
 
 // allCopperGrates returns a list of all copper grate variants.
 func allCopperGrates() (c []world.Block) {
+	// The oxidation list is built once instead of once per call of f, and the final
+	// count is known so the list is sized once. Same blocks in the same order.
+	oxidations := OxidationTypes()
+	c = make([]world.Block, 0, len(oxidations)*2)
 	f := func(waxed bool) {
-		for _, o := range OxidationTypes() {
+		for _, o := range oxidations {
 			c = append(c, CopperGrate{Oxidation: o, Waxed: waxed})
 		}
 	}
