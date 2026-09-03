@@ -56,11 +56,16 @@ func (builder *ComponentBuilder) AddPermutation(condition string, components map
 			"triggerType": "placement_trigger",
 		})
 	}
-	if builder.permutations[condition] == nil {
-		builder.permutations[condition] = map[string]any{}
+	// The condition was looked up again on every component; the same map is
+	// now held in a local, so the writes land in the same map in the same
+	// order.
+	perm := builder.permutations[condition]
+	if perm == nil {
+		perm = map[string]any{}
+		builder.permutations[condition] = perm
 	}
 	for key, value := range components {
-		builder.permutations[condition][key] = value
+		perm[key] = value
 	}
 }
 
@@ -71,7 +76,6 @@ func (builder *ComponentBuilder) SetMenuCategory(category category.Category) {
 
 // Construct constructs the final block components map that is ready to be sent to the client.
 func (builder *ComponentBuilder) Construct() map[string]any {
-	properties := slices.Clone(builder.properties)
 	components := maps.Clone(builder.components)
 
 	result := map[string]any{
@@ -85,19 +89,25 @@ func (builder *ComponentBuilder) Construct() map[string]any {
 			"block_id": builder.blockID,
 		},
 	}
-	if len(properties) > 0 {
-		result["properties"] = properties
+	// The clone has the same length as the source, so it is only made when it
+	// is going to be stored.
+	if len(builder.properties) > 0 {
+		result["properties"] = slices.Clone(builder.properties)
 	}
 
-	permutations := maps.Clone(builder.permutations)
-	if len(permutations) > 0 {
-		result["permutations"] = []map[string]any{}
-		for condition, values := range permutations {
-			result["permutations"] = append(result["permutations"].([]map[string]any), map[string]any{
+	// The permutation map was cloned only to be ranged over, and the list was
+	// read back out of result on every append. Ranging the source yields the
+	// same pairs with the same shared value maps, and the list is built once
+	// at its final length.
+	if len(builder.permutations) > 0 {
+		permutations := make([]map[string]any, 0, len(builder.permutations))
+		for condition, values := range builder.permutations {
+			permutations = append(permutations, map[string]any{
 				"condition":  condition,
 				"components": values,
 			})
 		}
+		result["permutations"] = permutations
 	}
 	return result
 }

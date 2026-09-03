@@ -109,10 +109,15 @@ func (b Bucket) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *world
 	liq := b.Content.liquid.WithDepth(8, false)
 	if bl := tx.Block(pos); canDisplace(bl, liq) || replaceableWith(bl, liq) {
 		tx.SetLiquid(pos, liq)
-	} else if bl := tx.Block(pos.Side(face)); canDisplace(bl, liq) || replaceableWith(bl, liq) {
-		tx.SetLiquid(pos.Side(face), liq)
 	} else {
-		return false
+		// Side is a pure offset of the local pos, so the lookup and the set
+		// share one computation of it; the branch order is unchanged.
+		side := pos.Side(face)
+		if bl := tx.Block(side); canDisplace(bl, liq) || replaceableWith(bl, liq) {
+			tx.SetLiquid(side, liq)
+		} else {
+			return false
+		}
 	}
 
 	tx.PlaySound(pos.Vec3Centre(), sound.BucketEmpty{Liquid: b.Content.liquid})
@@ -145,7 +150,18 @@ func (b Bucket) fillFrom(pos cube.Pos, tx *world.Tx, ctx *UseContext) bool {
 // EncodeItem ...
 func (b Bucket) EncodeItem() (name string, meta int16) {
 	if !b.Empty() {
-		return "minecraft:" + b.Content.String() + "_bucket", 0
+		// The three vanilla contents return the exact string the
+		// concatenation in the default case builds, without allocating it.
+		switch content := b.Content.String(); content {
+		case "milk":
+			return "minecraft:milk_bucket", 0
+		case "water":
+			return "minecraft:water_bucket", 0
+		case "lava":
+			return "minecraft:lava_bucket", 0
+		default:
+			return "minecraft:" + content + "_bucket", 0
+		}
 	}
 	return "minecraft:bucket", 0
 }

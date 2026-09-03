@@ -208,5 +208,8 @@ func invertColour(c Colour) int16 {
 
 // invertColourID converts the int16 passed the returns the item.Colour inverted.
 func invertColourID(id int16) Colour {
-	return Colours()[uint8(^id&0xf)]
+	// Colours()[i] is Colour{i} for every i in 0..15 and the mask keeps the
+	// index in that range, so the value is built directly instead of through
+	// the 16-element slice.
+	return Colour{colour(uint8(^id & 0xf))}
 }
