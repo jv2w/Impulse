@@ -95,8 +95,12 @@ func (p PinkPetals) EncodeBlock() (string, map[string]any) {
 
 // allPinkPetals ...
 func allPinkPetals() (b []world.Block) {
+	// The direction list is loop invariant and the final count is known, so the slice is presized
+	// and grows without reallocating. The same blocks are appended in the same order.
+	dirs := cube.Directions()
+	b = make([]world.Block, 0, 8*len(dirs))
 	for i := 0; i <= 7; i++ {
-		for _, d := range cube.Directions() {
+		for _, d := range dirs {
 			b = append(b, PinkPetals{AdditionalCount: i, Facing: d})
 		}
 	}

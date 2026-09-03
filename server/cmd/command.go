@@ -202,9 +202,16 @@ func (cmd Command) Params(src Source) [][]ParamInfo {
 		elem := reflect.New(runnable.Type()).Elem()
 		elem.Set(runnable)
 
+		// Presized to the field count so append never grows the slice. It stays
+		// nil when there are no fields, as the append loop left it before.
+		ef := exportedFields(elem)
 		var fields []ParamInfo
-		for _, t := range exportedFields(elem) {
-			field := elem.FieldByName(t.Name)
+		if len(ef) > 0 {
+			fields = make([]ParamInfo, 0, len(ef))
+		}
+		for _, t := range ef {
+			// t.Index is the path FieldByName would have looked up by name.
+			field := elem.FieldByIndex(t.Index)
 			fields = append(fields, ParamInfo{
 				Name:     name(t),
 				Value:    unwrap(field).Interface(),
@@ -247,7 +254,14 @@ func (cmd Command) executeRunnable(v reflect.Value, args string, source Source, 
 	}
 
 	var argFrags []string
-	if args != "" {
+	if args != "" && !strings.ContainsAny(args, "\"\r\n") {
+		// Fast path with the same result as the reader below: without a quote,
+		// a carriage return or a newline in args, a csv.Reader with Comma ' '
+		// reads exactly one record and splits it on every single space, which
+		// is what strings.Split produces. Quotes, quote errors, \r\n
+		// normalisation and the empty-line skip are all excluded by the guard.
+		argFrags = strings.Split(args, " ")
+	} else if args != "" {
 		r := csv.NewReader(strings.NewReader(args))
 		r.Comma, r.LazyQuotes = ' ', true
 		record, err := r.Read()
@@ -266,7 +280,8 @@ func (cmd Command) executeRunnable(v reflect.Value, args string, source Source, 
 	// produce its value.
 	signature := v.Elem()
 	for _, t := range exportedFields(signature) {
-		field := signature.FieldByName(t.Name)
+		// t.Index is the path FieldByName would have looked up by name.
+		field := signature.FieldByIndex(t.Index)
 		parser.currentField = t.Name
 		opt := optional(field)
 
@@ -300,7 +315,8 @@ func parseUsage(commandName string, command reflect.Value) string {
 	parts = append(parts, "/"+commandName)
 
 	for _, t := range exportedFields(command) {
-		field := command.FieldByName(t.Name)
+		// t.Index is the path FieldByName would have looked up by name.
+		field := command.FieldByIndex(t.Index)
 
 		// The field is boxed once and the tag parsed once: neither field nor t
 		// changes in the loop body, so all three calls returned the same value.
@@ -328,7 +344,8 @@ func parseUsage(commandName string, command reflect.Value) string {
 func verifySignature(command reflect.Value) error {
 	optionalField := false
 	for _, t := range exportedFields(command) {
-		field := command.FieldByName(t.Name)
+		// t.Index is the path FieldByName would have looked up by name.
+		field := command.FieldByIndex(t.Index)
 
 		// If the field is not optional, while the last field WAS optional, we return an error, as this is
 		// not parsable in an expected way.
@@ -359,7 +376,10 @@ func exportedFields(command reflect.Value) []reflect.StructField {
 		if !ast.IsExported(t.Name) || name(t) == "-" || t.Anonymous {
 			continue
 		}
-		field := command.FieldByName(t.Name)
+		// reflect.VisibleFields documents that the field for an element e can be
+		// retrieved with FieldByIndex(e.Index), which is what FieldByName does
+		// after resolving the name, so this only drops the name lookup.
+		field := command.FieldByIndex(t.Index)
 		if !field.CanSet() {
 			continue
 		}

@@ -57,7 +57,11 @@ func (p Planks) EncodeBlock() (name string, properties map[string]any) {
 
 // allPlanks returns all planks types.
 func allPlanks() (planks []world.Block) {
-	for _, w := range WoodTypes() {
+	// The final count is known, so the slice is presized and grows without reallocating. The same
+	// blocks are appended in the same order and the slice is still built fresh per call.
+	woods := WoodTypes()
+	planks = make([]world.Block, 0, len(woods))
+	for _, w := range woods {
 		planks = append(planks, Planks{Wood: w})
 	}
 	return

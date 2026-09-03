@@ -29,26 +29,38 @@ func attemptOxidation(pos cube.Pos, tx *world.Tx, r *rand.Rand, o Oxidisable) {
 	}
 
 	var all, higher int
+	// nPos is pos offset by x, y and z, so nPos.X()-pos.X() is exactly x (the same two's complement
+	// result even on overflow) and the distance depends only on the loop counters. That lets the two
+	// outer terms be hoisted and the offset be computed only for positions actually looked up, so
+	// the same tx.Block calls happen on the same positions in the same order. level.Uint8() and
+	// b.OxidationLevel() are read once each instead of twice; both are pure reads of a block value.
+	levelID := level.Uint8()
 	for x := -4; x <= 4; x++ {
+		dx := abs(x)
 		for y := -4; y <= 4; y++ {
+			dxy := dx + abs(y)
+			if dxy > 4 {
+				// Every z here would exceed the distance of 4 and be skipped anyway.
+				continue
+			}
 			for z := -4; z <= 4; z++ {
 				if x == 0 && y == 0 && z == 0 {
 					continue
 				}
-				nPos := pos.Add(cube.Pos{x, y, z})
-				dist := abs(nPos.X()-pos.X()) + abs(nPos.Y()-pos.Y()) + abs(nPos.Z()-pos.Z())
-				if dist > 4 {
+				if dxy+abs(z) > 4 {
 					continue
 				}
 
-				b, ok := tx.Block(nPos).(Oxidisable)
+				b, ok := tx.Block(pos.Add(cube.Pos{x, y, z})).(Oxidisable)
 				if !ok || !b.CanOxidate() {
 					continue
-				} else if b.OxidationLevel().Uint8() < level.Uint8() {
+				}
+				bLevel := b.OxidationLevel().Uint8()
+				if bLevel < levelID {
 					return
 				}
 				all++
-				if b.OxidationLevel().Uint8() > level.Uint8() {
+				if bLevel > levelID {
 					higher++
 				}
 			}
