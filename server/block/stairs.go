@@ -104,14 +104,19 @@ func (Stairs) CanRedstoneWireStepDown(cube.Pos, cube.Pos, *world.Tx) bool {
 
 // allStairs returns all states of stairs.
 func allStairs() (stairs []world.Block) {
-	f := func(facing cube.Direction, upsideDown bool) {
-		for _, s := range StairsBlocks() {
-			stairs = append(stairs, Stairs{Facing: facing, UpsideDown: upsideDown, Block: s})
-		}
-	}
+	// The helper is spelled out, which drops the closure that captured stairs and calls
+	// StairsBlocks() once instead of eight times, each of which built a fresh list. The final count
+	// is known so the slice is presized. The same blocks are appended in the same order: for every
+	// facing, the upside down variants first and then the upright ones.
+	blocks := StairsBlocks()
+	stairs = make([]world.Block, 0, 8*len(blocks))
 	for i := cube.Direction(0); i <= 3; i++ {
-		f(i, true)
-		f(i, false)
+		for _, s := range blocks {
+			stairs = append(stairs, Stairs{Facing: i, UpsideDown: true, Block: s})
+		}
+		for _, s := range blocks {
+			stairs = append(stairs, Stairs{Facing: i, UpsideDown: false, Block: s})
+		}
 	}
 	return
 }

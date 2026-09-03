@@ -73,6 +73,8 @@ func (s String) EncodeBlock() (name string, properties map[string]any) {
 
 // allString ...
 func allString() (blocks []world.Block) {
+	// The final count is known, so the slice is presized and grows without reallocating.
+	blocks = make([]world.Block, 0, 16)
 	for meta := 0; meta < 16; meta++ {
 		blocks = append(blocks, String{
 			Powered:   meta&0x1 != 0,

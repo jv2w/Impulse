@@ -43,7 +43,11 @@ func (s StoneBricks) EncodeBlock() (string, map[string]any) {
 
 // allStoneBricks returns a list of all stoneBricks block variants.
 func allStoneBricks() (s []world.Block) {
-	for _, t := range StoneBricksTypes() {
+	// The final count is known, so the slice is presized and grows without reallocating. The same
+	// blocks are appended in the same order into a slice still built fresh per call.
+	types := StoneBricksTypes()
+	s = make([]world.Block, 0, len(types))
+	for _, t := range types {
 		s = append(s, StoneBricks{Type: t})
 	}
 	return

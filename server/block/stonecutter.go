@@ -59,7 +59,11 @@ func (s Stonecutter) EncodeBlock() (name string, properties map[string]any) {
 
 // allStonecutters ...
 func allStonecutters() (stonecutters []world.Block) {
-	for _, d := range cube.Directions() {
+	// The final count is known, so the slice is presized and grows without reallocating. The same
+	// blocks are appended in the same order into a slice still built fresh per call.
+	dirs := cube.Directions()
+	stonecutters = make([]world.Block, 0, len(dirs))
+	for _, d := range dirs {
 		stonecutters = append(stonecutters, Stonecutter{Facing: d})
 	}
 	return

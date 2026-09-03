@@ -35,14 +35,13 @@ func encodeStairsBlock(block world.Block) string {
 		return "stone"
 	case Copper:
 		if block.Type == CutCopper() {
-			name := "cut_copper"
-			if block.Oxidation != UnoxidisedOxidation() {
-				name = block.Oxidation.String() + "_" + name
+			// The table holds the name the joins produced for every oxidation and waxed state, so
+			// the string is the same one without allocating. An oxidation outside the table falls
+			// back to the joins and panics in String exactly as it did before.
+			if name, ok := cutCopperStairsNames[cutCopperKey{block.Oxidation, block.Waxed}]; ok {
+				return name
 			}
-			if block.Waxed {
-				name = "waxed_" + name
-			}
-			return name
+			return cutCopperStairsName(block.Oxidation, block.Waxed)
 		}
 	case Deepslate:
 		if block.Type == CobbledDeepslate() {
@@ -149,9 +148,39 @@ func encodeStairsBlock(block world.Block) string {
 	panic("invalid block used for stairs")
 }
 
+// cutCopperStairsName gives the encoded name of cut copper stairs, joining
+// exactly the strings encodeStairsBlock used to join inline.
+func cutCopperStairsName(oxidation OxidationType, waxed bool) string {
+	name := "cut_copper"
+	if oxidation != UnoxidisedOxidation() {
+		name = oxidation.String() + "_" + name
+	}
+	if waxed {
+		name = "waxed_" + name
+	}
+	return name
+}
+
+// cutCopperStairsNames holds cutCopperStairsName for every oxidation and waxed
+// state, so those joins run once at start instead of on every encode.
+var cutCopperStairsNames = func() map[cutCopperKey]string {
+	oxidations := OxidationTypes()
+	m := make(map[cutCopperKey]string, len(oxidations)*2)
+	for _, o := range oxidations {
+		m[cutCopperKey{o, false}] = cutCopperStairsName(o, false)
+		m[cutCopperKey{o, true}] = cutCopperStairsName(o, true)
+	}
+	return m
+}()
+
 // StairsBlocks returns a list of all possible blocks for stairs.
 func StairsBlocks() []world.Block {
-	b := []world.Block{
+	// The fixed list below holds 37 blocks and the loops add one per prismarine type, two per
+	// sandstone type, one per wood type and two per oxidation, so the whole list is built in one
+	// presized slice instead of growing. The same blocks are appended in the same order, and the
+	// count only sizes the buffer, so a stale number would cost one regrow and nothing else.
+	prismarines, sandstones, woods, oxidations := PrismarineTypes(), SandstoneTypes(), WoodTypes(), OxidationTypes()
+	b := append(make([]world.Block, 0, 37+len(prismarines)+2*len(sandstones)+len(woods)+2*len(oxidations)),
 		Andesite{Polished: true},
 		Andesite{},
 		BambooMosaic{},
@@ -189,20 +218,20 @@ func StairsBlocks() []world.Block {
 		SulfurBricks{},
 		Tuff{},
 		TuffBricks{},
-	}
-	for _, p := range PrismarineTypes() {
+	)
+	for _, p := range prismarines {
 		b = append(b, Prismarine{Type: p})
 	}
-	for _, s := range SandstoneTypes() {
+	for _, s := range sandstones {
 		if s != CutSandstone() && s != ChiseledSandstone() {
 			b = append(b, Sandstone{Type: s})
 			b = append(b, Sandstone{Type: s, Red: true})
 		}
 	}
-	for _, w := range WoodTypes() {
+	for _, w := range woods {
 		b = append(b, Planks{Wood: w})
 	}
-	for _, o := range OxidationTypes() {
+	for _, o := range oxidations {
 		b = append(b, Copper{Type: CutCopper(), Oxidation: o})
 		b = append(b, Copper{Type: CutCopper(), Oxidation: o, Waxed: true})
 	}
