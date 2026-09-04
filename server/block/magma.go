@@ -23,7 +23,7 @@ func (Magma) EntityStepOn(_ cube.Pos, _ *world.Tx, e world.Entity) {
 	if fireProof, ok := e.(interface{ FireProof() bool }); ok && fireProof.FireProof() {
 		return
 	}
-	// TODO: Check for Frost Walker once the enchantment is implemented in Dragonfly.
+	// TODO: Check for Frost Walker once the enchantment is implemented in Impulse.
 	if sneaking, ok := e.(interface{ Sneaking() bool }); ok && sneaking.Sneaking() {
 		return
 	}

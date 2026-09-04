@@ -101,7 +101,7 @@ func Colours() []Colour {
 type colour uint8
 
 // RGBA returns the colour as RGBA. The alpha channel is always set to the maximum value. Colour values as returned here
-// were obtained by placing signs in a world with all possible dyes used on them. The world was then loaded in Dragonfly
+// were obtained by placing signs in a world with all possible dyes used on them. The world was then loaded again
 // to read their respective colours.
 func (c colour) RGBA() color.RGBA {
 	switch c {

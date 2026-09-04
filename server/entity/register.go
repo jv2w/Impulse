@@ -8,7 +8,7 @@ import (
 )
 
 // DefaultRegistry is a world.EntityRegistry that registers all default entities
-// implemented by Dragonfly.
+// implemented by Impulse.
 var DefaultRegistry = conf.New([]world.EntityType{
 	AreaEffectCloudType,
 	ArrowType,

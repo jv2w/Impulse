@@ -17,8 +17,8 @@ func buildManifest(dir string, headerUUID, moduleUUID uuid.UUID) {
 	m, err := json.Marshal(resource.Manifest{
 		FormatVersion: 2,
 		Header: resource.Header{
-			Name:               "dragonfly auto-generated resource pack",
-			Description:        "This resource pack contains auto-generated content from dragonfly",
+			Name:               "impulse auto-generated resource pack",
+			Description:        "This resource pack contains auto-generated content from impulse",
 			UUID:               headerUUID,
 			Version:            [3]int{0, 0, 1},
 			MinimumGameVersion: parseVersion(protocol.CurrentVersion),
@@ -26,7 +26,7 @@ func buildManifest(dir string, headerUUID, moduleUUID uuid.UUID) {
 		Modules: []resource.Module{
 			{
 				UUID:        moduleUUID.String(),
-				Description: "This resource pack contains auto-generated content from dragonfly",
+				Description: "This resource pack contains auto-generated content from impulse",
 				Type:        "resources",
 				Version:     [3]int{0, 0, 1},
 			},

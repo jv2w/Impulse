@@ -37,7 +37,7 @@ import (
 	"golang.org/x/text/language"
 )
 
-// Server implements a Dragonfly server. It runs the main server loop and
+// Server implements an Impulse server. It runs the main server loop and
 // handles the connections of players trying to join the server.
 type Server struct {
 	conf Config

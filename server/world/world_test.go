@@ -157,7 +157,7 @@ func (testEntityType) Open(_ *Tx, handle *EntityHandle, data *EntityData) Entity
 }
 
 func (testEntityType) EncodeEntity() string {
-	return "dragonfly:test_entity"
+	return "impulse:test_entity"
 }
 
 func (testEntityType) BBox(Entity) cube.BBox {
@@ -226,7 +226,7 @@ func (blockingOpenType) Open(_ *Tx, handle *EntityHandle, data *EntityData) Enti
 	return &testEntity{handle: handle, data: data}
 }
 
-func (blockingOpenType) EncodeEntity() string { return "dragonfly:blocking_open" }
+func (blockingOpenType) EncodeEntity() string { return "impulse:blocking_open" }
 
 func (blockingOpenType) BBox(Entity) cube.BBox { return cube.BBox{} }
 
@@ -235,7 +235,7 @@ func (blockingOpenType) DecodeNBT(map[string]any, *EntityData) {}
 func (blockingOpenType) EncodeNBT(*EntityData) map[string]any { return nil }
 
 func (*testTickerBlock) EncodeBlock() (string, map[string]any) {
-	return "dragonfly:test_ticker", nil
+	return "impulse:test_ticker", nil
 }
 
 func (*testTickerBlock) Hash() (uint64, uint64) {

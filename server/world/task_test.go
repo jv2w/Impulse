@@ -324,7 +324,7 @@ func (closeSchedulingEntityType) Open(_ *Tx, handle *EntityHandle, data *EntityD
 	return closeSchedulingEntity{h: handle, onClose: onClose}
 }
 
-func (closeSchedulingEntityType) EncodeEntity() string { return "dragonfly:close_scheduling_entity" }
+func (closeSchedulingEntityType) EncodeEntity() string { return "impulse:close_scheduling_entity" }
 
 func (closeSchedulingEntityType) BBox(Entity) cube.BBox { return cube.BBox{} }
 
@@ -358,7 +358,7 @@ func (taskTestEntityType) Open(tx *Tx, handle *EntityHandle, _ *EntityData) Enti
 	return taskTestEntity{h: handle, tx: tx}
 }
 
-func (taskTestEntityType) EncodeEntity() string { return "dragonfly:test_entity" }
+func (taskTestEntityType) EncodeEntity() string { return "impulse:test_entity" }
 
 func (taskTestEntityType) BBox(Entity) cube.BBox { return cube.BBox{} }
 

@@ -16,7 +16,7 @@ var packIcon []byte
 // It creates a UUID based on the hash of the directory so the client will only be prompted to download it
 // once it is changed.
 func BuildResourcePack(reg world.BlockRegistry) (*resource.Pack, bool) {
-	dir, err := os.MkdirTemp("", "dragonfly_resource_pack-")
+	dir, err := os.MkdirTemp("", "impulse_resource_pack-")
 	if err != nil {
 		panic(err)
 	}

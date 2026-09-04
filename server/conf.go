@@ -48,7 +48,7 @@ type Config struct {
 	// join without first downloading and applying the Resources above.
 	ResourcesRequired bool
 	// DisableResourceBuilding specifies if automatic resource pack building for
-	// custom items should be disabled. Dragonfly, by default, automatically
+	// custom items should be disabled. Impulse, by default, automatically
 	// produces a resource pack for custom items. If this is not desired (for
 	// example if a resource pack already exists), this can be set to false.
 	DisableResourceBuilding bool
@@ -235,7 +235,7 @@ func (conf Config) New() *Server {
 	return srv
 }
 
-// UserConfig is the user configuration for a Dragonfly server. It holds
+// UserConfig is the user configuration for an Impulse server. It holds
 // settings that affect different aspects of the server, such as its name and
 // maximum players. UserConfig may be serialised and can be converted to a
 // Config by calling UserConfig.Config().

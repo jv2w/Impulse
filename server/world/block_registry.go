@@ -14,7 +14,7 @@ import (
 	"github.com/segmentio/fasthash/fnv1"
 )
 
-// DefaultBlockRegistry is the default (vanilla) block registry used by Dragonfly when no custom registry is provided.
+// DefaultBlockRegistry is the default (vanilla) block registry used by Impulse when no custom registry is provided.
 //
 // The registry is populated during package init (block states + block implementations) and is finalized on first use
 // by `server.Config.New()`, `world.Config.New()`, or `mcdb.Config.Open()`. Callers that need custom blocks should
@@ -59,7 +59,7 @@ type BlockRegistry interface {
 	Finalize()
 	// BitSize returns the number of bits used by BlockHash (depends on the number of registered blocks).
 	BitSize() int
-	// BlockHash returns a unique identifier of the block including the block states. The hash is internal to Dragonfly
+	// BlockHash returns a unique identifier of the block including the block states. The hash is internal to Impulse
 	// and is used for fast map lookups; it does not need to match any in-game identifiers.
 	BlockHash(b Block) uint64
 	// RuntimeIDToHash resolves a runtime ID to its network block hash.
@@ -111,7 +111,7 @@ func (b blockInfo) getLightFilter() uint8 {
 	return uint8((b >> 12) & 0xF)
 }
 
-// BasicBlockRegistry is the default BlockRegistry implementation used by Dragonfly.
+// BasicBlockRegistry is the default BlockRegistry implementation used by Impulse.
 type BasicBlockRegistry struct {
 	mu sync.Mutex
 

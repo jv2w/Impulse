@@ -9,7 +9,7 @@ import (
 //go:generate go run ../../cmd/blockhash -o hash.go .
 //go:generate go run ../../cmd/blockaccessor -o accessor.go .
 
-// init registers all blocks implemented by Dragonfly.
+// init registers all blocks implemented by Impulse.
 func init() {
 	world.RegisterBlock(Air{})
 	world.RegisterBlock(Amethyst{})
