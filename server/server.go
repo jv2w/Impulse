@@ -288,6 +288,11 @@ func (srv *Server) Player(uuid uuid.UUID) (*world.EntityHandle, bool) {
 // found, the entity handle is returned and the bool returned holds a true
 // value. If not, the bool is false and the handle is nil
 func (srv *Server) PlayerByName(name string) (*world.EntityHandle, bool) {
+	// Server.p is walked rather than indexed, and a walk racing a writer is a
+	// concurrent map iteration and map write: a fatal runtime error that no
+	// recover reaches. A player joining or leaving is enough to cause it.
+	srv.pmu.RLock()
+	defer srv.pmu.RUnlock()
 	if p, ok := sliceutil.SearchValue(slices.Collect(maps.Values(srv.p)), func(p *onlinePlayer) bool {
 		return p.name == name
 	}); ok {
@@ -300,6 +305,9 @@ func (srv *Server) PlayerByName(name string) (*world.EntityHandle, bool) {
 // found, the entity handle is returned and the bool returned is true. If no
 // player with the XUID was found, nil and false are returned.
 func (srv *Server) PlayerByXUID(xuid string) (*world.EntityHandle, bool) {
+	// Held for the same reason as in PlayerByName above.
+	srv.pmu.RLock()
+	defer srv.pmu.RUnlock()
 	if p, ok := sliceutil.SearchValue(slices.Collect(maps.Values(srv.p)), func(p *onlinePlayer) bool {
 		return p.xuid == xuid
 	}); ok {

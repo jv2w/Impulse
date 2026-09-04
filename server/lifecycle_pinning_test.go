@@ -190,34 +190,43 @@ func TestCloseLogsItsShutdownOrder(t *testing.T) {
 	}
 }
 
-// PINNED BUG: PlayerByName and PlayerByXUID read Server.p without taking
-// Server.pmu (server.go:279 and server.go:291), while every other reader of the
-// map takes at least a read lock. The lock is held here, so a call that
-// returned is a call that never asked for it. Fixing the bug makes these two
-// calls block, which turns this test red on purpose.
-func TestPlayerLookupsByNameAndXUIDSkipTheLock(t *testing.T) {
+// PlayerByName and PlayerByXUID walk the whole map rather than indexing it, so
+// they are the two readers that a writer resizing the map underneath would take
+// the process down with. They wait for the writer like every other reader.
+func TestNameAndXUIDLookupsWaitForWriters(t *testing.T) {
 	srv := newServer(t, Config{})
 	id := uuid.New()
 	srv.p[id] = &onlinePlayer{name: "Steve", xuid: "2535000000000000"}
 
 	srv.pmu.Lock()
-	unlocked := make(chan string, 2)
+	done := make(chan string, 2)
 	go func() {
 		srv.PlayerByName("Steve")
-		unlocked <- "PlayerByName"
+		done <- "PlayerByName"
 	}()
 	go func() {
 		srv.PlayerByXUID("2535000000000000")
-		unlocked <- "PlayerByXUID"
+		done <- "PlayerByXUID"
 	}()
-	for i := 0; i < 2; i++ {
-		select {
-		case <-unlocked:
-		case <-time.After(5 * time.Second):
-			t.Fatal("a lookup blocked on pmu; the missing lock was added, update this pin")
-		}
+	// The lock is released before anything is reported: t.Fatalf runs
+	// runtime.Goexit, and the cleanup newServer installed closes the Server,
+	// which takes pmu itself.
+	early := ""
+	select {
+	case early = <-done:
+	case <-time.After(100 * time.Millisecond):
 	}
 	srv.pmu.Unlock()
+	if early != "" {
+		t.Fatalf("%v ran while the write lock was held", early)
+	}
+	for i := 0; i < 2; i++ {
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+			t.Fatal("a lookup never woke up after the writer released pmu")
+		}
+	}
 }
 
 // The lookups that do take the lock block while a writer holds it, which is
@@ -283,6 +292,8 @@ func TestPlayerMapUnderConcurrentAccess(t *testing.T) {
 					return
 				}
 				srv.Player(ids[r%writers][i])
+				srv.PlayerByName(ids[r%writers][i].String())
+				srv.PlayerByXUID(ids[r%writers][i].String())
 				srv.MaxPlayerCount()
 				for range srv.Players(nil) {
 				}
