@@ -11,7 +11,7 @@ import (
 )
 
 // This file pins the current behaviour of Armour. Several of the behaviours
-// pinned here are defects; they are marked with PINNED BUG and are pinned
+// pinned here are defects; they carry a marker of that kind and are pinned
 // as-is so that a change to them shows up as a failing test rather than as a
 // silent behaviour change.
 

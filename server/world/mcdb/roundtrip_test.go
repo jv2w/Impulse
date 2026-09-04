@@ -539,7 +539,7 @@ func TestRoundTripScheduledUpdates(t *testing.T) {
 	}
 }
 
-// TestColumnTickLostWithoutScheduledUpdates is a PINNED BUG. Column.Tick lives inside the
+// PINNED BUG: Column.Tick lives inside the
 // keyPendingScheduledTicks value, and storeScheduledUpdates deletes that key outright when there is nothing
 // scheduled. A column with no pending ticks therefore comes back with Tick 0 no matter what was stored.
 func TestColumnTickLostWithoutScheduledUpdates(t *testing.T) {
@@ -553,7 +553,7 @@ func TestColumnTickLostWithoutScheduledUpdates(t *testing.T) {
 	}
 }
 
-// TestColumnTickTruncatedToInt32 is a PINNED BUG. Column.Tick is an int64 but scheduledUpdates.CurrentTick is
+// PINNED BUG: Column.Tick is an int64 but scheduledUpdates.CurrentTick is
 // an int32, so any tick above 2^31-1 is silently truncated on store.
 func TestColumnTickTruncatedToInt32(t *testing.T) {
 	db := newDB(t)
@@ -773,7 +773,7 @@ func TestStoreColumnKeepsEntitiesThatStay(t *testing.T) {
 	}
 }
 
-// TestStoreColumnMutatesCallerData is a PINNED BUG. storeEntities and storeBlockEntities write into the maps
+// PINNED BUG: storeEntities and storeBlockEntities write into the maps
 // the caller handed over instead of copying them, so StoreColumn is not a read-only operation on its argument.
 func TestStoreColumnMutatesCallerData(t *testing.T) {
 	db := newDB(t)

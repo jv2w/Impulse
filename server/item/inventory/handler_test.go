@@ -14,7 +14,7 @@ import (
 
 // This file pins the behaviour of handler.go together with (*Inventory).Handle
 // and (*Inventory).Handler. It records what the code does today, including
-// where that looks wrong; every such spot carries a PINNED BUG marker.
+// where that looks wrong; every such spot carries a defect marker.
 
 // hdlHolder is a comparable stand-in for the player that normally ends up in a
 // Context. Holder is an empty interface, so any type works.

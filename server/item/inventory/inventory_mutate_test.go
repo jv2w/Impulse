@@ -13,7 +13,7 @@ import (
 // ContainsItemFunc, Swap, Clear, Merge, Empty, First, FirstFunc and FirstEmpty.
 //
 // These are behaviour-pinning tests. The current code is the specification.
-// Where the pinned behaviour is a defect, the test carries a PINNED BUG comment
+// Where the pinned behaviour is a defect, the test carries a defect marker
 // and asserts the defect, so that a redesign has to acknowledge the change
 // rather than silently alter it.
 //

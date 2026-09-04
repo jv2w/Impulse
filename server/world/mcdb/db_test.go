@@ -136,7 +136,7 @@ func writeLevelDat(t *testing.T, dir string, ver int32) {
 	}
 }
 
-// TestSettingsReturnsTheInternalPointer is a PINNED BUG. Settings hands out the *world.Settings the DB holds,
+// PINNED BUG: Settings hands out the *world.Settings the DB holds,
 // so a caller can change the DB's view of the world by writing to the result. The change is not written to
 // level.dat, because Close marshals leveldat.Data and only SaveSettings copies into that. The two therefore
 // drift apart without any call reporting a problem.
@@ -207,7 +207,7 @@ func TestSaveSettingsRoundTrip(t *testing.T) {
 	}
 }
 
-// TestSaveSettingsDoesNotUpdateSettings is a PINNED BUG. SaveSettings writes into leveldat.Data only, so the
+// PINNED BUG: SaveSettings writes into leveldat.Data only, so the
 // value Settings returns is not refreshed. Passing a different *world.Settings leaves the DB reporting the
 // old one until the world is reopened.
 func TestSaveSettingsDoesNotUpdateSettings(t *testing.T) {
@@ -240,7 +240,7 @@ func TestSetBlockRegistryNilInstallsTheGlobal(t *testing.T) {
 	}
 }
 
-// TestSetBlockRegistryDoesNotReachLoadedChunks is a PINNED BUG. A Chunk keeps the registry it was decoded
+// PINNED BUG: A Chunk keeps the registry it was decoded
 // with, while scheduled updates are encoded with whatever registry the DB holds at store time. Swapping the
 // registry between a load and a store therefore writes the two halves of one column with different runtime ID
 // spaces.

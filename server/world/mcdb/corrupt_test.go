@@ -419,7 +419,7 @@ func TestLoadColumnDanglingEntityReferenceKeepsTheRest(t *testing.T) {
 	}
 }
 
-// TestLoadColumnCorruptEntityNBTKeepsEmptyEntity is a PINNED BUG. A record that fails to decode is logged and
+// PINNED BUG: A record that fails to decode is logged and
 // then appended anyway with an empty Data map, so the entity is silently reduced to its ID. Storing the
 // column back writes that empty map over the record.
 func TestLoadColumnCorruptEntityNBTKeepsEmptyEntity(t *testing.T) {
@@ -533,7 +533,7 @@ func TestLoadColumnCorruptScheduledTicks(t *testing.T) {
 	}
 }
 
-// TestLoadColumnUndecodableScheduledTickBecomesZeroValue is a PINNED BUG. scheduledUpdates allocates the
+// PINNED BUG: scheduledUpdates allocates the
 // result slice up front and only `continue`s when a block state fails to decode, so the failed entry stays in
 // the slice as a zero value: a scheduled update on air at the chunk origin, at tick 0. The failure is invisible
 // to the caller and the fabricated update is written back on the next store.

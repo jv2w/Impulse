@@ -14,7 +14,7 @@ import (
 // the unexported validSlot/check/setItem as they are observable through those.
 //
 // These are behaviour-pinning tests. Where the behaviour is plainly wrong it is
-// still pinned exactly as it is today and flagged with a PINNED BUG comment.
+// still pinned exactly as it is today and flagged with a defect marker.
 
 // coreSizePanic is the value New panics with for a non-positive size.
 const coreSizePanic = "inventory size must be at least 1"

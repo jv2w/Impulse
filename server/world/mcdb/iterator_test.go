@@ -668,7 +668,7 @@ func (h *nextDepthLog) Handle(context.Context, slog.Record) error {
 	return nil
 }
 
-// TestColumnIteratorNextRecursionDepth is a PINNED BUG. Next skips a key by returning iter.Next(), and Go
+// PINNED BUG: Next skips a key by returning iter.Next(), and Go
 // does not eliminate that tail call, so every skipped key costs a stack frame that only unwinds once a column
 // is finally yielded. Within one chunk that is bounded by its 27 keys, but a range filter rejects whole
 // chunks without unwinding, so the depth grows with the number of keys walked rather than with the number of
