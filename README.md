@@ -8,6 +8,9 @@ The hardening covers crashes from untrusted input, irreversible data damage, mem
 per-call allocations on the hot path. Each fix carries a test, and the hot-path changes carry
 benchmarks.
 
+Some tests pin behaviour that is wrong, marked PINNED BUG. A green run means behaviour has not
+drifted, not that it is correct.
+
 ## Requirements
 
 Go 1.26 or later.
