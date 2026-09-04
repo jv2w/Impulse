@@ -636,7 +636,7 @@ func (srv *Server) createWorld(dim world.Dimension, nether, end **world.World) *
 		ChunkLoadWorkers:    srv.conf.ChunkLoadWorkers,
 		Entities:            srv.conf.Entities,
 		Blocks:              srv.conf.Blocks,
-		GameRules:           srv.conf.GameRules,
+		Tuning:              srv.conf.Tuning,
 		PortalDestination: func(dim world.Dimension) *world.World {
 			switch dim {
 			case world.Nether:

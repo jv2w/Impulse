@@ -35,6 +35,14 @@ Impulse is a Minecraft: Bedrock Edition server runtime written in Go. The module
 
 Behavior that must match vanilla is never a target for optimization or simplification. If a result has to change, report before changing it.
 
+**The one exception is `world.Tuning` (`server/world/tuning.go`).** Every field on it exists to switch a vanilla system off, and that is intended, not a defect. The exception is exactly this wide:
+
+- The zero value of `world.Tuning` must leave the World behaving exactly as vanilla does. A toggle changes behavior only when the operator sets it.
+- A new toggle is added to that type and to nothing else. Turning a vanilla system off anywhere outside it is still forbidden.
+- `world.Tuning` is not the Minecraft game rule set. The rules a client knows are `protocol.GameRule` values and are sent separately. Never name a field here after one of them, and never route one of them through this type.
+
+No other part of the tree may cite this exception.
+
 ### 2.3 External input is not trusted
 
 Enforce this **only on paths reachable from external input (client packets, world files, player data)**.

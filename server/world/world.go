@@ -50,9 +50,9 @@ type World struct {
 
 	o sync.Once
 
-	set       *Settings
-	handler   atomic.Pointer[Handler]
-	gameRules gameRules
+	set     *Settings
+	handler atomic.Pointer[Handler]
+	tuning  tuning
 
 	weather
 

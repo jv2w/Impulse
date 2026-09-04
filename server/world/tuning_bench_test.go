@@ -7,7 +7,7 @@ import (
 	"github.com/jv2w/Impulse/server/world/chunk"
 )
 
-// BenchmarkLoadChunkLighting measures what GameRules.FixedLight takes off the
+// BenchmarkLoadChunkLighting measures what Tuning.FixedLight takes off the
 // chunk load path. The vanilla arm runs the flood fill; the fixed arm only hands
 // out the shared light slices. On top of the difference measured here, a fixed
 // light world also skips World.calculateLight, which spreads light over nine
@@ -15,10 +15,10 @@ import (
 func BenchmarkLoadChunkLighting(b *testing.B) {
 	for _, bc := range []struct {
 		name  string
-		rules GameRules
+		rules Tuning
 	}{
-		{name: "vanilla", rules: GameRules{}},
-		{name: "fixed light", rules: GameRules{FixedLight: 15}},
+		{name: "vanilla", rules: Tuning{}},
+		{name: "fixed light", rules: Tuning{FixedLight: 15}},
 	} {
 		b.Run(bc.name, func(b *testing.B) {
 			w := benchLightWorld(b, bc.rules)
@@ -39,12 +39,12 @@ func BenchmarkLoadChunkLighting(b *testing.B) {
 // benchLightWorld returns a World whose generator produces a column with a
 // solid roof and lamps under it, so that both sky and block light have
 // something to propagate through.
-func benchLightWorld(b *testing.B, rules GameRules) *World {
+func benchLightWorld(b *testing.B, rules Tuning) *World {
 	b.Helper()
 
 	registry := NewBlockRegistry()
 	registry.RegisterBlockState(BlockState{Name: "test:game_rule_lamp", Properties: map[string]any{}})
-	registry.RegisterBlock(gameRuleLamp{})
+	registry.RegisterBlock(tuningLamp{})
 	registry.RegisterBlockState(BlockState{Name: "test:game_rule_roof", Properties: map[string]any{}})
 	registry.RegisterBlock(benchRoof{})
 	// Air blocks light in this package unless something says otherwise: no
@@ -56,10 +56,10 @@ func benchLightWorld(b *testing.B, rules GameRules) *World {
 		Synchronous: true,
 		Blocks:      registry,
 		Generator: benchLightGenerator{
-			lamp: registry.BlockRuntimeID(gameRuleLamp{}),
+			lamp: registry.BlockRuntimeID(tuningLamp{}),
 			roof: registry.BlockRuntimeID(benchRoof{}),
 		},
-		GameRules: rules,
+		Tuning: rules,
 	}.New()
 	b.Cleanup(func() { _ = w.Close() })
 	return w
@@ -88,7 +88,7 @@ type benchAir struct{}
 
 func (benchAir) EncodeBlock() (string, map[string]any) { return "minecraft:air", nil }
 func (benchAir) Hash() (uint64, uint64)                { return 1 << 40, 0 }
-func (benchAir) Model() BlockModel                     { return gameRuleLampModel{} }
+func (benchAir) Model() BlockModel                     { return tuningLampModel{} }
 func (benchAir) LightDiffusionLevel() uint8            { return 0 }
 
 // benchRoof is fully opaque and emits nothing.
@@ -96,4 +96,4 @@ type benchRoof struct{}
 
 func (benchRoof) EncodeBlock() (string, map[string]any) { return "test:game_rule_roof", nil }
 func (benchRoof) Hash() (uint64, uint64)                { return 1 << 41, 0 }
-func (benchRoof) Model() BlockModel                     { return gameRuleLampModel{} }
+func (benchRoof) Model() BlockModel                     { return tuningLampModel{} }

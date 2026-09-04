@@ -14,23 +14,23 @@ import (
 // TestHungerRuleGovernsEveryExhaustion pins that the rule cuts food loss off at
 // Player.Exhaust, the one point every source of exhaustion goes through, so no
 // amount of exhaustion from any caller moves the food level.
-func TestHungerRuleGovernsEveryExhaustion(t *testing.T) {
+func TestHungerToggleGovernsEveryExhaustion(t *testing.T) {
 	for _, test := range []struct {
 		name           string
-		rules          world.GameRules
+		rules          world.Tuning
 		wantFood       int
 		wantExhaustion float64
 	}{
-		{name: "unset drains as vanilla", rules: world.GameRules{}, wantFood: 13, wantExhaustion: 0},
+		{name: "unset drains as vanilla", rules: world.Tuning{}, wantFood: 13, wantExhaustion: 0},
 		{
 			name:           "disabled never drains",
-			rules:          world.GameRules{HungerDisabled: true},
+			rules:          world.Tuning{HungerDisabled: true},
 			wantFood:       20,
 			wantExhaustion: 0,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			gameRulePlayer(t, test.rules, func(p *Player) {
+			tuningPlayer(t, test.rules, func(p *Player) {
 				// Twelve exhaustion units: the first five spend the starting
 				// saturation, the remaining seven take food points.
 				for range 12 {
@@ -50,17 +50,17 @@ func TestHungerRuleGovernsEveryExhaustion(t *testing.T) {
 // TestFallDamageRuleGovernsTheDamageOnly pins that the rule drops the damage of
 // a landing without dropping the landing: the block landed on is still told
 // about it, which is what slime blocks, farmland and hay bales react to.
-func TestFallDamageRuleGovernsTheDamageOnly(t *testing.T) {
+func TestFallDamageToggleGovernsTheDamageOnly(t *testing.T) {
 	for _, test := range []struct {
 		name       string
-		rules      world.GameRules
+		rules      world.Tuning
 		wantHealth float64
 	}{
-		{name: "unset hurts as vanilla", rules: world.GameRules{}, wantHealth: 13},
-		{name: "disabled never hurts", rules: world.GameRules{FallDamageDisabled: true}, wantHealth: 20},
+		{name: "unset hurts as vanilla", rules: world.Tuning{}, wantHealth: 13},
+		{name: "disabled never hurts", rules: world.Tuning{FallDamageDisabled: true}, wantHealth: 20},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			gameRulePlayer(t, test.rules, func(p *Player) {
+			tuningPlayer(t, test.rules, func(p *Player) {
 				// Farmland is the EntityLander whose landing is observable
 				// without touching the damage: it trample-reverts to dirt, and
 				// it does so for certain once the fall distance is past 1.5.
@@ -85,17 +85,17 @@ func TestFallDamageRuleGovernsTheDamageOnly(t *testing.T) {
 // TestExperienceOrbRuleStopsTheSpawn pins that the rule keeps the orbs from
 // being created at all, and that the experience they would have carried is
 // destroyed rather than left on the player.
-func TestExperienceOrbRuleStopsTheSpawn(t *testing.T) {
+func TestExperienceOrbToggleStopsTheSpawn(t *testing.T) {
 	for _, test := range []struct {
 		name  string
-		rules world.GameRules
+		rules world.Tuning
 		want  bool
 	}{
-		{name: "unset drops orbs", rules: world.GameRules{}, want: true},
-		{name: "disabled drops none", rules: world.GameRules{ExperienceOrbsDisabled: true}, want: false},
+		{name: "unset drops orbs", rules: world.Tuning{}, want: true},
+		{name: "disabled drops none", rules: world.Tuning{ExperienceOrbsDisabled: true}, want: false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			gameRulePlayer(t, test.rules, func(p *Player) {
+			tuningPlayer(t, test.rules, func(p *Player) {
 				p.SetExperienceLevel(5)
 				p.dropItems()
 
@@ -116,14 +116,14 @@ func TestExperienceOrbRuleStopsTheSpawn(t *testing.T) {
 	}
 }
 
-// gameRulePlayer builds a Player standing on a stone floor in a synchronous
+// tuningPlayer builds a Player standing on a stone floor in a synchronous
 // World with the rules passed, and runs f against it inside the transaction that
 // owns it. The stub fixtures in player_stub_test.go hold a nil *World, which
 // reads every rule as vanilla, so they cannot be used here.
-func gameRulePlayer(t *testing.T, rules world.GameRules, f func(p *Player)) {
+func tuningPlayer(t *testing.T, rules world.Tuning, f func(p *Player)) {
 	t.Helper()
 
-	w := world.Config{Synchronous: true, RandSource: rand.NewPCG(1, 1), GameRules: rules}.New()
+	w := world.Config{Synchronous: true, RandSource: rand.NewPCG(1, 1), Tuning: rules}.New()
 	t.Cleanup(func() { _ = w.Close() })
 
 	// Config.Apply overwrites data.Pos with Config.Position, so the standing

@@ -2,11 +2,17 @@ package world
 
 import "sync/atomic"
 
-// GameRules holds toggles for World behaviour that a server may want to turn
-// off to save the work it costs. The zero value of every field leaves the World
-// behaving exactly as vanilla does, so a GameRules that is not filled in
-// changes nothing.
-type GameRules struct {
+// Tuning holds toggles for World behaviour that a server may want to turn off
+// to save the work it costs. The zero value of every field leaves the World
+// behaving exactly as vanilla does, so a Tuning that is not filled in changes
+// nothing.
+//
+// These are not Minecraft game rules. The vanilla rules a client knows, such as
+// showcoordinates and dodaylightcycle, are sent as protocol.GameRule values and
+// have nothing to do with this type. Every field here turns a vanilla system
+// off, which CLAUDE.md section 2.2 otherwise forbids; that exception is written
+// down there and covers this type alone.
+type Tuning struct {
 	// FixedLight pins the light level reported by Tx.Light and Tx.SkyLight to
 	// its value and skips light calculation entirely for chunks loaded while it
 	// is set. The value is clamped to 0-15, where 0 keeps vanilla lighting.
@@ -35,11 +41,11 @@ type GameRules struct {
 	FallDamageDisabled bool
 }
 
-// gameRules is the form GameRules is stored in on a World. The tick loop, the
-// chunk load workers and any goroutine calling into the World all read these,
-// so each rule is an atomic that its reader loads on its own: a rule that is
-// off costs one load and one predicted branch, and nothing else.
-type gameRules struct {
+// tuning is the form Tuning is stored in on a World. The tick loop, the chunk
+// load workers and any goroutine calling into the World all read these, so each
+// toggle is an atomic that its reader loads on its own: a toggle that is off
+// costs one load and one predicted branch, and nothing else.
+type tuning struct {
 	fixedLight             atomic.Int32
 	explosionsDisabled     atomic.Bool
 	pickupScanPeriod       atomic.Int32
@@ -48,25 +54,25 @@ type gameRules struct {
 	fallDamageDisabled     atomic.Bool
 }
 
-// store writes rules to r, clamping the two numeric rules so that no reader has
+// store writes t to r, clamping the two numeric toggles so that no reader has
 // to check what a caller passed.
-func (r *gameRules) store(rules GameRules) {
-	r.fixedLight.Store(int32(min(max(rules.FixedLight, 0), 15)))
-	r.explosionsDisabled.Store(rules.ExplosionsDisabled)
-	r.pickupScanPeriod.Store(int32(max(rules.PickupScanPeriod, 1)))
-	r.experienceOrbsDisabled.Store(rules.ExperienceOrbsDisabled)
-	r.hungerDisabled.Store(rules.HungerDisabled)
-	r.fallDamageDisabled.Store(rules.FallDamageDisabled)
+func (r *tuning) store(t Tuning) {
+	r.fixedLight.Store(int32(min(max(t.FixedLight, 0), 15)))
+	r.explosionsDisabled.Store(t.ExplosionsDisabled)
+	r.pickupScanPeriod.Store(int32(max(t.PickupScanPeriod, 1)))
+	r.experienceOrbsDisabled.Store(t.ExperienceOrbsDisabled)
+	r.hungerDisabled.Store(t.HungerDisabled)
+	r.fallDamageDisabled.Store(t.FallDamageDisabled)
 }
 
-// GameRules returns the game rules currently set on the World. Each rule is
-// read on its own, so a GameRules returned while another goroutine is calling
-// SetGameRules may hold some of the new rules and some of the old ones.
-func (w *World) GameRules() GameRules {
+// Tuning returns the toggles currently set on the World. Each is read on its
+// own, so a Tuning returned while another goroutine is calling SetTuning may
+// hold some of the new toggles and some of the old ones.
+func (w *World) Tuning() Tuning {
 	if w == nil {
-		return GameRules{}
+		return Tuning{}
 	}
-	return GameRules{
+	return Tuning{
 		FixedLight:             w.FixedLight(),
 		ExplosionsDisabled:     w.ExplosionsDisabled(),
 		PickupScanPeriod:       w.PickupScanPeriod(),
@@ -76,66 +82,66 @@ func (w *World) GameRules() GameRules {
 	}
 }
 
-// SetGameRules replaces all game rules of the World with those passed. Chunks
-// that are already loaded keep the light they were loaded with, so a change to
-// GameRules.FixedLight only reaches chunks loaded after this call.
-func (w *World) SetGameRules(rules GameRules) {
+// SetTuning replaces all toggles of the World with those passed. Chunks that
+// are already loaded keep the light they were loaded with, so a change to
+// Tuning.FixedLight only reaches chunks loaded after this call.
+func (w *World) SetTuning(t Tuning) {
 	if w == nil {
 		return
 	}
-	w.gameRules.store(rules)
+	w.tuning.store(t)
 }
 
-// FixedLight returns the level that GameRules.FixedLight pins light to, or 0 if
+// FixedLight returns the level that Tuning.FixedLight pins light to, or 0 if
 // the World is lit as it is in vanilla.
 func (w *World) FixedLight() int {
 	if w == nil {
 		return 0
 	}
-	return int(w.gameRules.fixedLight.Load())
+	return int(w.tuning.fixedLight.Load())
 }
 
-// ExplosionsDisabled returns whether GameRules.ExplosionsDisabled is set.
+// ExplosionsDisabled returns whether Tuning.ExplosionsDisabled is set.
 func (w *World) ExplosionsDisabled() bool {
 	if w == nil {
 		return false
 	}
-	return w.gameRules.explosionsDisabled.Load()
+	return w.tuning.explosionsDisabled.Load()
 }
 
 // PickupScanPeriod returns the number of ticks between two pickup scans of a
 // dropped item. The value returned is never below 1. The floor is applied here
 // as well as in store because a World that never went through Config.New, such
 // as the placeholder a Server holds until its worlds are created, has never had
-// any rule stored and would otherwise report a period of 0.
+// any toggle stored and would otherwise report a period of 0.
 func (w *World) PickupScanPeriod() int {
 	if w == nil {
 		return 1
 	}
-	return int(max(w.gameRules.pickupScanPeriod.Load(), 1))
+	return int(max(w.tuning.pickupScanPeriod.Load(), 1))
 }
 
-// ExperienceOrbsDisabled returns whether GameRules.ExperienceOrbsDisabled is
+// ExperienceOrbsDisabled returns whether Tuning.ExperienceOrbsDisabled is
 // set.
 func (w *World) ExperienceOrbsDisabled() bool {
 	if w == nil {
 		return false
 	}
-	return w.gameRules.experienceOrbsDisabled.Load()
+	return w.tuning.experienceOrbsDisabled.Load()
 }
 
-// HungerDisabled returns whether GameRules.HungerDisabled is set.
+// HungerDisabled returns whether Tuning.HungerDisabled is set.
 func (w *World) HungerDisabled() bool {
 	if w == nil {
 		return false
 	}
-	return w.gameRules.hungerDisabled.Load()
+	return w.tuning.hungerDisabled.Load()
 }
 
-// FallDamageDisabled returns whether GameRules.FallDamageDisabled is set.
+// FallDamageDisabled returns whether Tuning.FallDamageDisabled is set.
 func (w *World) FallDamageDisabled() bool {
 	if w == nil {
 		return false
 	}
-	return w.gameRules.fallDamageDisabled.Load()
+	return w.tuning.fallDamageDisabled.Load()
 }

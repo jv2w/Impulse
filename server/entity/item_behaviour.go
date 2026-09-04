@@ -66,7 +66,7 @@ type ItemBehaviour struct {
 
 	pickupDelay time.Duration
 	// scanDelay is the number of ticks left before the next nearby scan while
-	// world.GameRules.PickupScanPeriod is above 1.
+	// world.Tuning.PickupScanPeriod is above 1.
 	scanDelay int
 }
 

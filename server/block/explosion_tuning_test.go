@@ -16,7 +16,7 @@ import (
 // below does with the rule left unset, so that the test after it can attribute
 // the absence of all of it to the rule alone.
 func TestExplosionsEnabledIsTheBaseline(t *testing.T) {
-	got := gameRuleExplode(t, world.GameRules{})
+	got := tuningExplode(t, world.Tuning{})
 
 	if got.handlerCalls != 1 {
 		t.Errorf("HandleExplosion calls = %d, want 1", got.handlerCalls)
@@ -37,7 +37,7 @@ func TestExplosionsEnabledIsTheBaseline(t *testing.T) {
 // ray marched and nothing scanned for entities, and no block, entity, sound or
 // particle is touched.
 func TestExplosionsDisabledLeavesEverythingUntouched(t *testing.T) {
-	got := gameRuleExplode(t, world.GameRules{ExplosionsDisabled: true})
+	got := tuningExplode(t, world.Tuning{ExplosionsDisabled: true})
 
 	if got.handlerCalls != 0 {
 		t.Errorf("HandleExplosion calls = %d, want 0", got.handlerCalls)
@@ -53,9 +53,9 @@ func TestExplosionsDisabledLeavesEverythingUntouched(t *testing.T) {
 	}
 }
 
-// gameRuleExplosionResult is everything one explosion of the fixture is
+// tuningExplosionResult is everything one explosion of the fixture is
 // observable through.
-type gameRuleExplosionResult struct {
+type tuningExplosionResult struct {
 	handlerCalls  int
 	entityCalls   int
 	blockSurvived bool
@@ -63,17 +63,17 @@ type gameRuleExplosionResult struct {
 	particles     int
 }
 
-// gameRuleExplode runs a single size 4 explosion at explOrigin in a world with
+// tuningExplode runs a single size 4 explosion at explOrigin in a world with
 // the rules passed, against a stone block and an explodable entity that are both
 // well inside the blast.
-func gameRuleExplode(t *testing.T, rules world.GameRules) gameRuleExplosionResult {
+func tuningExplode(t *testing.T, rules world.Tuning) tuningExplosionResult {
 	t.Helper()
 
 	w := world.Config{
 		Synchronous: true,
 		Entities:    entity.DefaultRegistry,
 		Log:         slog.New(slog.NewTextHandler(io.Discard, nil)),
-		GameRules:   rules,
+		Tuning:      rules,
 	}.New()
 	t.Cleanup(func() { _ = w.Close() })
 
@@ -89,7 +89,7 @@ func gameRuleExplode(t *testing.T, rules world.GameRules) gameRuleExplosionResul
 	typ := explEntityType{box: cube.Box(-0.15, 0, -0.15, 0.15, 0.3, 0.15), rec: rec}
 	stone := explOriginBlock.Side(cube.FaceEast)
 
-	res := gameRuleExplosionResult{}
+	res := tuningExplosionResult{}
 	if err := w.Do(func(tx *world.Tx) {
 		tx.SetBlock(stone, block.Stone{}, nil)
 		tx.AddEntity(world.EntitySpawnOpts{Position: explOrigin.Add(mgl64.Vec3{1, 0, 0})}.New(typ, explEntityConfig{}))
