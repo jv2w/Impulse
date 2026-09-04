@@ -1,4 +1,4 @@
-package main
+package repo
 
 import (
 	"io/fs"
@@ -31,7 +31,7 @@ var storageNames = []string{"dragonflydata", "dragonfly:text"}
 
 // namingTestFile is this file, which spells the rule out and is the one Go file
 // the rule cannot apply to.
-const namingTestFile = "naming_test.go"
+const namingTestFile = "internal/repo/naming_test.go"
 
 // TestGoSourceNamesImpulse fails on any Go file that still calls the project by
 // the upstream name.
@@ -40,7 +40,7 @@ func TestGoSourceNamesImpulse(t *testing.T) {
 		if f == namingTestFile {
 			continue
 		}
-		data, err := os.ReadFile(f)
+		data, err := os.ReadFile(filepath.Join(repoRoot, f))
 		if err != nil {
 			t.Fatalf("read %v: %v", f, err)
 		}
@@ -66,24 +66,30 @@ func namesStorageValue(line string) bool {
 	return false
 }
 
-// goFiles returns every Go file in the tree, slash separated.
+// goFiles returns every Go file in the tree, relative to the repository root
+// and slash separated.
 func goFiles(t *testing.T) []string {
 	t.Helper()
 
 	var files []string
-	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir(repoRoot, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if d.IsDir() {
-			if name := d.Name(); path != "." && strings.HasPrefix(name, ".") {
+			if name := d.Name(); path != repoRoot && strings.HasPrefix(name, ".") {
 				return fs.SkipDir
 			}
 			return nil
 		}
-		if strings.HasSuffix(path, ".go") {
-			files = append(files, filepath.ToSlash(path))
+		if !strings.HasSuffix(path, ".go") {
+			return nil
 		}
+		rel, err := filepath.Rel(repoRoot, path)
+		if err != nil {
+			return err
+		}
+		files = append(files, filepath.ToSlash(rel))
 		return nil
 	})
 	if err != nil {

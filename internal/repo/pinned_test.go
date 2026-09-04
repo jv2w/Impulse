@@ -1,4 +1,7 @@
-package main
+// Package repo holds the checks that are about the repository rather than about
+// any part of the server. It has no non-test files and nothing imports it, so
+// it stays out of the build graph and out of package main.
+package repo
 
 import (
 	"fmt"
@@ -10,6 +13,11 @@ import (
 	"strings"
 	"testing"
 )
+
+// repoRoot is where the walks below start, relative to this package. Every path
+// reported is made relative to it again, so a result reads the same whichever
+// directory the test was run from.
+const repoRoot = "../.."
 
 // indexPath is the checked-in index of every PINNED marker in the tree. It
 // exists because a marker records a known defect in a comment inside a test
@@ -47,7 +55,7 @@ type marker struct {
 // It is what makes the index complete rather than merely long.
 func TestEveryMarkerIsWrittenTheSameWay(t *testing.T) {
 	for _, f := range testFiles(t) {
-		data, err := os.ReadFile(f)
+		data, err := os.ReadFile(filepath.Join(repoRoot, f))
 		if err != nil {
 			t.Fatalf("read %v: %v", f, err)
 		}
@@ -64,7 +72,7 @@ func TestEveryMarkerIsWrittenTheSameWay(t *testing.T) {
 
 // indexTestFile is this file, which names the marker words in its own code and
 // is the one file the rule above cannot apply to.
-const indexTestFile = "pinned_index_test.go"
+const indexTestFile = "internal/repo/pinned_test.go"
 
 // TestPinnedIndexIsCurrent fails when PINNED.md does not list exactly the
 // markers the tree holds.
@@ -86,7 +94,7 @@ func TestPinnedIndexIsCurrent(t *testing.T) {
 	// The index is not a .go file, so git checks it out with the platform's
 	// line endings. The comparison is on the text, not on how it was stored.
 	if strings.ReplaceAll(string(got), "\r\n", "\n") != want {
-		t.Fatalf("%v is out of date. Regenerate it with:\n\t%v=1 go test . -run TestPinnedIndexIsCurrent", indexPath, updateEnv)
+		t.Fatalf("%v is out of date. Regenerate it with:\n\t%v=1 go test ./internal/repo -run TestPinnedIndexIsCurrent", indexPath, updateEnv)
 	}
 }
 
@@ -97,19 +105,24 @@ func testFiles(t *testing.T) []string {
 	t.Helper()
 
 	var files []string
-	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir(repoRoot, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if d.IsDir() {
-			if name := d.Name(); path != "." && strings.HasPrefix(name, ".") {
+			if name := d.Name(); path != repoRoot && strings.HasPrefix(name, ".") {
 				return fs.SkipDir
 			}
 			return nil
 		}
-		if strings.HasSuffix(path, "_test.go") {
-			files = append(files, filepath.ToSlash(path))
+		if !strings.HasSuffix(path, "_test.go") {
+			return nil
 		}
+		rel, err := filepath.Rel(repoRoot, path)
+		if err != nil {
+			return err
+		}
+		files = append(files, filepath.ToSlash(rel))
 		return nil
 	})
 	if err != nil {
@@ -125,7 +138,7 @@ func collectMarkers(t *testing.T) []marker {
 
 	var markers []marker
 	for _, f := range testFiles(t) {
-		data, err := os.ReadFile(f)
+		data, err := os.ReadFile(filepath.Join(repoRoot, f))
 		if err != nil {
 			t.Fatalf("read %v: %v", f, err)
 		}
@@ -207,7 +220,7 @@ func renderIndex(markers []marker) string {
 	b.WriteString("the marker, while a performance change that breaks one is itself the thing that is wrong.\n\n")
 	fmt.Fprintf(&b, "Totals: %d BUG, %d SCOPE, %d CONSTRAINT.\n\n", counts["BUG"], counts["SCOPE"], counts["CONSTRAINT"])
 	b.WriteString("This file is generated. Regenerate it with:\n\n")
-	fmt.Fprintf(&b, "```\n%s=1 go test . -run TestPinnedIndexIsCurrent\n```\n", updateEnv)
+	fmt.Fprintf(&b, "```\n%s=1 go test ./internal/repo -run TestPinnedIndexIsCurrent\n```\n", updateEnv)
 
 	file := ""
 	for _, m := range markers {

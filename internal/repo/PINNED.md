@@ -15,7 +15,7 @@ Totals: 237 BUG, 39 SCOPE, 49 CONSTRAINT.
 This file is generated. Regenerate it with:
 
 ```
-IMPULSE_UPDATE_PINNED=1 go test . -run TestPinnedIndexIsCurrent
+IMPULSE_UPDATE_PINNED=1 go test ./internal/repo -run TestPinnedIndexIsCurrent
 ```
 
 ## server/block/break_info_extra_test.go

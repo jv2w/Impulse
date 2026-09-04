@@ -18,7 +18,7 @@ Impulse is a Minecraft: Bedrock Edition server runtime written in Go. The module
 - `gophertunnel` owns the Bedrock protocol. Never reimplement protocol handling inside this repository.
 - Performance is won by **removing waste on the hot path**, never by splitting tick work across goroutines. Handing blocking I/O to a worker (§3.3) is about not waiting, not about parallelism.
 - Never change a name that is baked into the storage format. The NBT key `dragonflyData` (`server/item/nbt.go`) and the entity identifier `dragonfly:text` (`server/entity/text.go`) are such names. They look like legacy names, but changing them makes existing worlds and items unreadable.
-- **The project is called Impulse, and Go source says so.** The words `dragonfly` and `Dragonfly`, in any case, appear in a `.go` file only on a line that also names one of the two storage values above — that covers the values themselves and the identifiers built on them, such as `writeDragonflyData`. Every other mention is Impulse: doc comments, log messages, user-visible defaults, test fixture identifiers. The code is derived from dragonfly and says so in `LICENSE` and `README.md`, which are not Go source and are not covered. `TestGoSourceNamesImpulse` enforces this; a new mention fails the build rather than being noticed later.
+- **The project is called Impulse, and Go source says so.** The words `dragonfly` and `Dragonfly`, in any case, appear in a `.go` file only on a line that also names one of the two storage values above — that covers the values themselves and the identifiers built on them, such as `writeDragonflyData`. Every other mention is Impulse: doc comments, log messages, user-visible defaults, test fixture identifiers. The code is derived from dragonfly and says so in `LICENSE` and `README.md`, which are not Go source and are not covered. `TestGoSourceNamesImpulse` (`internal/repo`) enforces this; a new mention fails the build rather than being noticed later.
 - The license is MIT. Never delete the existing copyright lines in `LICENSE`.
 
 ---
@@ -150,6 +150,12 @@ A `PINNED` comment in a test deliberately pins **"current behavior"**, not "corr
 // PINNED BUG: <what is wrong>
 // PINNED SCOPE: <a feature that is intentionally absent>
 // PINNED CONSTRAINT: <a limitation of the test environment>
+```
+
+Write one exactly like that, on a line of its own. `internal/repo/PINNED.md` indexes every marker in the tree and is generated; the tests in `internal/repo` reject any other wording and fail when the index is stale. After adding, removing or rewording a marker, regenerate it:
+
+```
+IMPULSE_UPDATE_PINNED=1 go test ./internal/repo -run TestPinnedIndexIsCurrent
 ```
 
 | Task | If a marker breaks |
