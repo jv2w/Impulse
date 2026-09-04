@@ -1,7 +1,7 @@
-// Package repo holds the checks that are about the repository rather than about
-// any part of the server. It has no non-test files and nothing imports it, so
-// it stays out of the build graph and out of package main.
-package repo
+// This file and naming_test.go check the repository itself rather than any part
+// of the server. They live beside the other tests in this package that already
+// pin things no single package owns.
+package server
 
 import (
 	"fmt"
@@ -17,7 +17,7 @@ import (
 // repoRoot is where the walks below start, relative to this package. Every path
 // reported is made relative to it again, so a result reads the same whichever
 // directory the test was run from.
-const repoRoot = "../.."
+const repoRoot = ".."
 
 // indexPath is the checked-in index of every PINNED marker in the tree. It
 // exists because a marker records a known defect in a comment inside a test
@@ -72,7 +72,7 @@ func TestEveryMarkerIsWrittenTheSameWay(t *testing.T) {
 
 // indexTestFile is this file, which names the marker words in its own code and
 // is the one file the rule above cannot apply to.
-const indexTestFile = "internal/repo/pinned_test.go"
+const indexTestFile = "server/pinned_test.go"
 
 // TestPinnedIndexIsCurrent fails when PINNED.md does not list exactly the
 // markers the tree holds.
@@ -94,7 +94,7 @@ func TestPinnedIndexIsCurrent(t *testing.T) {
 	// The index is not a .go file, so git checks it out with the platform's
 	// line endings. The comparison is on the text, not on how it was stored.
 	if strings.ReplaceAll(string(got), "\r\n", "\n") != want {
-		t.Fatalf("%v is out of date. Regenerate it with:\n\t%v=1 go test ./internal/repo -run TestPinnedIndexIsCurrent", indexPath, updateEnv)
+		t.Fatalf("%v is out of date. Regenerate it with:\n\t%v=1 go test ./server -run TestPinnedIndexIsCurrent", indexPath, updateEnv)
 	}
 }
 
@@ -220,7 +220,7 @@ func renderIndex(markers []marker) string {
 	b.WriteString("the marker, while a performance change that breaks one is itself the thing that is wrong.\n\n")
 	fmt.Fprintf(&b, "Totals: %d BUG, %d SCOPE, %d CONSTRAINT.\n\n", counts["BUG"], counts["SCOPE"], counts["CONSTRAINT"])
 	b.WriteString("This file is generated. Regenerate it with:\n\n")
-	fmt.Fprintf(&b, "```\n%s=1 go test ./internal/repo -run TestPinnedIndexIsCurrent\n```\n", updateEnv)
+	fmt.Fprintf(&b, "```\n%s=1 go test ./server -run TestPinnedIndexIsCurrent\n```\n", updateEnv)
 
 	file := ""
 	for _, m := range markers {

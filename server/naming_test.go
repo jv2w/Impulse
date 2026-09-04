@@ -1,4 +1,4 @@
-package repo
+package server
 
 import (
 	"io/fs"
@@ -31,7 +31,7 @@ var storageNames = []string{"dragonflydata", "dragonfly:text"}
 
 // namingTestFile is this file, which spells the rule out and is the one Go file
 // the rule cannot apply to.
-const namingTestFile = "internal/repo/naming_test.go"
+const namingTestFile = "server/naming_test.go"
 
 // TestGoSourceNamesImpulse fails on any Go file that still calls the project by
 // the upstream name.
