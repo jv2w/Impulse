@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sync"
 	"time"
 	_ "unsafe"
 
@@ -182,10 +183,14 @@ func (conf Config) New() *Server {
 		conf.Blocks = world.DefaultBlockRegistry
 	}
 
-	// Initialize the passed block registry and also initialize the default block registry which
-	// is used in some vanilla paths.
-	conf.Blocks.Finalize()
+	// The default registry is finalized first because a composite block hashes
+	// through it: block.Stairs.Hash shifts by world.DefaultBlockRegistry's bit
+	// size, which is 0 until it is finalized, so every stairs variant would
+	// hash alike and finalizing the caller's registry would panic on the
+	// collision. Both are idempotent, so a caller that finalized their own
+	// registry already is unaffected by the order.
 	world.DefaultBlockRegistry.Finalize()
+	conf.Blocks.Finalize()
 
 	if !conf.DisableResourceBuilding {
 		if pack, ok := packbuilder.BuildResourcePack(conf.Blocks); ok {
@@ -213,9 +218,14 @@ func (conf Config) New() *Server {
 		srv.listeners = append(srv.listeners, l)
 	}
 
-	creative_registerCreativeItems()
+	// item/creative and item/recipe are package-global tables that append and
+	// have no way to unregister, so a second Config.New() in the same process
+	// used to ship two of every recipe and creative item to its clients and
+	// scan a doubled table on every lookup. Each table is filled by whichever
+	// Config.New() reaches it first and by no later one.
+	creativeOnce.Do(creative_registerCreativeItems)
 	if !conf.VanillaRecipesDisabled {
-		recipe_registerVanilla()
+		vanillaRecipesOnce.Do(recipe_registerVanilla)
 	}
 
 	srv.world = srv.createWorld(world.Overworld, &srv.nether, &srv.end)
@@ -380,6 +390,13 @@ func DefaultConfig() UserConfig {
 	c.Resources.Required = false
 	return c
 }
+
+// creativeOnce and vanillaRecipesOnce keep the two process-global content
+// tables to a single fill, whichever Config.New() gets there first.
+var (
+	creativeOnce       sync.Once
+	vanillaRecipesOnce sync.Once
+)
 
 // noinspection ALL
 //

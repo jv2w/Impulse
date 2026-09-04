@@ -14,12 +14,12 @@ import (
 // Impulse servers can run in one process.
 //
 // The state Config.New() touches, in the order conf.go touches it:
-//   - world.DefaultBlockRegistry is finalized (conf.go:178), irreversibly, and
-//     also when the caller supplied their own Config.Blocks.
-//   - item/creative's creativeGroups and creativeItemStacks are appended to
-//     (conf.go:203).
-//   - item/recipe's recipes, dynamicRecipes, index and reagent are appended to
-//     (conf.go:204).
+//   - world.DefaultBlockRegistry is finalized, irreversibly, and also when the
+//     caller supplied their own Config.Blocks.
+//   - item/creative's creativeGroups and creativeItemStacks are filled, by the
+//     first Config.New() of the process and by no later one.
+//   - item/recipe's recipes, dynamicRecipes, index and reagent are filled, by
+//     the first Config.New() that does not set VanillaRecipesDisabled.
 //
 // It does not touch world's item registry (world.RegisterItem is reached only
 // from item package inits) nor cmd's command table.
@@ -34,18 +34,15 @@ func TestNothingIsRegisteredBeforeTheFirstServer(t *testing.T) {
 	}
 }
 
-// PINNED BUG: world.NewBlockRegistry() is what Config.Blocks documents as the
-// way to avoid the global registry, and a registry it returns cannot be
-// finalized until world.DefaultBlockRegistry has been finalized first. Composite
-// blocks hash through the global: block.Stairs.Hash (server/block/hash.go:1020)
-// calls world.BlockHash, which shifts by DefaultBlockRegistry's bitSize. While
-// that is still 0, oak and spruce stairs hash to the same value and Finalize
-// panics on the collision.
-//
-// Config.New() finalizes conf.Blocks (conf.go:177) before the default
-// (conf.go:178), so passing a custom registry panics rather than isolating
-// anything. Swapping those two lines is the fix; it is not made here.
-func TestCustomBlockRegistryCannotBeFinalizedFirst(t *testing.T) {
+// PINNED CONSTRAINT: a registry from world.NewBlockRegistry() cannot be
+// finalized by hand until world.DefaultBlockRegistry has been finalized first.
+// Composite blocks hash through the global: block.Stairs.Hash
+// (server/block/hash.go:1020) calls world.BlockHash, which shifts by
+// DefaultBlockRegistry's bitSize. While that is still 0, oak and spruce stairs
+// hash to the same value and Finalize panics on the collision. Config.New()
+// finalizes the default first and is therefore not subject to this; a caller
+// calling Finalize themselves before creating any server still is.
+func TestACustomRegistryCannotBeFinalizedByHandFirst(t *testing.T) {
 	msg, ok := cloneFinalizePanic.(string)
 	if !ok {
 		t.Fatalf("finalizing a fresh world.NewBlockRegistry() did not panic: %v", cloneFinalizePanic)
@@ -54,24 +51,31 @@ func TestCustomBlockRegistryCannotBeFinalizedFirst(t *testing.T) {
 		t.Fatalf("panic = %q, want a Stairs hash collision", msg)
 	}
 
-	msg, ok = customRegistryNewPanic.(string)
-	if !ok {
-		t.Fatalf("Config{Blocks: world.NewBlockRegistry()}.New() did not panic: %v", customRegistryNewPanic)
-	}
-	if !strings.Contains(msg, "already registered by") {
-		t.Fatalf("Config.New panic = %q, want the same collision", msg)
-	}
-
-	// The failed attempt is not a partial start: it panics before any registry
-	// is written to, so the process is still pristine afterwards.
+	// The probe is a panic and nothing else: no registry was written to, so the
+	// process is still pristine afterwards.
 	if gAfterProbes != gPristine {
-		t.Fatalf("globals after the failed New = %+v, want the pristine %+v", gAfterProbes, gPristine)
+		t.Fatalf("globals after the probe = %+v, want the pristine %+v", gAfterProbes, gPristine)
 	}
 
-	// Once the default has been finalized the same call succeeds, which is why
-	// this only ever bites the first server in a process.
+	// Once the default has been finalized the same call succeeds.
 	if cloneAfterFinalizePanic != nil {
 		t.Fatalf("finalizing world.NewBlockRegistry() after the default panicked: %v", cloneAfterFinalizePanic)
+	}
+}
+
+// Config.Blocks is documented as the way to keep a server off the global block
+// registry, so handing one to the first Config.New() of a process has to work.
+// It is the first call that matters, which is why this runs in a process of its
+// own.
+func TestCustomBlockRegistryWorksAsTheFirstServer(t *testing.T) {
+	got := scenario(t, scenarioCustomBlockRegistryFirst)
+	if got["panic"] != "<nil>" {
+		t.Fatalf("Config{Blocks: world.NewBlockRegistry()}.New() panicked with %q", got["panic"])
+	}
+	// Both registries end up finalized and holding the same vanilla air, which
+	// is what says the caller's registry was filled rather than skipped.
+	if got["air"] != "13629" || got["defaultair"] != "13629" {
+		t.Fatalf("air runtime IDs = %q (custom) and %q (default), want 13629 for both", got["air"], got["defaultair"])
 	}
 }
 
@@ -96,51 +100,47 @@ func TestFirstServerRegistersVanillaContentGlobally(t *testing.T) {
 	}
 }
 
-// PINNED BUG: a second Config.New() in the same process re-registers every
-// vanilla recipe and every creative item and group. Nothing deduplicates and
-// nothing can be unregistered, so the second server in a process ships two of
-// everything to its clients and every crafting lookup scans a doubled table.
-func TestSecondServerDoublesEveryRegistry(t *testing.T) {
+// The recipe and creative tables are filled once per process. A second and a
+// third Config.New() find them filled and add nothing, so every server in the
+// process ships one of each and every crafting lookup scans one table.
+func TestLaterServersAddNothingToTheRegistries(t *testing.T) {
 	for _, c := range []struct {
-		name       string
-		first, got int
+		name                 string
+		first, second, third int
 	}{
-		{"recipes", gAfterFirst.recipes, gAfterSecond.recipes},
-		{"dynamic recipes", gAfterFirst.dynamicRecipes, gAfterSecond.dynamicRecipes},
-		{"creative items", gAfterFirst.creativeItems, gAfterSecond.creativeItems},
-		{"creative groups", gAfterFirst.creativeGroups, gAfterSecond.creativeGroups},
+		{"recipes", gAfterFirst.recipes, gAfterSecond.recipes, gAfterRecipesDisabled.recipes},
+		{"dynamic recipes", gAfterFirst.dynamicRecipes, gAfterSecond.dynamicRecipes, gAfterRecipesDisabled.dynamicRecipes},
+		{"creative items", gAfterFirst.creativeItems, gAfterSecond.creativeItems, gAfterRecipesDisabled.creativeItems},
+		{"creative groups", gAfterFirst.creativeGroups, gAfterSecond.creativeGroups, gAfterRecipesDisabled.creativeGroups},
 	} {
-		if c.got != c.first*2 {
-			t.Fatalf("%v after the second New = %v, want %v (exactly doubled)", c.name, c.got, c.first*2)
+		if c.second != c.first {
+			t.Errorf("%v after the second New = %v, want the %v the first left", c.name, c.second, c.first)
+		}
+		if c.third != c.first {
+			t.Errorf("%v after the third New = %v, want the %v the first left", c.name, c.third, c.first)
 		}
 	}
-	if want := (globals{recipes: 5626, dynamicRecipes: 2, creativeItems: 2826, creativeGroups: 246, blocksFinalized: true}); gAfterSecond != want {
-		t.Fatalf("globals after the second Config.New() = %+v, want %+v", gAfterSecond, want)
+	if gAfterSecond != gAfterFirst {
+		t.Fatalf("globals after the second Config.New() = %+v, want the %+v the first left", gAfterSecond, gAfterFirst)
+	}
+	if gAfterRecipesDisabled != gAfterFirst {
+		t.Fatalf("globals after the third Config.New() = %+v, want the %+v the first left", gAfterRecipesDisabled, gAfterFirst)
 	}
 }
 
-// Config.VanillaRecipesDisabled is the one way to keep a Server from adding to
-// a registry, and it reaches exactly one of them: the recipe tables stay where
-// the previous Config.New() left them while the creative registries are written
-// again. The recipe registry is process-wide, which is why this is a Config
-// field rather than one of the per-world world.GameRules.
-func TestVanillaRecipesDisabledRegistersNoRecipes(t *testing.T) {
-	if gAfterRecipesDisabled.recipes != gAfterSecond.recipes {
-		t.Errorf("recipes = %d, want the %d the previous server left",
-			gAfterRecipesDisabled.recipes, gAfterSecond.recipes)
+// Config.VanillaRecipesDisabled is the one way to keep the recipe tables empty,
+// and with the fill kept to one it only bites on the Config.New() that would
+// have done the filling. That is the first one in the process, so this runs in
+// a process of its own. The creative registries are the control: they are
+// written by that same server, so an empty recipe table is the flag working and
+// not a Server that failed to boot.
+func TestVanillaRecipesDisabledOnTheFirstServer(t *testing.T) {
+	got := scenario(t, scenarioVanillaRecipesDisabledFirst)
+	if got["recipes"] != "0" || got["dynamic"] != "0" {
+		t.Errorf("recipes = %q and dynamic recipes = %q, want 0 for both", got["recipes"], got["dynamic"])
 	}
-	if gAfterRecipesDisabled.dynamicRecipes != gAfterSecond.dynamicRecipes {
-		t.Errorf("dynamic recipes = %d, want the %d the previous server left",
-			gAfterRecipesDisabled.dynamicRecipes, gAfterSecond.dynamicRecipes)
-	}
-	// The creative registries are the control: they grow by another server's
-	// worth, so the recipe tables standing still is the rule and not a Server
-	// that failed to boot.
-	if want := gAfterSecond.creativeItems + gAfterFirst.creativeItems; gAfterRecipesDisabled.creativeItems != want {
-		t.Errorf("creative items = %d, want %d", gAfterRecipesDisabled.creativeItems, want)
-	}
-	if want := gAfterSecond.creativeGroups + gAfterFirst.creativeGroups; gAfterRecipesDisabled.creativeGroups != want {
-		t.Errorf("creative groups = %d, want %d", gAfterRecipesDisabled.creativeGroups, want)
+	if got["creativeitems"] != "1413" {
+		t.Errorf("creative items = %q, want the usual 1413", got["creativeitems"])
 	}
 }
 

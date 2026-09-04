@@ -66,9 +66,8 @@ func snapshot() globals {
 var (
 	gPristine, gAfterProbes, gAfterFirst, gAfterSecond, gAfterRecipesDisabled globals
 
-	pristineAirPanic       any
-	cloneFinalizePanic     any
-	customRegistryNewPanic any
+	pristineAirPanic   any
+	cloneFinalizePanic any
 
 	firstServer, secondServer *Server
 	firstNewLog               *logRecording
@@ -101,18 +100,16 @@ func captureGlobals() {
 	pristineAirPanic = caught(func() { world.DefaultBlockRegistry.AirRuntimeID() })
 
 	// 2. A registry from world.NewBlockRegistry() cannot be finalized while the
-	// default one is still unfinalized.
+	// default one is still unfinalized. Config.New() handles this by finalizing
+	// the default first; a caller doing it by hand still cannot. That Config
+	// does handle it needs a process where no server has been created yet, so
+	// it is measured in scenarioCustomBlockRegistryFirst rather than here.
 	cloneFinalizePanic = caught(world.NewBlockRegistry().Finalize)
 
-	// 3. Which is exactly what Config.New() does when it is handed one.
-	customRegistryNewPanic = caught(func() {
-		Config{Log: quiet, Blocks: world.NewBlockRegistry()}.New()
-	})
-
-	// 4. Neither probe left anything behind.
+	// 3. The probe left nothing behind.
 	gAfterProbes = snapshot()
 
-	// 5. The first successful Config.New(). Its log is recorded so that the
+	// 4. The first successful Config.New(). Its log is recorded so that the
 	// order in which it creates the three worlds can be asserted.
 	firstLog, firstRec := recordLog()
 	firstNewLog = firstRec
@@ -127,13 +124,13 @@ func captureGlobals() {
 	finalizeAgainPanic = caught(world.DefaultBlockRegistry.Finalize)
 	cloneAfterFinalizePanic = caught(world.NewBlockRegistry().Finalize)
 
-	// 6. A second Config.New() on the same process. Config.Log is left nil here
+	// 5. A second Config.New() on the same process. Config.Log is left nil here
 	// so that the defaulting to slog.Default() is covered as well.
 	secondServer = Config{}.New()
 	gAfterSecond = snapshot()
 
-	// 7. A third Config.New(), this one with Config.VanillaRecipesDisabled set.
-	// It runs last because it must not shift what steps 5 and 6 recorded.
+	// 6. A third Config.New(), this one with Config.VanillaRecipesDisabled set.
+	// It runs last because it must not shift what steps 4 and 5 recorded.
 	Config{VanillaRecipesDisabled: true}.New()
 	gAfterRecipesDisabled = snapshot()
 }
@@ -219,11 +216,32 @@ func newServer(t *testing.T, conf Config) *Server {
 // key=value lines that the parent asserts on.
 const scenarioEnv = "IMPULSE_PIN_SCENARIO"
 
-const scenarioCreativeGroupShift = "creative-group-shift"
+const (
+	scenarioCreativeGroupShift          = "creative-group-shift"
+	scenarioCustomBlockRegistryFirst    = "custom-block-registry-first"
+	scenarioVanillaRecipesDisabledFirst = "vanilla-recipes-disabled-first"
+)
 
 func runScenario(name string) {
 	slog.SetDefault(quiet)
 	switch name {
+	case scenarioCustomBlockRegistryFirst:
+		// Config.Blocks documents a registry of the caller's own. Handing one
+		// to the very first Config.New() of a process is the case that has to
+		// work, because that is when world.DefaultBlockRegistry is still
+		// unfinalized and the composite block hashes have nothing to shift by.
+		br := world.NewBlockRegistry()
+		fmt.Printf("panic=%v\n", caught(func() { Config{Log: quiet, Blocks: br}.New() }))
+		fmt.Printf("air=%d\n", br.AirRuntimeID())
+		fmt.Printf("defaultair=%d\n", world.DefaultBlockRegistry.AirRuntimeID())
+	case scenarioVanillaRecipesDisabledFirst:
+		// VanillaRecipesDisabled is only ever meaningful on the Config.New()
+		// that would otherwise fill the recipe tables, which after the fill is
+		// kept to one is the first one that asks for them.
+		Config{Log: quiet, VanillaRecipesDisabled: true}.New()
+		fmt.Printf("recipes=%d\n", len(recipe.Recipes()))
+		fmt.Printf("dynamic=%d\n", len(recipe.DynamicRecipes()))
+		fmt.Printf("creativeitems=%d\n", len(creative.Items()))
 	case scenarioCreativeGroupShift:
 		// A single creative group registered before the first Config.New()
 		// takes index 0, so every vanilla group lands one index higher than the
