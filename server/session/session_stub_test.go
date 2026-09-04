@@ -73,7 +73,7 @@ func newStubSession(t *testing.T, conn *stubConn) *Session {
 	s := &Session{
 		conf:            Config{Log: slog.New(slog.DiscardHandler)},
 		conn:            conn,
-		packets:         make(chan packet.Packet, 256),
+		packets:         make(chan packet.Packet, packetBufferSize),
 		closeBackground: make(chan struct{}),
 		handlers:        map[uint32]packetHandler{},
 		blobs:           map[uint64][]byte{},

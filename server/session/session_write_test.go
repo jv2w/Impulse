@@ -1,6 +1,7 @@
 package session
 
 import (
+	"log/slog"
 	"strconv"
 	"testing"
 	"time"
@@ -39,6 +40,46 @@ func TestWritePacketDoesNotBlockOnAFullBuffer(t *testing.T) {
 	}
 	if got := len(s.packets); got != cap(s.packets) {
 		t.Errorf("buffered packets = %d, want the buffer full at %d", got, cap(s.packets))
+	}
+}
+
+// TestWritePacketLogsTheOverflowThatClosedTheSession pins the record of the
+// disconnection. The player is dropped with no reason attached to it, so this
+// line is the only place the cause is written down.
+func TestWritePacketLogsTheOverflowThatClosedTheSession(t *testing.T) {
+	rec := &recordingHandler{}
+	s := newStubSession(t, &stubConn{})
+	s.conf.Log = slog.New(rec)
+
+	for range cap(s.packets) + 8 {
+		s.writePacket(&packet.Text{Message: "x"})
+	}
+
+	_, attrs, ok := rec.find("closing session: packet buffer full")
+	if !ok {
+		t.Fatalf("the overflow was not logged; records: %v", rec.records)
+	}
+	want := map[string]string{
+		"buffered": strconv.Itoa(cap(s.packets)),
+		"capacity": strconv.Itoa(cap(s.packets)),
+		"dropped":  "*packet.Text",
+	}
+	for k, v := range want {
+		if attrs[k] != v {
+			t.Errorf("%v = %q, want %q (all attrs %v)", k, attrs[k], v, attrs)
+		}
+	}
+
+	// Only the first overflow is logged, so a session that keeps being written
+	// to does not fill the log with one line per dropped packet.
+	n := 0
+	for _, r := range rec.records {
+		if r.Message == "closing session: packet buffer full" {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("the overflow was logged %d times, want 1", n)
 	}
 }
 

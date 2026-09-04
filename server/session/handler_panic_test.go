@@ -224,7 +224,7 @@ func benchPacketSession(b *testing.B) (*Session, *world.World) {
 	s := &Session{
 		conf:     Config{Log: slog.New(slog.DiscardHandler)},
 		conn:     &stubConn{},
-		packets:  make(chan packet.Packet, 256),
+		packets:  make(chan packet.Packet, packetBufferSize),
 		handlers: map[uint32]packetHandler{(&packet.Text{}).ID(): nopPacketHandler{}},
 		ent:      handle,
 	}

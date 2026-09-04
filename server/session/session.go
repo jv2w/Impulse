@@ -196,7 +196,7 @@ func (conf Config) New(conn Conn) *Session {
 		openChunkTransactions:  make([]map[uint64]struct{}, 0, 8),
 		closeBackground:        make(chan struct{}),
 		handlers:               map[uint32]packetHandler{},
-		packets:                make(chan packet.Packet, 256),
+		packets:                make(chan packet.Packet, packetBufferSize),
 		entityRuntimeIDs:       map[*world.EntityHandle]uint64{},
 		entities:               map[uint64]*world.EntityHandle{},
 		hiddenEntities:         map[uuid.UUID]struct{}{},
@@ -654,6 +654,12 @@ func (s *Session) registerHandlers() {
 	}
 }
 
+// packetBufferSize is how many packets may be queued for a Session's writer
+// goroutine before writePacket gives up on that session. It is a burst
+// allowance: a client that is merely slow drains it again, while one that has
+// stopped reading fills it and is closed.
+const packetBufferSize = 512
+
 // writePacket writes a packet to the session's connection if it is not Nop.
 func (s *Session) writePacket(pk packet.Packet) {
 	if s == Nop {
@@ -673,6 +679,13 @@ func (s *Session) writePacket(pk packet.Packet) {
 		// The close runs on its own goroutine because Conn.Close flushes the
 		// connection first, which is the write that is already blocked.
 		if s.overflowed.CompareAndSwap(false, true) {
+			// Only the first overflow is logged. The player sees a
+			// disconnection with no reason attached, so this line is the whole
+			// record of why it happened; conf.Log already carries the name,
+			// UUID and remote address of the session.
+			s.conf.Log.Error("closing session: packet buffer full",
+				"buffered", len(s.packets), "capacity", cap(s.packets),
+				"dropped", fmt.Sprintf("%T", pk))
 			go s.CloseConnection()
 		}
 	}
