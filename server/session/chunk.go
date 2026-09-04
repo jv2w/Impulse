@@ -2,7 +2,6 @@ package session
 
 import (
 	"bytes"
-	"slices"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/jv2w/Impulse/server/block/cube"
@@ -67,14 +66,36 @@ func (s *Session) ViewSubChunks(centre world.SubChunkPos, offsets []protocol.Sub
 }
 
 func (s *Session) subChunkEntry(offset protocol.SubChunkOffset, ind int16, col *world.Column, transaction map[uint64]struct{}) protocol.SubChunkEntry {
-	// The height map and the encoded sub chunk are the same for every viewer,
-	// so the Column builds each once and shares it. Both are copied out again
-	// here: a viewer used to be handed a slice built for it alone, and the sub
-	// chunk bytes below outlive this call inside the session's blob map.
-	subMapType, cachedMap := col.NetworkHeightMap(ind)
+	// The height map and the sub chunk below are derived from the chunk's
+	// blocks and built fresh on every call. Neither may be cached on the
+	// Column: world.Column embeds *chunk.Chunk, and chunk.Chunk and its
+	// SubChunks both export block setters, so there is no edit path a cache
+	// could be reliably invalidated from.
+	chunkMap := col.HeightMap()
+	subMapType, subMap := byte(protocol.HeightMapDataHasData), make([]int8, 256)
+	higher, lower := true, true
+	for x := uint8(0); x < 16; x++ {
+		for z := uint8(0); z < 16; z++ {
+			y, i := chunkMap.At(x, z), (uint16(z)<<4)|uint16(x)
+			otherInd := col.SubIndex(y)
+			switch {
+			case otherInd > ind:
+				subMap[i], lower = 16, false
+			case otherInd < ind:
+				subMap[i], higher = -1, false
+			default:
+				subMap[i], lower, higher = int8(y-col.SubY(otherInd)), false, false
+			}
+		}
+	}
+	if higher {
+		subMapType, subMap = protocol.HeightMapDataTooHigh, nil
+	} else if lower {
+		subMapType, subMap = protocol.HeightMapDataTooLow, nil
+	}
 	var subMapData protocol.Optional[[]int8]
-	if cachedMap != nil {
-		subMapData = protocol.Option(slices.Clone(cachedMap))
+	if subMap != nil {
+		subMapData = protocol.Option(subMap)
 	}
 
 	sub := col.Sub()[ind]
@@ -89,12 +110,7 @@ func (s *Session) subChunkEntry(offset protocol.SubChunkOffset, ind int16, col *
 		}
 	}
 
-	// The copy is exactly sized, like the slice EncodeSubChunk returned, so the
-	// append that builds the payload below still allocates instead of writing
-	// into the spare capacity of a slice other viewers share.
-	cached := col.NetworkSubChunk(ind)
-	serialisedSubChunk := make([]byte, len(cached))
-	copy(serialisedSubChunk, cached)
+	serialisedSubChunk := chunk.EncodeSubChunk(col.Chunk, chunk.NetworkEncoding, int(ind))
 
 	// Most sub-chunks hold no block entity at all. The buffer and the encoder
 	// are built on the first one that lands in this sub-chunk, so that the

@@ -390,3 +390,62 @@ func TestSubChunkEntrySharedBetweenSessions(t *testing.T) {
 		t.Error("both sessions were handed the same height map array")
 	}
 }
+
+// TestSubChunkEntryFollowsAnEditMadeOutsideTheWorld sends a sub-chunk, edits the
+// chunk the way any caller holding the Column can - world.Column embeds
+// *chunk.Chunk, so chunk.Chunk.SetBlock is a method on the Column itself - and
+// sends it again. The second send has to describe the chunk as it is now.
+//
+// The edit here goes through none of the World paths, which is the whole point:
+// a payload cached against a counter those paths maintain is stale from here on
+// and the viewer is sent terrain that no longer exists.
+func TestSubChunkEntryFollowsAnEditMadeOutsideTheWorld(t *testing.T) {
+	s := newStubSession(t, &stubConn{cacheEnabled: false})
+	col, ind := stoneColumn(t)
+
+	first := s.subChunkEntry(protocol.SubChunkOffset{}, ind, col, map[uint64]struct{}{})
+	if _, ok := first.RawPayload.Value(); !ok {
+		t.Fatal("the first entry carries no raw payload")
+	}
+
+	col.SetBlock(1, 0, 1, 0, testRegistry(t).BlockRuntimeID(block.Stone{}))
+
+	second := s.subChunkEntry(protocol.SubChunkOffset{}, ind, col, map[uint64]struct{}{})
+	got, ok := second.RawPayload.Value()
+	if !ok {
+		t.Fatal("the second entry carries no raw payload")
+	}
+	if want := chunk.EncodeSubChunk(col.Chunk, chunk.NetworkEncoding, int(ind)); !bytes.Equal(got, want) {
+		t.Fatalf("payload after the edit = %v, want the chunk as it is now %v", got, want)
+	}
+}
+
+// TestSubChunkEntryHeightMapFollowsAnEditMadeOutsideTheWorld is the same for the
+// height map, which is derived from the same blocks and was cached beside them.
+func TestSubChunkEntryHeightMapFollowsAnEditMadeOutsideTheWorld(t *testing.T) {
+	s := newStubSession(t, &stubConn{cacheEnabled: false})
+	col, ind := stoneColumn(t)
+
+	first := s.subChunkEntry(protocol.SubChunkOffset{}, ind, col, map[uint64]struct{}{})
+	before, ok := first.HeightMapData.Value()
+	if !ok {
+		t.Fatal("the first entry carries no height map")
+	}
+	// The map holds the height of the first free space, so the single stone
+	// stoneColumn placed at y=0 reads as 1.
+	if before[0] != 1 {
+		t.Fatalf("height at the stone column = %v, want 1", before[0])
+	}
+
+	// A block two above the one stoneColumn placed lifts that column to 3.
+	col.SetBlock(0, 2, 0, 0, testRegistry(t).BlockRuntimeID(block.Stone{}))
+
+	second := s.subChunkEntry(protocol.SubChunkOffset{}, ind, col, map[uint64]struct{}{})
+	after, ok := second.HeightMapData.Value()
+	if !ok {
+		t.Fatal("the second entry carries no height map")
+	}
+	if after[0] != 3 {
+		t.Fatalf("height at the stone column after the edit = %v, want 3", after[0])
+	}
+}

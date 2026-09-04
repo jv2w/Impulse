@@ -408,7 +408,6 @@ func (tx *Tx) setBlock(pos cube.Pos, b Block, opts *SetOpts) {
 	}
 
 	c.modified = true
-	c.invalidateNetCache()
 	c.SetBlock(x, y, z, 0, rid)
 	if blocks.NBTBlock(rid) {
 		c.BlockEntities[pos] = b
@@ -482,7 +481,6 @@ func (tx *Tx) setBlockEntity(pos cube.Pos, b Block) {
 	}
 	c.BlockEntities[pos] = b
 	c.modified = true
-	c.invalidateNetCache()
 }
 
 // setBiome sets the Biome at the position passed. If a chunk is not yet loaded
@@ -495,7 +493,6 @@ func (tx *Tx) setBiome(pos cube.Pos, b Biome) {
 	}
 	c := tx.chunk(chunkPosFromBlockPos(pos))
 	c.modified = true
-	c.invalidateNetCache()
 	c.SetBiome(uint8(pos[0]), int16(pos[1]), uint8(pos[2]), uint32(b.EncodeBiome()))
 }
 
@@ -583,7 +580,6 @@ func (tx *Tx) buildStructure(pos cube.Pos, s Structure) {
 			}
 			c.SetBlock(0, 0, 0, 0, c.Block(0, 0, 0, 0)) // Make sure the heightmap is recalculated.
 			c.modified = true
-			c.invalidateNetCache()
 
 			// After setting all blocks of the structure within a single chunk,
 			// we show the new chunk to all viewers once.
@@ -669,7 +665,6 @@ func (tx *Tx) setLiquid(pos cube.Pos, b Liquid) {
 		}
 	}
 	c.modified = true
-	c.invalidateNetCache()
 
 	w.doBlockUpdatesAround(pos)
 	w.redstone.invalidateAround(pos, pos, RedstoneUpdateCauseBlockUpdate, r)
@@ -1252,11 +1247,7 @@ func (w *World) save(f func(*Tx, ChunkPos, *Column)) execFunc {
 // saveChunk saves a chunk and its entities to disk after compacting the chunk.
 func (w *World) saveChunk(_ *Tx, pos ChunkPos, c *Column) {
 	if !w.conf.ReadOnly && c.modified {
-		// Compact drops air only storages and shrinks palettes, so a sub chunk
-		// encodes to different bytes after it. The column stays loaded and
-		// viewed across a save, so the cache has to go with it.
 		c.Compact()
-		c.invalidateNetCache()
 		if err := w.conf.Provider.StoreColumn(pos, w.conf.Dim, w.columnTo(c, pos)); err != nil {
 			w.conf.Log.Error("save chunk: "+err.Error(), "X", pos[0], "Z", pos[1])
 		}
@@ -1594,14 +1585,6 @@ func (w *World) closeUnusedChunks(tx *Tx) {
 // viewers and loaders.
 type Column struct {
 	modified bool
-
-	// netCache holds the viewer independent parts of the network payload of
-	// each sub chunk, built on demand. netVersion is the value of the column's
-	// edit counter an entry was built from; invalidateNetCache bumps it. Both
-	// fields are only ever touched on the world goroutine, under the Tx that
-	// owns the Column.
-	netCache   []subChunkNetCache
-	netVersion uint64
 
 	*chunk.Chunk
 	Entities      []*EntityHandle
