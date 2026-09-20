@@ -2,7 +2,6 @@ package session
 
 import (
 	"bytes"
-	"slices"
 	"testing"
 	"time"
 
@@ -383,7 +382,7 @@ func TestSubChunkEntrySharedBetweenSessions(t *testing.T) {
 	if !ok {
 		t.Fatal("the second entry carries no height map")
 	}
-	if !slices.Equal(mapA, mapB) {
+	if mapA != mapB {
 		t.Fatalf("height maps differ between sessions: %v vs %v", mapA, mapB)
 	}
 	if &mapA[0] == &mapB[0] {
@@ -433,19 +432,25 @@ func TestSubChunkEntryHeightMapFollowsAnEditMadeOutsideTheWorld(t *testing.T) {
 	}
 	// The map holds the height of the first free space, so the single stone
 	// stoneColumn placed at y=0 reads as 1.
-	if before[0] != 1 {
-		t.Fatalf("height at the stone column = %v, want 1", before[0])
+	if before[0][0] != 1 {
+		t.Fatalf("height at the stone column = %v, want 1", before[0][0])
 	}
 
 	// A block two above the one stoneColumn placed lifts that column to 3.
 	col.SetBlock(0, 2, 0, 0, testRegistry(t).BlockRuntimeID(block.Stone{}))
+	// An off-axis block pins the map's [z][x] layout: transposed writes would
+	// land this column's height at [2][5] instead of [5][2].
+	col.SetBlock(2, 0, 5, 0, testRegistry(t).BlockRuntimeID(block.Stone{}))
 
 	second := s.subChunkEntry(protocol.SubChunkOffset{}, ind, col, map[uint64]struct{}{})
 	after, ok := second.HeightMapData.Value()
 	if !ok {
 		t.Fatal("the second entry carries no height map")
 	}
-	if after[0] != 3 {
-		t.Fatalf("height at the stone column after the edit = %v, want 3", after[0])
+	if after[0][0] != 3 {
+		t.Fatalf("height at the stone column after the edit = %v, want 3", after[0][0])
+	}
+	if after[5][2] != 1 {
+		t.Fatalf("height at the off-axis column = %v, want 1", after[5][2])
 	}
 }
