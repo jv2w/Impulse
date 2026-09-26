@@ -1,13 +1,11 @@
 package block
 
 import (
-	"fmt"
 	"github.com/go-gl/mathgl/mgl64"
 	"github.com/jv2w/Impulse/server/block/cube"
 	"github.com/jv2w/Impulse/server/block/model"
 	"github.com/jv2w/Impulse/server/item"
 	"github.com/jv2w/Impulse/server/world"
-	"math"
 )
 
 // Wall is a block similar to fences that prevents players from jumping over and is thinner than the usual block. It is
@@ -275,10 +273,6 @@ func allWalls() (walls []world.Block) {
 	n := len(types)
 	walls = make([]world.Block, 0, len(blocks)*n*n*n*n*2)
 	for _, block := range blocks {
-		if _, hash := block.Hash(); hash > math.MaxUint16 {
-			name, _ := block.EncodeBlock()
-			panic(fmt.Errorf("hash of block %s exceeds 16 bytes", name))
-		}
 		for _, north := range types {
 			for _, east := range types {
 				for _, south := range types {
