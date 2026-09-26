@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/sandertv/gophertunnel/minecraft/nbt"
 )
@@ -34,11 +35,23 @@ func ReadFile(name string) (*LevelDat, error) {
 	return Read(bufio.NewReader(f))
 }
 
+// maxLevelDatBytes bounds the NBT payload a level.dat may claim. A real
+// level.dat holds world settings, kilobytes at most: 64MB is orders of
+// magnitude above that while keeping 8 corrupt header bytes from forcing a
+// gigabyte allocation or a negative-length panic on open.
+const maxLevelDatBytes = 1 << 26
+
 // Read reads a level.dat from r and returns it.
 func Read(r io.Reader) (*LevelDat, error) {
 	var ldat LevelDat
 	if err := binary.Read(r, binary.LittleEndian, &ldat.hdr); err != nil {
 		return nil, fmt.Errorf("level.dat: read header: %w", err)
+	}
+	// Which input was the problem: FileLength straight from the file. A
+	// negative value panicked in make, a huge one allocated gigabytes before
+	// the short read below could fail.
+	if ldat.hdr.FileLength < 0 || ldat.hdr.FileLength > maxLevelDatBytes {
+		return nil, fmt.Errorf("level.dat: invalid file length %d", ldat.hdr.FileLength)
 	}
 	ldat.data = make([]byte, ldat.hdr.FileLength)
 	if n, err := io.ReadFull(r, ldat.data); err != nil || int32(n) != ldat.hdr.FileLength {
@@ -91,14 +104,42 @@ func (ld *LevelDat) Write(w io.Writer) error {
 
 // WriteFile writes ld to a file at name.
 func (ld *LevelDat) WriteFile(name string) error {
-	f, err := os.OpenFile(name, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
+	// Which input was the problem: a crash or a failed flush mid-write. The
+	// file was opened with O_TRUNC and flush/close errors were discarded, so
+	// either left a torn level.dat behind and the next open failed on it. The
+	// data is written to a temp file in the same directory, synced to disk
+	// and renamed over the target, so the target is always either the old or
+	// the new level.dat, never a partial one.
+	tmp, err := os.CreateTemp(filepath.Dir(name), ".level.dat.*.tmp")
 	if err != nil {
-		return fmt.Errorf("level.dat: open file: %w", err)
+		return fmt.Errorf("level.dat: create temp file: %w", err)
 	}
-	w := bufio.NewWriter(f)
-	defer func() {
-		_ = w.Flush()
-		_ = f.Close()
-	}()
-	return ld.Write(w)
+	tmpName := tmp.Name()
+	// A failed write below returns before the rename: remove the temp file so
+	// no stray temp accumulates. After a successful rename there is nothing
+	// left to remove, and Remove errors only when the file is already gone.
+	defer func() { _ = os.Remove(tmpName) }()
+	w := bufio.NewWriter(tmp)
+	// The Close errors below are discarded because the write, flush or sync
+	// failure beside each of them is the error reported: closing a file that
+	// failed to write can only repeat that failure.
+	if err := ld.Write(w); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := w.Flush(); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("level.dat: flush file: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("level.dat: sync file: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("level.dat: close file: %w", err)
+	}
+	if err := os.Rename(tmpName, name); err != nil {
+		return fmt.Errorf("level.dat: rename file: %w", err)
+	}
+	return nil
 }
