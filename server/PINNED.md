@@ -10,7 +10,7 @@ A green test run therefore means behaviour has not drifted, not that it is right
 Before fixing one, read CLAUDE.md section 4.3: a defect fix updates the test and deletes
 the marker, while a performance change that breaks one is itself the thing that is wrong.
 
-Totals: 219 BUG, 39 SCOPE, 48 CONSTRAINT.
+Totals: 218 BUG, 39 SCOPE, 48 CONSTRAINT.
 
 This file is generated. Regenerate it with:
 
@@ -147,7 +147,6 @@ IMPULSE_UPDATE_PINNED=1 go test ./server -run TestPinnedIndexIsCurrent
 ## server/config_pinning_test.go
 
 - **BUG** — loadGenerator panics on any dimension that is not one of the three built-in ones, rather than returning an error. It is reachable from Config.New for any caller that...
-- **BUG** — the MkdirAll error is discarded (conf.go:318). When the path cannot be created the failure surfaces as a read error instead, so the caller is told the directory does not...
 - **CONSTRAINT** — DefaultConfig names folders relative to the working directory, and UserConfig.Config creates all three of them as a side effect of being called. A test that converts a...
 - **CONSTRAINT** — a zero UserConfig cannot be converted at all. Its empty Resources.Folder is created as "" and then read, which always fails, so UserConfig{}.Config() is an error path...
 - **CONSTRAINT** — the three worlds are always created in the order overworld, nether, end, and each is logged twice. The wiring below depends on it only through the pointers taken in...

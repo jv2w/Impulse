@@ -297,8 +297,8 @@ func TestZeroUserConfigConversion(t *testing.T) {
 	if err == nil {
 		t.Fatal("UserConfig{}.Config() succeeded; the empty resource folder used to fail")
 	}
-	if !strings.HasPrefix(err.Error(), "load resources: read dir: ") {
-		t.Fatalf("error = %q, want the directory read to be blamed", err)
+	if !strings.HasPrefix(err.Error(), "load resources: create dir: ") {
+		t.Fatalf("error = %q, want the directory creation to be blamed", err)
 	}
 	if !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("error %q does not unwrap to fs.ErrNotExist", err)
@@ -349,9 +349,9 @@ func TestLoadResources(t *testing.T) {
 		t.Fatalf("loadResources did not create the directory: %v", err)
 	}
 
-	// PINNED BUG: the MkdirAll error is discarded (conf.go:318). When the path
-	// cannot be created the failure surfaces as a read error instead, so the
-	// caller is told the directory does not exist rather than why.
+	// A MkdirAll failure is reported as the creation failing, so the caller
+	// learns why the directory is unusable instead of being told it does not
+	// exist.
 	file := filepath.Join(t.TempDir(), "file")
 	if err := os.WriteFile(file, nil, 0666); err != nil {
 		t.Fatal(err)
@@ -360,7 +360,7 @@ func TestLoadResources(t *testing.T) {
 	if err == nil {
 		t.Fatal("loadResources under a regular file produced no error")
 	}
-	if !strings.HasPrefix(err.Error(), "read dir: ") {
-		t.Fatalf("error = %q, want the read to be blamed", err)
+	if !strings.HasPrefix(err.Error(), "create dir: ") {
+		t.Fatalf("error = %q, want the creation to be blamed", err)
 	}
 }

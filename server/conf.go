@@ -400,7 +400,13 @@ func (uc UserConfig) transportListeners() ([]func(Config) (Listener, error), err
 
 // loadResources loads all resource packs found in a directory passed.
 func loadResources(dir string) ([]*resource.Pack, error) {
-	_ = os.MkdirAll(dir, 0777)
+	// Which input was the problem: a dir that cannot be created (under a
+	// regular file, permission denied). The MkdirAll error was discarded, so
+	// the ReadDir failure below blamed the read and the caller was told the
+	// directory does not exist rather than why it is unusable.
+	if err := os.MkdirAll(dir, 0777); err != nil {
+		return nil, fmt.Errorf("create dir: %w", err)
+	}
 
 	resources, err := os.ReadDir(dir)
 	if err != nil {
