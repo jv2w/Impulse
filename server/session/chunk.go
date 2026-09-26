@@ -16,6 +16,29 @@ import (
 // but also solves issues with block entities such as item frames and lecterns as of v1.19.10.
 const subChunkRequests = true
 
+// maxOpenChunkTransactions bounds the chunk transactions awaiting client
+// acknowledgement. A legitimate client holds a handful of in-flight chunk or
+// sub-chunk transactions: 256 is an order of magnitude above that while
+// keeping a client that never acknowledges from growing the list without
+// bound. Eviction drops bookkeeping only: every hash stays in s.blobs until
+// the client answers it, so delivery is unaffected.
+const maxOpenChunkTransactions = 256
+
+// appendChunkTransactionLocked records a chunk transaction, evicting the
+// oldest one when at the cap. The caller must hold s.blobMu.
+func (s *Session) appendChunkTransactionLocked(m map[uint64]struct{}) {
+	if len(s.openChunkTransactions) >= maxOpenChunkTransactions {
+		// Which input was the problem: a client that never sends
+		// ClientCacheBlobStatus. Every LevelChunk and SubChunk reply appended
+		// a transaction nothing would ever resolve, growing the slice without
+		// bound. The evicted slot is nilled so the dropped map is not kept
+		// alive by the backing array.
+		s.openChunkTransactions[0] = nil
+		s.openChunkTransactions = s.openChunkTransactions[1:]
+	}
+	s.openChunkTransactions = append(s.openChunkTransactions, m)
+}
+
 // ViewChunk ...
 func (s *Session) ViewChunk(pos world.ChunkPos, dim world.Dimension, blockEntities map[cube.Pos]world.Block, c *chunk.Chunk) {
 	if !s.conn.ClientCacheEnabled() {
@@ -53,7 +76,7 @@ func (s *Session) ViewSubChunks(centre world.SubChunkPos, offsets []protocol.Sub
 	}
 	if cacheEnabled && len(transaction) > 0 {
 		s.blobMu.Lock()
-		s.openChunkTransactions = append(s.openChunkTransactions, transaction)
+		s.appendChunkTransactionLocked(transaction)
 		s.blobMu.Unlock()
 	}
 	dim, _ := world.DimensionID(tx.World().Dimension())
@@ -223,7 +246,7 @@ func (s *Session) sendBlobHashes(pos world.ChunkPos, dim world.Dimension, c *chu
 		s.sendNetworkChunk(pos, dim, c, blockEntities)
 		return
 	}
-	s.openChunkTransactions = append(s.openChunkTransactions, m)
+	s.appendChunkTransactionLocked(m)
 	for i := range hashes {
 		s.blobs[hashes[i]] = blobs[i]
 	}
