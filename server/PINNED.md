@@ -10,7 +10,7 @@ A green test run therefore means behaviour has not drifted, not that it is right
 Before fixing one, read CLAUDE.md section 4.3: a defect fix updates the test and deletes
 the marker, while a performance change that breaks one is itself the thing that is wrong.
 
-Totals: 223 BUG, 39 SCOPE, 48 CONSTRAINT.
+Totals: 222 BUG, 39 SCOPE, 48 CONSTRAINT.
 
 This file is generated. Regenerate it with:
 
@@ -457,7 +457,6 @@ IMPULSE_UPDATE_PINNED=1 go test ./server -run TestPinnedIndexIsCurrent
 
 ## server/world/biome/biome_test.go
 
-- **BUG** — BiomeDefinitions iterates a Go map, so both the definition order and the interning order of the string list differ from run to run. The packet stays self-consistent...
 - **BUG** — RegisterBiome panics on a duplicate ID. The caller of a registry is exactly the third party that must not be able to take the process down, and "this ID is taken" is a...
 - **SCOPE** — FoliageSnow and ChunkGeneration are never populated. The comment on ChunkGeneration says a server should leave it empty; FoliageSnow has no source in the Biome interface...
 

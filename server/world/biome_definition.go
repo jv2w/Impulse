@@ -2,6 +2,7 @@ package world
 
 import (
 	"encoding/binary"
+	"slices"
 
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 )
@@ -42,8 +43,22 @@ func BiomeDefinitions() ([]protocol.BiomeDefinition, []string) {
 		return index
 	}
 
+	// The definitions are encoded in ID order so that the packet is identical
+	// on every server built from the same code: iterating the registry map
+	// directly would send the same entries in a different order each run.
+	ids := make([]int, 0, len(biomes))
+	for id := range biomes {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+
+	for _, id := range ids {
+		intern(biomes[id].String())
+	}
+
 	encodedBiomes := make([]protocol.BiomeDefinition, 0, len(biomes))
-	for _, b := range biomes {
+	for _, id := range ids {
+		b := biomes[id]
 		nameIndex := intern(b.String())
 
 		tags := b.Tags()
