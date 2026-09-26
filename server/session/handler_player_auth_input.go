@@ -15,6 +15,12 @@ import (
 // PlayerAuthInputHandler handles the PlayerAuthInput packet.
 type PlayerAuthInputHandler struct{}
 
+// maxBlockActions bounds the block actions a single PlayerAuthInput may carry.
+// A legitimate tick carries one or two block interactions: 16 is several
+// times that while keeping the 20Hz movement packet from fanning out to
+// dozens of block mutations per tick per client.
+const maxBlockActions = 16
+
 // Handle ...
 func (h PlayerAuthInputHandler) Handle(p packet.Packet, s *Session, tx *world.Tx, c Controllable) error {
 	pk := p.(*packet.PlayerAuthInput)
@@ -96,6 +102,11 @@ func (h PlayerAuthInputHandler) handleActions(pk *packet.PlayerAuthInput, s *Ses
 		request, ok := pk.ItemStackRequest.Value()
 		if !ok {
 			return fmt.Errorf("item stack request flag set without item stack request")
+		}
+		// Same bounds as the standalone ItemStackRequest packet: the embedded
+		// request runs at movement rate, so an unbounded one stalls twice as fast.
+		if err := validateStackRequest(request); err != nil {
+			return err
 		}
 		s.inTransaction.Store(true)
 		defer s.inTransaction.Store(false)
@@ -189,6 +200,12 @@ func (h PlayerAuthInputHandler) handleUseItemData(data protocol.UseItemTransacti
 
 // handleBlockActions handles a slice of protocol.PlayerBlockAction present in a PlayerAuthInput packet.
 func (h PlayerAuthInputHandler) handleBlockActions(a []protocol.PlayerBlockAction, s *Session, c Controllable) error {
+	// Which input was the problem: the slice was ranged with no length
+	// check, so one 20Hz movement packet fanned out to one full block-action
+	// handling per entry.
+	if len(a) > maxBlockActions {
+		return fmt.Errorf("too many block actions: %d", len(a))
+	}
 	for _, action := range a {
 		if err := handlePlayerAction(action.Action, action.Face, action.BlockPos, selfEntityRuntimeID, s, c); err != nil {
 			return err

@@ -2,6 +2,8 @@ package session
 
 import (
 	"fmt"
+	"unicode/utf8"
+
 	"github.com/jv2w/Impulse/server/block"
 	"github.com/jv2w/Impulse/server/entity"
 	"github.com/jv2w/Impulse/server/event"
@@ -12,6 +14,25 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 	"math"
 	"time"
+)
+
+// maxStackRequests bounds the Requests a single ItemStackRequest packet may
+// carry. A legitimate interaction batches one or two requests: 16 is several
+// times that while keeping one packet from fanning out to hundreds of
+// inventory mutations on the tick path.
+const maxStackRequests = 16
+
+// maxStackActions bounds the Actions a single stack request may carry. A
+// legitimate request carries a handful of Take/Place/Craft steps: 32 is
+// several times that.
+const maxStackActions = 32
+
+// maxFilterStrings bounds the FilterStrings a single stack request may carry,
+// and maxFilterStringLen bounds each string. The anvil rename path persists
+// one string to item NBT, mirroring the 256-byte book signing cap.
+const (
+	maxFilterStrings   = 8
+	maxFilterStringLen = 256
 )
 
 // ItemStackRequestHandler handles the ItemStackRequest packet. It handles the actions done within the
@@ -47,6 +68,18 @@ func (h *ItemStackRequestHandler) Handle(p packet.Packet, s *Session, tx *world.
 	pk := p.(*packet.ItemStackRequest)
 	h.current = time.Now()
 
+	// Which input was the problem: Requests, Actions and FilterStrings were
+	// ranged with no length check, so one packet fanned out to hundreds of
+	// inventory mutations plus unbounded rename strings persisted to NBT.
+	if len(pk.Requests) > maxStackRequests {
+		return fmt.Errorf("too many stack requests: %d", len(pk.Requests))
+	}
+	for _, req := range pk.Requests {
+		if err := validateStackRequest(req); err != nil {
+			return err
+		}
+	}
+
 	s.inTransaction.Store(true)
 	defer s.inTransaction.Store(false)
 
@@ -55,6 +88,27 @@ func (h *ItemStackRequestHandler) Handle(p packet.Packet, s *Session, tx *world.
 			// Item stacks being out of sync isn't uncommon, so don't error. Just debug the error and let the
 			// revert do its work.
 			s.conf.Log.Debug("process packet: ItemStackRequest: resolve item stack request: " + err.Error())
+		}
+	}
+	return nil
+}
+
+// validateStackRequest bounds one ItemStackRequest's Actions and FilterStrings
+// before any inventory mutation runs. It is shared by the packet handler and
+// the PlayerAuthInput embedded-request path, so both reject the same inputs.
+func validateStackRequest(req protocol.ItemStackRequest) error {
+	if len(req.Actions) > maxStackActions {
+		return fmt.Errorf("too many stack actions: %d", len(req.Actions))
+	}
+	if len(req.FilterStrings) > maxFilterStrings {
+		return fmt.Errorf("too many filter strings: %d", len(req.FilterStrings))
+	}
+	for _, fs := range req.FilterStrings {
+		if len(fs) > maxFilterStringLen {
+			return fmt.Errorf("filter string can not be longer than 256 bytes")
+		}
+		if !utf8.ValidString(fs) {
+			return fmt.Errorf("filter string must be valid utf8")
 		}
 	}
 	return nil
