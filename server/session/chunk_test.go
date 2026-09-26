@@ -39,28 +39,40 @@ func TestDimensionID(t *testing.T) {
 	s := newStubSession(t, nil)
 
 	tests := []struct {
-		name string
-		dim  world.Dimension
-		want int32
+		name   string
+		dim    world.Dimension
+		want   int32
+		wantOK bool
 	}{
-		{name: "overworld", dim: world.Overworld, want: 0},
-		{name: "nether", dim: world.Nether, want: 1},
-		{name: "end", dim: world.End, want: 2},
+		{name: "overworld", dim: world.Overworld, want: 0, wantOK: true},
+		{name: "nether", dim: world.Nether, want: 1, wantOK: true},
+		{name: "end", dim: world.End, want: 2, wantOK: true},
 		{
-			// PINNED BUG: the lookup's ok result is discarded, so an
-			// unregistered dimension is reported as the overworld rather than
-			// refused.
-			name: "an unregistered dimension falls back to the overworld",
+			// An unregistered dimension is refused rather than reported as
+			// the overworld: the ID is meaningless without a registration.
+			name: "an unregistered dimension is refused",
 			dim:  unregisteredDimension{},
-			want: 0,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := s.dimensionID(test.dim); got != test.want {
-				t.Fatalf("dimensionID(%v) = %d, want %d", test.name, got, test.want)
+			if got, ok := s.dimensionID(test.dim); got != test.want || ok != test.wantOK {
+				t.Fatalf("dimensionID(%v) = (%d, %v), want (%d, %v)", test.name, got, ok, test.want, test.wantOK)
 			}
 		})
+	}
+}
+
+// TestViewChunkUnregisteredDimensionWritesNothing pins the refusal path: a
+// chunk for a dimension with no registered ID is never addressed to another
+// dimension, so no packet is written at all.
+func TestViewChunkUnregisteredDimensionWritesNothing(t *testing.T) {
+	for _, cache := range []bool{false, true} {
+		s := newStubSession(t, &stubConn{cacheEnabled: cache})
+		s.ViewChunk(world.ChunkPos{0, 0}, unregisteredDimension{}, nil, emptyChunk(t))
+		if pks := sentPackets(t, s); len(pks) != 0 {
+			t.Fatalf("cache enabled %v: wrote %d packets for an unregistered dimension, want none", cache, len(pks))
+		}
 	}
 }
 
