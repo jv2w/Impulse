@@ -282,33 +282,25 @@ func TestMusicDiscsIsExhaustiveAndOrdered(t *testing.T) {
 	}
 }
 
-// PINNED BUG: an out-of-range disc takes the process down instead of reporting
-// failure. disc is an unexported uint8, but DiscType is exported with an
-// exported zero value, so DiscType{} plus arithmetic on the wrapped value is
-// not the only route -- any future decoder reading a stored uint8 back into a
-// DiscType reaches this.
 func TestDiscOutOfRangePanics(t *testing.T) {
+	// An out-of-range disc used to take the process down: every method below
+	// panicked with "unknown record type". The methods now report the unknown
+	// disc instead, so a stored uint8 decoding outside 0..20 can never crash
+	// the server again. Valid discs are unaffected (see TestDiscGolden).
 	for _, c := range []struct {
 		name string
-		call func()
+		call func() string
 		want string
 	}{
-		{"String", func() { _ = DiscType{disc(discCount)}.String() }, "unknown record type"},
-		{"DisplayName", func() { _ = DiscType{disc(discCount)}.DisplayName() }, "unknown record type"},
-		{"Author", func() { _ = DiscType{disc(discCount)}.Author() }, "unknown record type"},
-		{"String255", func() { _ = DiscType{disc(255)}.String() }, "unknown record type"},
+		{"String", func() string { return DiscType{disc(discCount)}.String() }, "unknown"},
+		{"DisplayName", func() string { return DiscType{disc(discCount)}.DisplayName() }, "Unknown"},
+		{"Author", func() string { return DiscType{disc(discCount)}.Author() }, "Unknown"},
+		{"String255", func() string { return DiscType{disc(255)}.String() }, "unknown"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			defer func() {
-				r := recover()
-				if r == nil {
-					t.Fatalf("disc %d %s did not panic", discCount, c.name)
-				}
-				if got := fmt.Sprint(r); got != c.want {
-					t.Fatalf("panic value = %q, want %q", got, c.want)
-				}
-			}()
-			c.call()
+			if got := c.call(); got != c.want {
+				t.Fatalf("%s = %q, want %q", c.name, got, c.want)
+			}
 		})
 	}
 }
@@ -369,22 +361,14 @@ func TestHornGolden(t *testing.T) {
 	}
 }
 
-// PINNED BUG: goatHornType.Name panics with the literal string "should never
-// happen" for any value above 7.
 func TestHornOutOfRangePanics(t *testing.T) {
+	// goatHornType.Name used to panic with "should never happen" for any value
+	// above 7. It now reports the unknown horn instead, so a stored meta
+	// decoding outside 0..7 can never crash the server again.
 	for _, id := range []uint8{hornCount, 100, 255} {
-		func() {
-			defer func() {
-				r := recover()
-				if r == nil {
-					t.Fatalf("horn %d Name() did not panic", id)
-				}
-				if got, want := fmt.Sprint(r), "should never happen"; got != want {
-					t.Fatalf("panic value = %q, want %q", got, want)
-				}
-			}()
-			_ = Horn{goatHornType(id)}.Name()
-		}()
+		if got, want := (Horn{goatHornType(id)}.Name()), "Unknown"; got != want {
+			t.Errorf("horn %d Name() = %q, want %q", id, got, want)
+		}
 	}
 }
 

@@ -10,7 +10,7 @@ A green test run therefore means behaviour has not drifted, not that it is right
 Before fixing one, read CLAUDE.md section 4.3: a defect fix updates the test and deletes
 the marker, while a performance change that breaks one is itself the thing that is wrong.
 
-Totals: 225 BUG, 39 SCOPE, 48 CONSTRAINT.
+Totals: 223 BUG, 39 SCOPE, 48 CONSTRAINT.
 
 This file is generated. Regenerate it with:
 
@@ -528,8 +528,6 @@ IMPULSE_UPDATE_PINNED=1 go test ./server -run TestPinnedIndexIsCurrent
 ## server/world/sound/sound_test.go
 
 - **BUG** — DisplayName title-cases on the boundary d > 12, so disc 12 ("otherside") is the only disc after the C418 block left lowercase while every later one is capitalised....
-- **BUG** — an out-of-range disc takes the process down instead of reporting failure. disc is an unexported uint8, but DiscType is exported with an exported zero value, so...
-- **BUG** — goatHornType.Name panics with the literal string "should never happen" for any value above 7.
 - **CONSTRAINT** — the protocol sound event numbers themselves live in server/session, not here, and cannot be reached from this package. They are out of this file's scope.
 - **SCOPE** — Instrument has no String, no Name and no exhaustive list function, unlike DiscType and Horn. The list below is this test's own, built by hand from the constructors, so a...
 - **SCOPE** — there is no lookup from a stored uint8 back to a DiscType and no error-returning constructor. A caller decoding a jukebox has to scan MusicDiscs itself.
