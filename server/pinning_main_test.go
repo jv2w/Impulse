@@ -67,6 +67,7 @@ var (
 	gPristine, gAfterProbes, gAfterFirst, gAfterSecond, gAfterRecipesDisabled globals
 
 	pristineAirPanic   any
+	cloneFirst         world.BlockRegistry
 	cloneFinalizePanic any
 
 	firstServer, secondServer *Server
@@ -99,12 +100,13 @@ func captureGlobals() {
 	gPristine = snapshot()
 	pristineAirPanic = caught(func() { world.DefaultBlockRegistry.AirRuntimeID() })
 
-	// 2. A registry from world.NewBlockRegistry() cannot be finalized while the
-	// default one is still unfinalized. Config.New() handles this by finalizing
-	// the default first; a caller doing it by hand still cannot. That Config
-	// does handle it needs a process where no server has been created yet, so
-	// it is measured in scenarioCustomBlockRegistryFirst rather than here.
-	cloneFinalizePanic = caught(world.NewBlockRegistry().Finalize)
+	// 2. A registry from world.NewBlockRegistry() can be finalized by hand even
+	// while the default one is still unfinalized: composite block hashes no
+	// longer shift by the default registry, so there is no order dependence
+	// left for a caller to trip on. The clone is kept so the test below can
+	// assert it actually works.
+	cloneFirst = world.NewBlockRegistry()
+	cloneFinalizePanic = caught(cloneFirst.Finalize)
 
 	// 3. The probe left nothing behind.
 	gAfterProbes = snapshot()

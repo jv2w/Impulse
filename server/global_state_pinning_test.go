@@ -1,7 +1,6 @@
 package server
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/jv2w/Impulse/server/world"
@@ -34,25 +33,21 @@ func TestNothingIsRegisteredBeforeTheFirstServer(t *testing.T) {
 	}
 }
 
-// PINNED CONSTRAINT: a registry from world.NewBlockRegistry() cannot be
-// finalized by hand until world.DefaultBlockRegistry has been finalized first.
-// Composite blocks hash through the global: block.Stairs.Hash
-// (server/block/hash.go:1020) calls world.BlockHash, which shifts by
-// DefaultBlockRegistry's bitSize. While that is still 0, oak and spruce stairs
-// hash to the same value and Finalize panics on the collision. Config.New()
-// finalizes the default first and is therefore not subject to this; a caller
-// calling Finalize themselves before creating any server still is.
-func TestACustomRegistryCannotBeFinalizedByHandFirst(t *testing.T) {
-	msg, ok := cloneFinalizePanic.(string)
-	if !ok {
-		t.Fatalf("finalizing a fresh world.NewBlockRegistry() did not panic: %v", cloneFinalizePanic)
+// A registry from world.NewBlockRegistry() can be finalized by hand before any
+// server exists: compound block hashes no longer shift by the default registry,
+// so there is no Stairs collision left to panic on. The probe asserts the clone
+// actually works by reading vanilla air back out of it.
+func TestACustomRegistryCanBeFinalizedByHandFirst(t *testing.T) {
+	if cloneFinalizePanic != nil {
+		t.Fatalf("finalizing a fresh world.NewBlockRegistry() panicked: %v", cloneFinalizePanic)
 	}
-	if !strings.Contains(msg, "already registered by") || !strings.Contains(msg, "block.Stairs") {
-		t.Fatalf("panic = %q, want a Stairs hash collision", msg)
+	if air := cloneFirst.AirRuntimeID(); air != 13629 {
+		t.Fatalf("hand-finalized clone air runtime ID = %v, want 13629", air)
 	}
 
-	// The probe is a panic and nothing else: no registry was written to, so the
-	// process is still pristine afterwards.
+	// The probe is a Finalize on a registry of its own and nothing else: no
+	// process-wide registry was written to, so the process is still pristine
+	// afterwards.
 	if gAfterProbes != gPristine {
 		t.Fatalf("globals after the probe = %+v, want the pristine %+v", gAfterProbes, gPristine)
 	}
@@ -84,9 +79,9 @@ func TestCustomBlockRegistryWorksAsTheFirstServer(t *testing.T) {
 // which is the point: a silent change in what a server boots is visible.
 func TestFirstServerRegistersVanillaContentGlobally(t *testing.T) {
 	want := globals{
-		recipes:         2813,
+		recipes:         2814,
 		dynamicRecipes:  1,
-		creativeItems:   1413,
+		creativeItems:   1415,
 		creativeGroups:  123,
 		blocksFinalized: true,
 	}
@@ -139,8 +134,8 @@ func TestVanillaRecipesDisabledOnTheFirstServer(t *testing.T) {
 	if got["recipes"] != "0" || got["dynamic"] != "0" {
 		t.Errorf("recipes = %q and dynamic recipes = %q, want 0 for both", got["recipes"], got["dynamic"])
 	}
-	if got["creativeitems"] != "1413" {
-		t.Errorf("creative items = %q, want the usual 1413", got["creativeitems"])
+	if got["creativeitems"] != "1415" {
+		t.Errorf("creative items = %q, want the usual 1415", got["creativeitems"])
 	}
 }
 
@@ -160,7 +155,7 @@ func TestCreativeGroupsShiftWhenACallerRegistersFirst(t *testing.T) {
 		"groups":     "124",
 		"group0":     "impulse:pin",
 		"group1":     "itemGroup.name.planks",
-		"items":      "1413",
+		"items":      "1415",
 		"item0group": "impulse:pin",
 		"misplaced":  "13",
 		"planks":     "32",
