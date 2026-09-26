@@ -61,6 +61,8 @@ func (biomePaletteEncoding) decode(buf *bytes.Buffer) (uint32, error) {
 // between runtime IDs and block states.
 type BlockPaletteEncoding struct {
 	Blocks BlockRegistry
+	// legacy, if non-nil, is set when an entry older than CurrentBlockVersion is decoded.
+	legacy *bool
 }
 
 func (bpe BlockPaletteEncoding) encode(buf *bytes.Buffer, v uint32) {
@@ -118,6 +120,12 @@ func (bpe BlockPaletteEncoding) DecodeBlockState(m map[string]any) (uint32, erro
 		Properties: state,
 		Version:    version,
 	})
+
+	if bpe.legacy != nil && version < CurrentBlockVersion {
+		// Any state added since this entry was written was defaulted by the upgrade above, which is wrong
+		// for states derived from surrounding blocks.
+		*bpe.legacy = true
+	}
 
 	v, ok := bpe.Blocks.StateToRuntimeID(upgraded.Name, upgraded.Properties)
 	if !ok {

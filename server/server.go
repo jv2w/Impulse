@@ -416,15 +416,18 @@ func (srv *Server) startListening() {
 // registered custom blocks. It allows block components to be created only once
 // at startup.
 func (srv *Server) makeBlockEntries() {
-	custom := slices.Collect(maps.Values(srv.conf.Blocks.CustomBlocks()))
-	srv.customBlocks = make([]protocol.BlockEntry, len(custom))
+	custom, dataDriven := slices.Collect(maps.Values(srv.conf.Blocks.CustomBlocks())), world.DataDrivenBlocks()
+	srv.customBlocks = make([]protocol.BlockEntry, 0, len(dataDriven)+len(custom))
+	for _, b := range dataDriven {
+		srv.customBlocks = append(srv.customBlocks, protocol.BlockEntry{Name: b.Name, Properties: b.Components})
+	}
 
 	for i, b := range custom {
 		name, _ := b.EncodeBlock()
-		srv.customBlocks[i] = protocol.BlockEntry{
+		srv.customBlocks = append(srv.customBlocks, protocol.BlockEntry{
 			Name:       name,
 			Properties: blockinternal.Components(name, b, 10000+int32(i)),
-		}
+		})
 	}
 }
 

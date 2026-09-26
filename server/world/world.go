@@ -1508,6 +1508,7 @@ func (w *World) addChunk(pos ChunkPos, c *chunk.Column) *Column {
 		// reads the result while the light level is pinned.
 		w.calculateLight(pos)
 	}
+	w.deriveStates(pos)
 	return column
 }
 
