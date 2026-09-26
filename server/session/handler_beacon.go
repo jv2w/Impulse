@@ -60,7 +60,11 @@ func (h *ItemStackRequestHandler) handleBeaconPayment(a *protocol.BeaconPaymentS
 	// The client will send a Destroy action after this action, but we can't rely on that because the client
 	// could just not send it.
 	// We just ignore the next Destroy action and set the item to air here.
-	h.setItemInSlot(slot, item.Stack{}, s, tx)
+	// Which input was the problem: a payment stack of N was cleared
+	// wholesale, while vanilla consumes exactly 1 item per effect selection.
+	// Growing by -1 keeps the item type and leaves N-1 behind, so a 1x
+	// payment still clears to air exactly as before.
+	h.setItemInSlot(slot, payment.Grow(-1), s, tx)
 	h.ignoreDestroy = true
 	return nil
 }
