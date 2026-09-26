@@ -390,6 +390,7 @@ func TestRegisterHandlersShape(t *testing.T) {
 		packet.IDEmoteList,
 		packet.IDFilterText,
 		packet.IDMovePlayer,
+		packet.IDSetPlayerFurnaceOptions,
 		packet.IDSetPlayerInventoryOptions,
 	}
 	for _, id := range explicitlyUnhandled {
