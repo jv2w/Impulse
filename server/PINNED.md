@@ -10,7 +10,7 @@ A green test run therefore means behaviour has not drifted, not that it is right
 Before fixing one, read CLAUDE.md section 4.3: a defect fix updates the test and deletes
 the marker, while a performance change that breaks one is itself the thing that is wrong.
 
-Totals: 233 BUG, 39 SCOPE, 49 CONSTRAINT.
+Totals: 232 BUG, 39 SCOPE, 49 CONSTRAINT.
 
 This file is generated. Regenerate it with:
 
@@ -309,7 +309,6 @@ IMPULSE_UPDATE_PINNED=1 go test ./server -run TestPinnedIndexIsCurrent
 
 ## server/item/recipe/recipe_test.go
 
-- **BUG** — Input and Output hand out the recipe's own slices. A caller that writes to one edits the registered recipe for every other caller, including the vanilla recipes shared...
 - **BUG** — NewItemTag stores the global tag slice by reference, so every tag with the same name shares one backing array and a write through any of them rewrites the embedded table...
 - **BUG** — Register indexes a Potion's reagent through Input()[1] with no length check and asserts it to an item.Stack with no comma-ok. A Potion built any other way than by...
 - **BUG** — the argument is dereferenced without a nil check. Its one caller happens to guard the call, so nothing reaches this today.

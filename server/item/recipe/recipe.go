@@ -1,6 +1,8 @@
 package recipe
 
 import (
+	"slices"
+
 	"github.com/google/uuid"
 	"github.com/jv2w/Impulse/server/item"
 	"github.com/jv2w/Impulse/server/world"
@@ -183,12 +185,20 @@ type recipe struct {
 
 // Input ...
 func (r recipe) Input() []Item {
-	return r.input
+	// Which input was the problem: any caller holding the result of Input and
+	// writing to it. The method returned the recipe's own slice, so the write
+	// edited the registered recipe for every other caller, including the
+	// vanilla recipes shared with every session.
+	// Why the behaviour is identical: reads are unchanged; only writes through
+	// the result no longer reach the recipe. The returned slice is owned by the
+	// caller and aliases nothing inside the recipe.
+	return slices.Clone(r.input)
 }
 
 // Output ...
 func (r recipe) Output() []item.Stack {
-	return r.output
+	// Same defect as Input above: the recipe's own slice was handed out.
+	return slices.Clone(r.output)
 }
 
 // Block ...

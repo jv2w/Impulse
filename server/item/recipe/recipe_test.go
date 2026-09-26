@@ -193,21 +193,20 @@ func assertRecipe(t *testing.T, r Recipe, input []Item, output []item.Stack, blo
 	}
 }
 
-// PINNED BUG: Input and Output hand out the recipe's own slices. A caller that
-// writes to one edits the registered recipe for every other caller, including
-// the vanilla recipes shared with every session.
+// Input and Output hand out copies: a caller that writes to one cannot edit
+// the registered recipe.
 func TestInputAndOutputAliasTheRecipe(t *testing.T) {
 	stick := item.NewStack(item.Stick{}, 1)
 	diamond := item.NewStack(item.Diamond{}, 1)
 	r := NewShapeless([]Item{stick}, diamond, "crafting_table")
 
 	r.Input()[0] = diamond
-	if !reflect.DeepEqual(r.Input()[0], Item(diamond)) {
-		t.Fatal("Input() no longer aliases the recipe")
+	if !reflect.DeepEqual(r.Input()[0], Item(stick)) {
+		t.Fatal("write through Input() leaked into the recipe")
 	}
 	r.Output()[0] = stick
-	if !r.Output()[0].Equal(stick) {
-		t.Fatal("Output() no longer aliases the recipe")
+	if !r.Output()[0].Equal(diamond) {
+		t.Fatal("write through Output() leaked into the recipe")
 	}
 }
 
