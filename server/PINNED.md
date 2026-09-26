@@ -10,7 +10,7 @@ A green test run therefore means behaviour has not drifted, not that it is right
 Before fixing one, read CLAUDE.md section 4.3: a defect fix updates the test and deletes
 the marker, while a performance change that breaks one is itself the thing that is wrong.
 
-Totals: 226 BUG, 39 SCOPE, 48 CONSTRAINT.
+Totals: 225 BUG, 39 SCOPE, 48 CONSTRAINT.
 
 This file is generated. Regenerate it with:
 
@@ -140,7 +140,6 @@ IMPULSE_UPDATE_PINNED=1 go test ./server -run TestPinnedIndexIsCurrent
 
 ## server/cmd/target_test.go
 
-- **BUG** — the selector switch is on first[:min(len(first), 2)], so any argument beginning with @e is @e. A player named "@everyone" cannot be targeted by name, and a typo such as...
 - **CONSTRAINT** — every @ selector needs a transaction to enumerate the world, so a console source that is not attached to a world can only ever name a player literally, and even that...
 - **CONSTRAINT** — only players are searched by name, so a non-player entity can never be targeted literally even though @e yields it.
 - **SCOPE** — vanilla selector arguments (@e[type=..., r=..., limit=...]) are not implemented. The bracketed part is not parsed and not rejected, it is simply ignored, so a command...

@@ -278,7 +278,18 @@ func (p parser) parseTargets(line *Line, tx *world.Tx) ([]Target, error) {
 	if strings.HasPrefix(first, "@") && tx == nil {
 		return nil, MessageNoTargets.F()
 	}
-	switch first[:min(len(first), 2)] {
+	// Which input was the problem: "@everyone", "@al" and the like. The
+	// switch cut the argument to two characters, so any @-word with the
+	// right prefix selected. Only a bare selector selects now; a bracketed
+	// suffix still marks selector arguments, which stay ignored.
+	// Why the behaviour is identical: every input that matched before and
+	// still matches maps to the same key, so it reaches the same case with
+	// the same players and entities.
+	sel := first
+	if i := strings.IndexByte(sel, '['); i >= 0 {
+		sel = sel[:i]
+	}
+	switch sel {
 	case "@p":
 		if len(players) == 0 {
 			return nil, nil

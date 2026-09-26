@@ -178,15 +178,16 @@ func TestSelectorRandom(t *testing.T) {
 }
 
 func TestSelectorMatchesOnlyTheFirstTwoCharacters(t *testing.T) {
-	// PINNED BUG: the selector switch is on first[:min(len(first), 2)], so any
-	// argument beginning with @e is @e. A player named "@everyone" cannot be
-	// targeted by name, and a typo such as "@al" silently selects all players.
+	// Only a bare selector, or a selector with bracketed arguments, selects:
+	// anything else is a literal player name. Bracketed arguments stay
+	// ignored (see TestSelectorArgumentsAreNotParsed); the selector letter
+	// alone decides.
 	w := syncWorld(t)
 	mustDo(t, w, func(tx *world.Tx) {
 		spawn(tx, "Steve", mgl64.Vec3{0, 64, 0})
 		tx.AddEntity(world.EntitySpawnOpts{Position: mgl64.Vec3{5, 64, 0}, NameTag: "Mob"}.New(testMobType{}, nopConfig{}))
 
-		for _, args := range []string{"@everyone", "@entities", "@e[type=player]"} {
+		for _, args := range []string{"@e", "@e[type=player]"} {
 			res := &result{}
 			out := execTx(t, args, tx, &testSource{}, targetsRunnable{res: res})
 			if got := errStrings(out); len(got) != 0 {
@@ -196,6 +197,19 @@ func TestSelectorMatchesOnlyTheFirstTwoCharacters(t *testing.T) {
 			slices.Sort(got)
 			if want := []string{"Mob", "Steve"}; !slices.Equal(got, want) {
 				t.Fatalf("%q selected %q, want %q", args, got, want)
+			}
+		}
+		for _, args := range []string{"@everyone", "@entities", "@al"} {
+			res := &result{}
+			out := execTx(t, args, tx, &testSource{}, targetsRunnable{res: res})
+			if got, want := errStrings(out), []string{
+				"§r§cSyntax error: unexpected value: at \"/pinned >>" + args + "<<\"§r",
+				errNotFound,
+			}; !slices.Equal(got, want) {
+				t.Fatalf("%q: errors = %q, want %q", args, got, want)
+			}
+			if res.runs != 0 {
+				t.Fatalf("%q: Run was called for a name that matches no player", args)
 			}
 		}
 	})
