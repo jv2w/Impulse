@@ -10,7 +10,7 @@ A green test run therefore means behaviour has not drifted, not that it is right
 Before fixing one, read CLAUDE.md section 4.3: a defect fix updates the test and deletes
 the marker, while a performance change that breaks one is itself the thing that is wrong.
 
-Totals: 222 BUG, 39 SCOPE, 48 CONSTRAINT.
+Totals: 221 BUG, 39 SCOPE, 48 CONSTRAINT.
 
 This file is generated. Regenerate it with:
 
@@ -484,7 +484,6 @@ IMPULSE_UPDATE_PINNED=1 go test ./server -run TestPinnedIndexIsCurrent
 
 ## server/world/mcdb/corrupt_test.go
 
-- **BUG** — A record that fails to decode is logged and then appended anyway with an empty Data map, so the entity is silently reduced to its ID. Storing the column back writes that...
 - **BUG** — scheduledUpdates allocates the result slice up front and only `continue`s when a block state fails to decode, so the failed entry stays in the slice as a zero value: a...
 - **BUG** — the tick itself is still read with an unchecked-value assertion, so a time stored as anything but an int64 silently becomes 0 and the update fires on the first tick...
 

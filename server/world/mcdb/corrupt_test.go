@@ -419,15 +419,19 @@ func TestLoadColumnDanglingEntityReferenceKeepsTheRest(t *testing.T) {
 	}
 }
 
-// PINNED BUG: A record that fails to decode is logged and
-// then appended anyway with an empty Data map, so the entity is silently reduced to its ID. Storing the
-// column back writes that empty map over the record.
-func TestLoadColumnCorruptEntityNBTKeepsEmptyEntity(t *testing.T) {
+// TestLoadColumnCorruptEntityNBTDropsIt fixes that a record which fails to
+// decode costs that one entity and nothing else, like a dangling reference.
+// The corrupt record is dropped from the column, and the next store deletes
+// the dead record as it is no longer referenced by the chunk index.
+func TestLoadColumnCorruptEntityNBTDropsIt(t *testing.T) {
 	db := newDB(t)
 	k := seedColumn(t, db)
 
 	col := emptyColumn(k.dim)
-	col.Entities = []chunk.Entity{{ID: 3, Data: map[string]any{"identifier": "minecraft:pig", "UniqueID": int64(3)}}}
+	col.Entities = []chunk.Entity{
+		{ID: 1, Data: map[string]any{"identifier": "minecraft:pig", "UniqueID": int64(1)}},
+		{ID: 3, Data: map[string]any{"identifier": "minecraft:cow", "UniqueID": int64(3)}},
+	}
 	if err := db.StoreColumn(k.pos, k.dim, col); err != nil {
 		t.Fatalf("store: %v", err)
 	}
@@ -438,13 +442,22 @@ func TestLoadColumnCorruptEntityNBTKeepsEmptyEntity(t *testing.T) {
 		t.Fatalf("load: %v", err)
 	}
 	if len(got.Entities) != 1 {
-		t.Fatalf("entities = %+v, want 1; an undecodable entity is no longer kept", got.Entities)
+		t.Fatalf("entities = %+v, want only entity 1", got.Entities)
 	}
-	if got.Entities[0].ID != 3 {
-		t.Errorf("id = %v, want 3", got.Entities[0].ID)
+	if got.Entities[0].ID != 1 {
+		t.Fatalf("id = %v, want 1", got.Entities[0].ID)
 	}
-	if len(got.Entities[0].Data) != 0 {
-		t.Errorf("data = %+v, want empty", got.Entities[0].Data)
+
+	// The load/store cycle a world does on unload must leave the survivor
+	// alone and delete the dead record the corrupt entity left behind.
+	if err := db.StoreColumn(k.pos, k.dim, got); err != nil {
+		t.Fatalf("store: %v", err)
+	}
+	if _, ok := getRaw(t, db, entityIndex(1)); !ok {
+		t.Fatal("entity 1 was deleted by the store")
+	}
+	if _, ok := getRaw(t, db, entityIndex(3)); ok {
+		t.Fatal("corrupt entity 3 record survived the store")
 	}
 }
 

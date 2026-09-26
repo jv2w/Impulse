@@ -294,7 +294,13 @@ func (db *DB) entities(k dbKey) ([]chunk.Entity, error) {
 		}
 		ent := chunk.Entity{ID: id, Data: make(map[string]any)}
 		if err = nbt.UnmarshalEncoding(data, &ent.Data, nbt.LittleEndian); err != nil {
+			// A record that fails to decode is dropped, not kept: appending
+			// it with an empty Data map would write the hollow map over the
+			// record on the next store, and the caller would act on an entity
+			// with no data. The next store also deletes the dead record, as
+			// it is no longer referenced by the chunk index.
 			db.conf.Log.Error("decode entity nbt: "+err.Error(), "ID", id)
+			continue
 		}
 		entities = append(entities, ent)
 	}
