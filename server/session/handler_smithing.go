@@ -61,6 +61,14 @@ func (h *ItemStackRequestHandler) handleSmithing(a *protocol.CraftRecipeStackReq
 	if !matchingStacks(template, expectedInputs[2]) {
 		return fmt.Errorf("template item is not the same as expected template")
 	}
+	// Which input was the problem: an empty slot passes matchingStacks
+	// because Stack.Comparable reports true when either side is empty, so
+	// Grow(-1) stayed at 0 while Grow(1).WithItem minted output from air.
+	// Rejecting empties here keeps valid crafts identical: non-empty stacks
+	// take the same consume-then-produce path below.
+	if input.Empty() || material.Empty() || template.Empty() {
+		return fmt.Errorf("smithing table slots must not be empty")
+	}
 
 	// Create the output using the input stack as reference and the recipe's output item type.
 	h.setItemInSlot(protocol.StackRequestSlotInfo{
