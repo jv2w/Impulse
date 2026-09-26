@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"reflect"
 	"slices"
 	"testing"
 
@@ -277,24 +276,36 @@ func TestEmptySelectionIsAnError(t *testing.T) {
 }
 
 func TestPlayerWithoutANameMethodPanics(t *testing.T) {
-	// PINNED BUG: targets() converts every entity the world calls a player to a
-	// NamedTarget with sliceutil.Convert, which panics on a failed assertion. An
-	// entity type that encodes as minecraft:player without a Name method
-	// therefore takes down the world goroutine as soon as anyone runs a command
-	// with a []Target parameter, whatever selector they used.
+	// A player-encoded entity without a Name method is not a NamedTarget,
+	// so target selection skips it instead of panicking: every selector
+	// only ever sees the entities that implement the interface it needs.
 	w := syncWorld(t)
 	mustDo(t, w, func(tx *world.Tx) {
 		tx.AddEntity(world.EntitySpawnOpts{Position: mgl64.Vec3{0, 64, 0}}.New(namelessType{}, nopConfig{}))
+		spawn(tx, "Steve", mgl64.Vec3{10, 64, 0})
 
-		res := &result{}
-		v := mustPanic(t, func() {
-			execTx(t, "@s", tx, &testSource{}, targetsRunnable{res: res})
-		})
-		if _, ok := v.(*reflect.ValueError); ok {
-			t.Fatalf("panic = %v, want an interface conversion panic", v)
-		}
-		if v == nil {
-			t.Fatal("expected a panic from sliceutil.Convert")
+		for _, c := range []struct {
+			selector string
+			want     []string
+		}{
+			// The nameless entity is a Target, so @e still sees it. The
+			// world yields entities in map order, so the want is sorted.
+			{selector: "@e", want: []string{"<unnamed>", "Steve"}},
+			{selector: "@a", want: []string{"Steve"}},
+			{selector: "@p", want: []string{"Steve"}},
+			{selector: "@r", want: []string{"Steve"}},
+			{selector: "@s", want: []string{""}},
+		} {
+			res := &result{}
+			out := execTx(t, c.selector, tx, &testSource{}, targetsRunnable{res: res})
+			if got := errStrings(out); len(got) != 0 {
+				t.Fatalf("%q: errors = %q, want none", c.selector, got)
+			}
+			got := targetNames(res)
+			slices.Sort(got)
+			if !slices.Equal(got, c.want) {
+				t.Fatalf("%q = %q, want %q", c.selector, got, c.want)
+			}
 		}
 	})
 }
