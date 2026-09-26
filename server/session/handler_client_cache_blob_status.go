@@ -1,10 +1,18 @@
 package session
 
 import (
+	"fmt"
+
 	"github.com/jv2w/Impulse/server/world"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 )
+
+// maxBlobHashes bounds the hit+miss hashes a single ClientCacheBlobStatus may
+// carry. A LevelChunk advertises tens of hashes at most: 1024 is an order of
+// magnitude above that while keeping one packet from running the quadratic
+// resolve loop under blobMu thousands of times.
+const maxBlobHashes = 1024
 
 // ClientCacheBlobStatusHandler handles the ClientCacheBlobStatus packet.
 type ClientCacheBlobStatusHandler struct {
@@ -13,6 +21,11 @@ type ClientCacheBlobStatusHandler struct {
 // Handle ...
 func (c *ClientCacheBlobStatusHandler) Handle(p packet.Packet, s *Session, _ *world.Tx, _ Controllable) error {
 	pk := p.(*packet.ClientCacheBlobStatus)
+	// Which input was the problem: HitHashes and MissHashes were looped with
+	// no length check, each hash scanning every open transaction under blobMu.
+	if l := len(pk.HitHashes) + len(pk.MissHashes); l > maxBlobHashes {
+		return fmt.Errorf("too many blob hashes: %d", l)
+	}
 
 	// The response is only built when a blob is actually going to be sent. The
 	// blob list is collected the same way either way, so the packet carries
