@@ -124,14 +124,16 @@ func (db *DB) SavePlayerSpawnPosition(id uuid.UUID, pos cube.Pos) error {
 	// both with what loadPlayerData returned, so building them there was wasted.
 	var d map[string]any
 	var k string
+	// playerRecord holds the encoded player record when the player is new. It
+	// is written in the same batch as the server data below, never alone.
+	var playerRecord []byte
 	if errors.Is(err, leveldb.ErrNotFound) {
 		d, k = make(map[string]any), "player_server_"+idStr
-		data, err := nbt.MarshalEncoding(playerData{UUID: idStr, ServerID: k}, nbt.LittleEndian)
-		if err != nil {
-			panic(err)
-		}
-		if err := db.ldb.Put(playerKey, data, nil); err != nil {
-			return fmt.Errorf("write player data (uuid=%v): %w", id, err)
+		var merr error
+		// The player record comes from the UUID alone, not from the world,
+		// but a failed encode must still be an error, never a panic.
+		if playerRecord, merr = nbt.MarshalEncoding(playerData{UUID: idStr, ServerID: k}, nbt.LittleEndian); merr != nil {
+			return fmt.Errorf("encode player data (uuid=%v): %w", id, merr)
 		}
 	} else if d, k, _, err = db.loadPlayerData(id); err != nil {
 		return err
@@ -140,10 +142,20 @@ func (db *DB) SavePlayerSpawnPosition(id uuid.UUID, pos cube.Pos) error {
 
 	data, err := nbt.MarshalEncoding(d, nbt.LittleEndian)
 	if err != nil {
-		panic(err)
+		// d decodes from the world file, so a value it cannot encode back
+		// must fail the save, never panic the goroutine holding it.
+		return fmt.Errorf("encode server data for player %v: %w", id, err)
 	}
-	if err = db.ldb.Put([]byte(k), data, nil); err != nil {
-		return fmt.Errorf("write server data for player %v: %w", id, err)
+	// Both records go out in one batch. Two separate Puts left a window where
+	// a crash kept the player record without its server data, and every later
+	// load failed on the dangling ServerId.
+	batch := leveldb.MakeBatch(2)
+	if playerRecord != nil {
+		batch.Put(playerKey, playerRecord)
+	}
+	batch.Put([]byte(k), data)
+	if err := db.ldb.Write(batch, nil); err != nil {
+		return fmt.Errorf("write spawn position for player %v: %w", id, err)
 	}
 	return nil
 }
