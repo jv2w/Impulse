@@ -372,7 +372,9 @@ func TestChunkSetBlockHeightMapDirtyFlag(t *testing.T) {
 		if c.recalculateHeightMap {
 			t.Fatalf("recalculateHeightMap = true after a no-op SetBlock, want false")
 		}
-		c.HeightMap().Set(0, 0, 1234)
+		// The height map is not marked dirty, so a value poked into the chunk's
+		// own map survives the next call.
+		c.heightMap.Set(0, 0, 1234)
 		c.SetBlock(1, 10, 2, 4, ridAir)
 		if got := c.HeightMap().At(0, 0); got != 1234 {
 			t.Fatalf("HeightMap().At(0,0) = %d, want 1234; the chunk was recomputed", got)
@@ -444,7 +446,9 @@ func TestChunkSetBiomeDoesNotDirtyHeightMap(t *testing.T) {
 	c := newTestChunk()
 	c.SetBlock(1, 10, 2, 0, ridSolid)
 	c.HeightMap()
-	c.HeightMap().Set(0, 0, 1234)
+	// Poke the chunk's own map: the public HeightMap hands out a copy, which
+	// cannot observe whether a recomputation happened.
+	c.heightMap.Set(0, 0, 1234)
 	c.SetBiome(1, 10, 2, 5)
 	if c.recalculateHeightMap {
 		t.Fatalf("recalculateHeightMap = true after SetBiome, want false")
@@ -698,23 +702,17 @@ func TestChunkCompactKeepsBlocks(t *testing.T) {
 }
 
 func TestChunkHeightMapAliasesInternalSlice(t *testing.T) {
-	// PINNED BUG: HeightMap returns the chunk's own slice, not a copy. A caller that writes to it changes the
-	// chunk, and the write survives every call that does not dirty the height map.
+	// HeightMap hands out a copy: a caller that writes to the result cannot
+	// change the chunk.
 	c := newTestChunk()
 	c.SetBlock(1, 10, 2, 0, ridSolid)
 	h := c.HeightMap()
-	if &h[0] != &c.heightMap[0] {
-		t.Fatalf("HeightMap() returned a copy, want the internal slice")
-	}
 	h.Set(0, 0, 999)
-	if got := c.heightMap.At(0, 0); got != 999 {
-		t.Fatalf("chunk.heightMap.At(0,0) = %d, want 999", got)
+	if got := c.HeightMap().At(0, 0); got == 999 {
+		t.Fatalf("HeightMap().At(0,0) = %d, want the recomputed height: a caller write leaked into the chunk", got)
 	}
-	if got := c.HeightMap().At(0, 0); got != 999 {
-		t.Fatalf("HeightMap().At(0,0) = %d, want 999 on a clean chunk", got)
-	}
-	// Dirtying the chunk discards the caller's write on the next call. Column (0,0) holds no blocker — the
-	// solid block sits at (1,2) — so it recomputes to the minimum height.
+	// Dirtying the chunk recomputes on the next call. Column (0,0) holds no
+	// blocker — the solid block sits at (1,2) — so it reports the minimum height.
 	c.SetBlock(1, 10, 2, 0, ridSolid)
 	if got := c.HeightMap().At(0, 0); got != -64 {
 		t.Fatalf("HeightMap().At(0,0) = %d after recomputation, want -64", got)

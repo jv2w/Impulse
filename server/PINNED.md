@@ -10,7 +10,7 @@ A green test run therefore means behaviour has not drifted, not that it is right
 Before fixing one, read CLAUDE.md section 4.3: a defect fix updates the test and deletes
 the marker, while a performance change that breaks one is itself the thing that is wrong.
 
-Totals: 234 BUG, 39 SCOPE, 49 CONSTRAINT.
+Totals: 233 BUG, 39 SCOPE, 49 CONSTRAINT.
 
 This file is generated. Regenerate it with:
 
@@ -473,7 +473,6 @@ IMPULSE_UPDATE_PINNED=1 go test ./server -run TestPinnedIndexIsCurrent
 
 - **BUG** — Equals delegates to PalettedStorage.Equal, which bails out with false whenever a palette's first value is 0. Air's runtime ID is 0 and every storage starts with air at...
 - **BUG** — Equals never looks at chunk.biomes, so chunks that differ only in biome data compare as equal.
-- **BUG** — HeightMap returns the chunk's own slice, not a copy. A caller that writes to it changes the chunk, and the write survives every call that does not dirty the height map.
 - **BUG** — compact drops every storage whose palette is exactly [air], layer 0 included. Layers above it shift down, so a block written to layer 1 is readable on layer 0...
 - **BUG** — with no light blocker anywhere, highestLightBlocker returns int16(r[0]) from its final return, which is the only path that skips the +1. So an empty overworld chunk...
 

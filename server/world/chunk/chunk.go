@@ -214,7 +214,17 @@ func (chunk *Chunk) HeightMap() HeightMap {
 		}
 		chunk.recalculateHeightMap = false
 	}
-	return chunk.heightMap
+	// Which input was the problem: any caller holding the result of HeightMap
+	// and writing to it. The method returned the chunk's own slice, so the
+	// write changed the chunk and survived every later call that did not dirty
+	// the height map.
+	// Why the behaviour is identical: reads of the returned map are unchanged;
+	// only writes through it no longer reach the chunk. Callers needing to
+	// change the map must go through SetBlock. The clone allocates once per
+	// call; HeightMap is not on the per-tick hot path.
+	// Concurrency: Chunk is not safe for concurrent use; the returned slice is
+	// owned by the caller and aliases nothing inside the chunk.
+	return slices.Clone(chunk.heightMap)
 }
 
 // Compact compacts the chunk as much as possible, getting rid of any sub chunks that are empty, and compacts
