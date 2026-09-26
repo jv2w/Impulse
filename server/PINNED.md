@@ -10,7 +10,7 @@ A green test run therefore means behaviour has not drifted, not that it is right
 Before fixing one, read CLAUDE.md section 4.3: a defect fix updates the test and deletes
 the marker, while a performance change that breaks one is itself the thing that is wrong.
 
-Totals: 221 BUG, 39 SCOPE, 48 CONSTRAINT.
+Totals: 219 BUG, 39 SCOPE, 48 CONSTRAINT.
 
 This file is generated. Regenerate it with:
 
@@ -481,11 +481,6 @@ IMPULSE_UPDATE_PINNED=1 go test ./server -run TestPinnedIndexIsCurrent
 
 - **BUG** — Tx.SetBlock documents nil as "set the block to air", but it puts a nil Block into Column.BlockEntities whenever the air runtime ID is NBT-flagged, and saving that column...
 - **BUG** — the advancing World closes the Provider on its own Close even when other Worlds still hold the same Settings, and a non-advancing World never closes it, so ownership...
-
-## server/world/mcdb/corrupt_test.go
-
-- **BUG** — scheduledUpdates allocates the result slice up front and only `continue`s when a block state fails to decode, so the failed entry stays in the slice as a zero value: a...
-- **BUG** — the tick itself is still read with an unchecked-value assertion, so a time stored as anything but an int64 silently becomes 0 and the update fires on the first tick...
 
 ## server/world/mcdb/db_test.go
 

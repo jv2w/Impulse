@@ -364,13 +364,24 @@ func (db *DB) scheduledUpdates(k dbKey) ([]chunk.ScheduledBlockUpdate, int64, er
 	}
 	var m scheduledUpdates
 	if err := nbt.UnmarshalEncoding(data, &m, nbt.LittleEndian); err != nil {
-		return nil, 0, fmt.Errorf("read nbt: %s", err.Error())
+		return nil, 0, fmt.Errorf("read nbt: %w", err)
 	}
-	updates := make([]chunk.ScheduledBlockUpdate, len(m.TickList))
+	// The result grows by append, not by index: a tick that fails to decode is
+	// dropped by continue, and indexing a preallocated slice would have left
+	// the failure in place as a zero value — a fabricated update on air at
+	// the chunk origin, at tick 0, written back on the next store.
+	updates := make([]chunk.ScheduledBlockUpdate, 0, len(m.TickList))
 	// db.conf.Blocks does not change in the loop, so every iteration built the same encoding value.
 	bpe := chunk.BlockPaletteEncoding{Blocks: db.conf.Blocks}
-	for i, tick := range m.TickList {
-		t, _ := tick["time"].(int64)
+	for _, tick := range m.TickList {
+		// A time of the wrong NBT type read as 0, so the update fired on the
+		// first tick after the load. The entry is dropped instead, like an
+		// undecodable block state below.
+		t, ok := tick["time"].(int64)
+		if !ok {
+			db.conf.Log.Error("read scheduled updates: invalid time field, dropping tick")
+			continue
+		}
 		bl, _ := tick["blockState"].(map[string]any)
 		block, err := bpe.DecodeBlockState(bl)
 		if err != nil {
@@ -381,7 +392,7 @@ func (db *DB) scheduledUpdates(k dbKey) ([]chunk.ScheduledBlockUpdate, int64, er
 		if !ok {
 			return nil, 0, fmt.Errorf("scheduled tick has no int32 x, y and z")
 		}
-		updates[i] = chunk.ScheduledBlockUpdate{Pos: pos, Block: block, Tick: t}
+		updates = append(updates, chunk.ScheduledBlockUpdate{Pos: pos, Block: block, Tick: t})
 	}
 	return updates, int64(m.CurrentTick), nil
 }

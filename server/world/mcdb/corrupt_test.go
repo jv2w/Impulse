@@ -546,11 +546,11 @@ func TestLoadColumnCorruptScheduledTicks(t *testing.T) {
 	}
 }
 
-// PINNED BUG: scheduledUpdates allocates the
-// result slice up front and only `continue`s when a block state fails to decode, so the failed entry stays in
-// the slice as a zero value: a scheduled update on air at the chunk origin, at tick 0. The failure is invisible
-// to the caller and the fabricated update is written back on the next store.
-func TestLoadColumnUndecodableScheduledTickBecomesZeroValue(t *testing.T) {
+// TestLoadColumnUndecodableScheduledTickDropped fixes that a tick whose block
+// state fails to decode is dropped, not left in place: the failed entry used
+// to stay in the preallocated slice as a zero value, a fabricated update on
+// air at the chunk origin, at tick 0, written back on the next store.
+func TestLoadColumnUndecodableScheduledTickDropped(t *testing.T) {
 	cases := []struct {
 		name  string
 		state any
@@ -587,15 +587,11 @@ func TestLoadColumnUndecodableScheduledTickBecomesZeroValue(t *testing.T) {
 			if err != nil {
 				t.Fatalf("load: %v", err)
 			}
-			if len(col.ScheduledBlocks) != 2 {
-				t.Fatalf("scheduled blocks = %+v, want 2 entries", col.ScheduledBlocks)
+			if len(col.ScheduledBlocks) != 1 {
+				t.Fatalf("scheduled blocks = %+v, want only the decodable entry", col.ScheduledBlocks)
 			}
-			want := chunk.ScheduledBlockUpdate{}
-			if col.ScheduledBlocks[0] != want {
-				t.Errorf("entry 0 = %+v, want the zero value; failed entries are no longer left in place", col.ScheduledBlocks[0])
-			}
-			if got := (chunk.ScheduledBlockUpdate{Pos: cube.Pos{1, 2, 3}, Block: ridStone, Tick: 50}); col.ScheduledBlocks[1] != got {
-				t.Errorf("entry 1 = %+v, want %+v", col.ScheduledBlocks[1], got)
+			if got := (chunk.ScheduledBlockUpdate{Pos: cube.Pos{1, 2, 3}, Block: ridStone, Tick: 50}); col.ScheduledBlocks[0] != got {
+				t.Errorf("entry 0 = %+v, want %+v", col.ScheduledBlocks[0], got)
 			}
 		})
 	}
@@ -635,8 +631,9 @@ func TestLoadColumnScheduledTickWithWrongFieldTypes(t *testing.T) {
 		}
 	})
 
-	// PINNED BUG: the tick itself is still read with an unchecked-value assertion, so a time stored as
-	// anything but an int64 silently becomes 0 and the update fires on the first tick after the load.
+	// A tick whose time has the wrong NBT type is dropped: it used to read as 0
+	// with an unchecked assertion, so the update fired on the first tick after
+	// the load.
 	t.Run("time of the wrong type", func(t *testing.T) {
 		db := newDB(t)
 		k := seedColumn(t, db)
@@ -646,9 +643,8 @@ func TestLoadColumnScheduledTickWithWrongFieldTypes(t *testing.T) {
 		if err != nil {
 			t.Fatalf("load: %v", err)
 		}
-		want := chunk.ScheduledBlockUpdate{Pos: cube.Pos{1, 2, 3}, Block: ridStone, Tick: 0}
-		if len(col.ScheduledBlocks) != 1 || col.ScheduledBlocks[0] != want {
-			t.Fatalf("scheduled blocks = %+v, want [%+v]", col.ScheduledBlocks, want)
+		if len(col.ScheduledBlocks) != 0 {
+			t.Fatalf("scheduled blocks = %+v, want none", col.ScheduledBlocks)
 		}
 	})
 }
