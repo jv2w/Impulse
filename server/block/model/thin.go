@@ -18,9 +18,9 @@ const (
 // to any other Thin block, wall or solid faces of other blocks.
 func (t Thin) BBox(pos cube.Pos, s world.BlockSource) []cube.BBox {
 	// Check if we have any connections on the Z axis
-	connectWest, connectEast := t.checkConnection(pos, cube.FaceWest, s), t.checkConnection(pos, cube.FaceEast, s)
+	connectWest, connectEast := t.Connects(pos, cube.FaceWest, s), t.Connects(pos, cube.FaceEast, s)
 	// Check if we have any connections on the X axis
-	connectNorth, connectSouth := t.checkConnection(pos, cube.FaceNorth, s), t.checkConnection(pos, cube.FaceSouth, s)
+	connectNorth, connectSouth := t.Connects(pos, cube.FaceNorth, s), t.Connects(pos, cube.FaceSouth, s)
 
 	// At most one box per axis, or a single centre post when neither axis connects,
 	// so this capacity is exactly the length the appends reach. The checks only read
@@ -72,8 +72,10 @@ func (t Thin) FaceSolid(_ cube.Pos, face cube.Face, _ world.BlockSource) bool {
 	return face == cube.FaceDown
 }
 
-// checkConnection checks if the block at the given position and face has a connection to the current thin block.
-func (t Thin) checkConnection(pos cube.Pos, face cube.Face, s world.BlockSource) bool {
+// Connects returns true if the Thin block connects to the block at the face
+// passed. A Thin block connects to other thin blocks, to walls and to blocks
+// with a solid face towards it.
+func (t Thin) Connects(pos cube.Pos, face cube.Face, s world.BlockSource) bool {
 	sidePos := pos.Side(face)
 	sideModel := s.Block(sidePos).Model()
 	// The switch stops at the first matching type, so a Thin neighbour no longer

@@ -19,6 +19,22 @@ type CopperBars struct {
 	Oxidation OxidationType
 	// Waxed bool is whether the copper bars has been waxed with honeycomb.
 	Waxed bool
+	// Connections holds the sides that the copper bars connects to.
+	Connections Connections
+}
+
+// NeighbourUpdateTick ...
+func (c CopperBars) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
+	if connections := calculateConnections(c.Model().(connector), tx, pos); connections != c.Connections {
+		c.Connections = connections
+		tx.SetBlock(pos, c, nil)
+	}
+}
+
+// DeriveState ...
+func (c CopperBars) DeriveState(pos cube.Pos, src world.BlockSource) world.Block {
+	c.Connections = calculateConnections(c.Model().(connector), src, pos)
+	return c
 }
 
 // BreakInfo ...
@@ -80,18 +96,20 @@ func (c CopperBars) EncodeItem() (name string, meta int16) {
 
 // EncodeBlock ...
 func (c CopperBars) EncodeBlock() (name string, properties map[string]any) {
-	return copperBlockName("copper_bars", c.Oxidation, c.Waxed), nil
+	return copperBlockName("copper_bars", c.Oxidation, c.Waxed), c.Connections.properties()
 }
 
 // allCopperBars ...
 func allCopperBars() (bars []world.Block) {
 	// The oxidation list is built once instead of once per call of f, and the final
 	// count is known so the list is sized once. Same blocks in the same order.
-	oxidations := OxidationTypes()
-	bars = make([]world.Block, 0, len(oxidations)*2)
+	oxidations, conns := OxidationTypes(), allConnections()
+	bars = make([]world.Block, 0, len(oxidations)*2*len(conns))
 	f := func(waxed bool) {
 		for _, o := range oxidations {
-			bars = append(bars, CopperBars{Oxidation: o, Waxed: waxed})
+			for _, conn := range conns {
+				bars = append(bars, CopperBars{Oxidation: o, Waxed: waxed, Connections: conn})
+			}
 		}
 	}
 	f(true)

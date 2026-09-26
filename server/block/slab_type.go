@@ -1,6 +1,7 @@
 package block
 
 import (
+	"github.com/jv2w/Impulse/server/item"
 	"github.com/jv2w/Impulse/server/world"
 )
 
@@ -40,6 +41,8 @@ func encodeSlabBlock(block world.Block, double bool) (id string, suffix string) 
 			return "mossy_cobblestone", suffix
 		}
 		return "cobblestone", suffix
+	case Concrete:
+		return block.Colour.String() + "_concrete", suffix
 	case Copper:
 		if block.Type == CutCopper() {
 			suffix = "cut_copper_slab"
@@ -163,6 +166,8 @@ func encodeSlabBlock(block world.Block, double bool) (id string, suffix string) 
 		if !block.Chiseled {
 			return "tuff_brick", suffix
 		}
+	case Wool:
+		return block.Colour.String() + "_wool", suffix
 	}
 	panic("invalid block used for slab")
 }
@@ -170,11 +175,12 @@ func encodeSlabBlock(block world.Block, double bool) (id string, suffix string) 
 // SlabBlocks returns a list of all possible blocks for a slab.
 func SlabBlocks() []world.Block {
 	// The fixed list below holds 38 blocks and the loops add one per prismarine type, two per
-	// sandstone type, one per wood type and two per oxidation, so the whole list is built in one
-	// presized slice instead of growing. The same blocks are appended in the same order, and the
-	// count only sizes the buffer, so a stale number would cost one regrow and nothing else.
-	prismarines, sandstones, woods, oxidations := PrismarineTypes(), SandstoneTypes(), WoodTypes(), OxidationTypes()
-	b := append(make([]world.Block, 0, 38+len(prismarines)+2*len(sandstones)+len(woods)+2*len(oxidations)),
+	// sandstone type, one per wood type, two per oxidation and two per colour, so the whole list
+	// is built in one presized slice instead of growing. The same blocks are appended in the same
+	// order, and the count only sizes the buffer, so a stale number would cost one regrow and
+	// nothing else.
+	prismarines, sandstones, woods, oxidations, colours := PrismarineTypes(), SandstoneTypes(), WoodTypes(), OxidationTypes(), item.Colours()
+	b := append(make([]world.Block, 0, 38+len(prismarines)+2*len(sandstones)+len(woods)+2*len(oxidations)+2*len(colours)),
 		Andesite{Polished: true},
 		Andesite{},
 		BambooMosaic{},
@@ -229,6 +235,10 @@ func SlabBlocks() []world.Block {
 	for _, o := range oxidations {
 		b = append(b, Copper{Type: CutCopper(), Oxidation: o})
 		b = append(b, Copper{Type: CutCopper(), Oxidation: o, Waxed: true})
+	}
+	for _, c := range colours {
+		b = append(b, Concrete{Colour: c})
+		b = append(b, Wool{Colour: c})
 	}
 	return b
 }

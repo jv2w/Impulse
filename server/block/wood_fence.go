@@ -18,6 +18,22 @@ type WoodFence struct {
 	// Wood is the type of wood of the fence. This field must have one of the values found in the wood
 	// package.
 	Wood WoodType
+	// Connections holds the sides that the fence connects to.
+	Connections Connections
+}
+
+// NeighbourUpdateTick ...
+func (w WoodFence) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
+	if connections := calculateConnections(w.Model().(connector), tx, pos); connections != w.Connections {
+		w.Connections = connections
+		tx.SetBlock(pos, w, nil)
+	}
+}
+
+// DeriveState ...
+func (w WoodFence) DeriveState(pos cube.Pos, src world.BlockSource) world.Block {
+	w.Connections = calculateConnections(w.Model().(connector), src, pos)
+	return w
 }
 
 // BreakInfo ...
@@ -48,7 +64,7 @@ func (w WoodFence) FuelInfo() item.FuelInfo {
 
 // EncodeBlock ...
 func (w WoodFence) EncodeBlock() (name string, properties map[string]any) {
-	return woodFenceName(w.Wood), nil
+	return woodFenceName(w.Wood), w.Connections.properties()
 }
 
 // Model ...
@@ -67,11 +83,14 @@ func (w WoodFence) EncodeItem() (name string, meta int16) {
 // allFence ...
 func allFence() (fence []world.Block) {
 	// The final count is known, so the slice is presized and grows without reallocating. The same
-	// blocks are appended in the same order into a slice still built fresh per call.
-	woods := WoodTypes()
-	fence = make([]world.Block, 0, len(woods))
+	// blocks are appended in the same order into a slice still built fresh per call: every wood
+	// pairs with every connection combination, woods outermost.
+	woods, conns := WoodTypes(), allConnections()
+	fence = make([]world.Block, 0, len(woods)*len(conns))
 	for _, w := range woods {
-		fence = append(fence, WoodFence{Wood: w})
+		for _, c := range conns {
+			fence = append(fence, WoodFence{Wood: w, Connections: c})
+		}
 	}
 	return
 }

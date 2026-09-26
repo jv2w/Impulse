@@ -15,6 +15,22 @@ type StainedGlassPane struct {
 
 	// Colour specifies the colour of the block.
 	Colour item.Colour
+	// Connections holds the sides that the glass pane connects to.
+	Connections Connections
+}
+
+// NeighbourUpdateTick ...
+func (p StainedGlassPane) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
+	if connections := calculateConnections(p.Model().(connector), tx, pos); connections != p.Connections {
+		p.Connections = connections
+		tx.SetBlock(pos, p, nil)
+	}
+}
+
+// DeriveState ...
+func (p StainedGlassPane) DeriveState(pos cube.Pos, src world.BlockSource) world.Block {
+	p.Connections = calculateConnections(p.Model().(connector), src, pos)
+	return p
 }
 
 // SideClosed ...
@@ -37,16 +53,20 @@ func (p StainedGlassPane) EncodeItem() (name string, meta int16) {
 
 // EncodeBlock ...
 func (p StainedGlassPane) EncodeBlock() (name string, properties map[string]any) {
-	return stainedGlassPaneName(p.Colour), nil
+	return stainedGlassPaneName(p.Colour), p.Connections.properties()
 }
 
 // allStainedGlassPane returns stained-glass panes with all possible colours.
 func allStainedGlassPane() []world.Block {
 	// coloursByID holds the same sixteen colours in the same order, so ranging over it appends the
-	// same blocks without item.Colours() building a fresh slice.
-	b := make([]world.Block, 0, 16)
-	for _, c := range coloursByID {
-		b = append(b, StainedGlassPane{Colour: c})
+	// same blocks without item.Colours() building a fresh slice. Each colour pairs with every
+	// connection combination, colours outermost, so the order matches the state table.
+	conns := allConnections()
+	b := make([]world.Block, 0, 16*len(conns))
+	for _, colour := range coloursByID {
+		for _, c := range conns {
+			b = append(b, StainedGlassPane{Colour: colour, Connections: c})
+		}
 	}
 	return b
 }

@@ -20,8 +20,8 @@ const (
 
 // BBox returns multiple physics.BBox depending on how many connections it has with the surrounding blocks.
 func (f Fence) BBox(pos cube.Pos, s world.BlockSource) []cube.BBox {
-	connectWest, connectEast := f.checkConnection(pos, cube.FaceWest, s), f.checkConnection(pos, cube.FaceEast, s)
-	connectNorth, connectSouth := f.checkConnection(pos, cube.FaceNorth, s), f.checkConnection(pos, cube.FaceSouth, s)
+	connectWest, connectEast := f.Connects(pos, cube.FaceWest, s), f.Connects(pos, cube.FaceEast, s)
+	connectNorth, connectSouth := f.Connects(pos, cube.FaceNorth, s), f.Connects(pos, cube.FaceSouth, s)
 
 	// The boxes below are one per connection, or a single centre post when there is
 	// none, so this capacity is exactly the length the appends reach. The slice is
@@ -80,8 +80,10 @@ func (f Fence) FaceSolid(_ cube.Pos, face cube.Face, _ world.BlockSource) bool {
 	return face == cube.FaceDown || face == cube.FaceUp
 }
 
-// checkConnection checks if the block at the given position and face has a connection to the current fence block.
-func (f Fence) checkConnection(pos cube.Pos, face cube.Face, src world.BlockSource) bool {
+// Connects returns true if the Fence connects to the block at the face passed.
+// A Fence connects to fences of the same kind, to fence gates and to blocks
+// with a solid face towards it.
+func (f Fence) Connects(pos cube.Pos, face cube.Face, src world.BlockSource) bool {
 	sidePos := pos.Side(face)
 	sideModel := src.Block(sidePos).Model()
 	if fence, ok := sideModel.(Fence); ok && fence.Wood == f.Wood {

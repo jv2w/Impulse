@@ -386,125 +386,100 @@ func TestSlabFaceSolid(t *testing.T) {
 // Stair
 // ---------------------------------------------------------------------------
 
-// stairCornerName labels the unexported corner constants for subtest names.
-func stairCornerName(corner uint8) string {
-	switch corner {
-	case cornerRightInner:
-		return "cornerRightInner"
-	case cornerLeftInner:
-		return "cornerLeftInner"
-	case cornerRightOuter:
-		return "cornerRightOuter"
-	case cornerLeftOuter:
-		return "cornerLeftOuter"
-	}
-	return "noCorner"
+// stairShape is one of the five corner shapes a Stair model can take. The
+// corner arrives as fields now that Stair no longer derives it from its
+// neighbours; block.Stairs.calculateCorner owns the derivation.
+type stairShape struct {
+	name                string
+	corner, inner, left bool
 }
 
-// stairSource places the single neighbouring stair that drives s at pos into the
-// corner type named. cornerType looks at the block on the facing ("closed") side
-// first, then the block on the opposite ("open") side.
-func stairSource(pos cube.Pos, s Stair, corner uint8) fakeSource {
-	f := fakeSource{}
-	switch corner {
-	case cornerLeftOuter:
-		f[pos.Side(s.Facing.Face())] = fakeBlock{model: Stair{Facing: s.Facing.RotateRight(), UpsideDown: s.UpsideDown}}
-	case cornerRightOuter:
-		f[pos.Side(s.Facing.Face())] = fakeBlock{model: Stair{Facing: s.Facing.RotateLeft(), UpsideDown: s.UpsideDown}}
-	case cornerRightInner:
-		f[pos.Side(s.Facing.Opposite().Face())] = fakeBlock{model: Stair{Facing: s.Facing.RotateRight(), UpsideDown: s.UpsideDown}}
-	case cornerLeftInner:
-		f[pos.Side(s.Facing.Opposite().Face())] = fakeBlock{model: Stair{Facing: s.Facing.RotateLeft(), UpsideDown: s.UpsideDown}}
-	}
-	return f
+var (
+	stairNoCorner   = stairShape{name: "noCorner"}
+	stairInnerLeft  = stairShape{name: "innerLeft", corner: true, inner: true, left: true}
+	stairInnerRight = stairShape{name: "innerRight", corner: true, inner: true}
+	stairOuterLeft  = stairShape{name: "outerLeft", corner: true, left: true}
+	stairOuterRight = stairShape{name: "outerRight", corner: true}
+)
+
+// model builds the Stair model for the shape.
+func (s stairShape) model(facing cube.Direction, upsideDown bool) Stair {
+	return Stair{Facing: facing, UpsideDown: upsideDown, Corner: s.corner, Inner: s.inner, Left: s.left}
 }
 
 // stairExtras holds the golden horizontal bounds {x0, z0, x1, z1} of every box
-// Stair.BBox appends after its base box, in append order.
-func stairExtras(corner uint8, facing cube.Direction) [][4]float64 {
+// Stair.BBox appends after its base box, in append order. Each shape renders
+// where the pre-port neighbour-derived corner did: outerLeft matches the old
+// cornerRightOuter, outerRight the old cornerLeftOuter, innerLeft the old
+// cornerLeftInner and innerRight the old cornerRightInner.
+func stairExtras(shape stairShape, facing cube.Direction) [][4]float64 {
 	step := map[cube.Direction][4]float64{
 		cube.North: {0, 0, 1, 0.5},
 		cube.South: {0, 0.5, 1, 1},
 		cube.West:  {0, 0, 0.5, 1},
 		cube.East:  {0.5, 0, 1, 1},
 	}
-	rightOuter := map[cube.Direction][4]float64{
+	outerLeft := map[cube.Direction][4]float64{
 		cube.North: {0, 0, 0.5, 0.5},
 		cube.South: {0.5, 0.5, 1, 1},
 		cube.West:  {0, 0.5, 0.5, 1},
 		cube.East:  {0.5, 0, 1, 0.5},
 	}
-	leftOuter := map[cube.Direction][4]float64{
+	outerRight := map[cube.Direction][4]float64{
 		cube.North: {0.5, 0, 1, 0.5},
 		cube.South: {0, 0.5, 0.5, 1},
 		cube.West:  {0, 0, 0.5, 0.5},
 		cube.East:  {0.5, 0.5, 1, 1},
 	}
-	rightInner := map[cube.Direction][4]float64{
+	innerRight := map[cube.Direction][4]float64{
 		cube.North: {0.5, 0.5, 1, 1},
 		cube.South: {0, 0, 0.5, 0.5},
 		cube.West:  {0.5, 0, 1, 0.5},
 		cube.East:  {0, 0.5, 0.5, 1},
 	}
-	leftInner := map[cube.Direction][4]float64{
+	innerLeft := map[cube.Direction][4]float64{
 		cube.North: {0, 0.5, 0.5, 1},
 		cube.South: {0.5, 0, 1, 0.5},
 		cube.West:  {0.5, 0.5, 1, 1},
 		cube.East:  {0, 0, 0.5, 0.5},
 	}
-	switch corner {
-	case cornerRightOuter:
-		return [][4]float64{rightOuter[facing]}
-	case cornerLeftOuter:
-		return [][4]float64{leftOuter[facing]}
-	case cornerRightInner:
-		return [][4]float64{step[facing], rightInner[facing]}
-	case cornerLeftInner:
-		return [][4]float64{step[facing], leftInner[facing]}
+	switch shape {
+	case stairOuterLeft:
+		return [][4]float64{outerLeft[facing]}
+	case stairOuterRight:
+		return [][4]float64{outerRight[facing]}
+	case stairInnerRight:
+		return [][4]float64{step[facing], innerRight[facing]}
+	case stairInnerLeft:
+		return [][4]float64{step[facing], innerLeft[facing]}
 	}
 	return [][4]float64{step[facing]}
 }
 
 // stairWant assembles the golden box set: the base half-slab plus every step
 // box. Right side up the steps occupy y 0.5-1; upside down they occupy y 0-0.5.
-func stairWant(facing cube.Direction, upsideDown bool, corner uint8) []cube.BBox {
+func stairWant(facing cube.Direction, upsideDown bool, shape stairShape) []cube.BBox {
 	want := []cube.BBox{cube.Box(0, 0, 0, 1, 0.5, 1)}
 	y0, y1 := 0.5, 1.0
 	if upsideDown {
 		want[0] = cube.Box(0, 0.5, 0, 1, 1, 1)
 		y0, y1 = 0, 0.5
 	}
-	for _, e := range stairExtras(corner, facing) {
+	for _, e := range stairExtras(shape, facing) {
 		want = append(want, cube.Box(e[0], y0, e[1], e[2], y1, e[3]))
 	}
 	return want
 }
 
-func TestStairCornerType(t *testing.T) {
-	for _, corner := range []uint8{noCorner, cornerRightInner, cornerLeftInner, cornerRightOuter, cornerLeftOuter} {
-		for _, facing := range allDirections() {
-			for _, upsideDown := range []bool{false, true} {
-				s := Stair{Facing: facing, UpsideDown: upsideDown}
-				name := stairCornerName(corner) + "/" + facing.String() + "/upsideDown=" + boolName(upsideDown)
-				t.Run(name, func(t *testing.T) {
-					if got := s.cornerType(origin, stairSource(origin, s, corner)); got != corner {
-						t.Fatalf("cornerType = %s, want %s", stairCornerName(got), stairCornerName(corner))
-					}
-				})
-			}
-		}
-	}
-}
-
 func TestStairBBox(t *testing.T) {
-	for _, corner := range []uint8{noCorner, cornerRightInner, cornerLeftInner, cornerRightOuter, cornerLeftOuter} {
+	for _, shape := range []stairShape{stairNoCorner, stairInnerLeft, stairInnerRight, stairOuterLeft, stairOuterRight} {
 		for _, facing := range allDirections() {
 			for _, upsideDown := range []bool{false, true} {
-				s := Stair{Facing: facing, UpsideDown: upsideDown}
-				name := stairCornerName(corner) + "/" + facing.String() + "/upsideDown=" + boolName(upsideDown)
+				s := shape.model(facing, upsideDown)
+				name := shape.name + "/" + facing.String() + "/upsideDown=" + boolName(upsideDown)
 				t.Run(name, func(t *testing.T) {
-					got := s.BBox(origin, stairSource(origin, s, corner))
-					assertBoxes(t, "Stair "+name, got, stairWant(facing, upsideDown, corner))
+					got := s.BBox(origin, emptySource)
+					assertBoxes(t, "Stair "+name, got, stairWant(facing, upsideDown, shape))
 				})
 			}
 		}
@@ -515,93 +490,29 @@ func TestStairFaceSolid(t *testing.T) {
 	// The face at the top (upside down) or bottom is always solid. Beyond that,
 	// outer corners are solid on no horizontal face at all, noCorner is solid
 	// only behind the stair, and inner corners add the rotated side.
-	for _, corner := range []uint8{noCorner, cornerRightInner, cornerLeftInner, cornerRightOuter, cornerLeftOuter} {
+	for _, shape := range []stairShape{stairNoCorner, stairInnerLeft, stairInnerRight, stairOuterLeft, stairOuterRight} {
 		for _, facing := range allDirections() {
 			for _, upsideDown := range []bool{false, true} {
-				s := Stair{Facing: facing, UpsideDown: upsideDown}
-				name := stairCornerName(corner) + "/" + facing.String() + "/upsideDown=" + boolName(upsideDown)
+				s := shape.model(facing, upsideDown)
+				name := shape.name + "/" + facing.String() + "/upsideDown=" + boolName(upsideDown)
 				t.Run(name, func(t *testing.T) {
 					solid := []cube.Face{cube.FaceDown}
 					if upsideDown {
 						solid = []cube.Face{cube.FaceUp}
 					}
-					switch corner {
-					case noCorner:
+					switch shape {
+					case stairNoCorner:
 						solid = append(solid, facing.Face())
-					case cornerRightInner:
+					case stairInnerRight:
 						solid = append(solid, facing.Face(), facing.RotateRight().Face())
-					case cornerLeftInner:
+					case stairInnerLeft:
 						solid = append(solid, facing.Face(), facing.RotateLeft().Face())
 					}
-					assertSolidFaces(t, "Stair "+name, s, origin, stairSource(origin, s, corner), solid...)
+					assertSolidFaces(t, "Stair "+name, s, origin, emptySource, solid...)
 				})
 			}
 		}
 	}
-}
-
-func TestStairCornerSuppression(t *testing.T) {
-	s := Stair{Facing: cube.North}
-
-	t.Run("outer corner suppressed by stair on the right", func(t *testing.T) {
-		// A stair on the closed side facing the opposite of the rotated facing
-		// normally yields cornerRightOuter, but a matching stair to the right of
-		// this one cancels it back to noCorner.
-		src := stairSource(origin, s, cornerRightOuter)
-		src[origin.Side(s.Facing.RotateRight().Face())] = fakeBlock{model: Stair{Facing: s.Facing}}
-		if got := s.cornerType(origin, src); got != noCorner {
-			t.Fatalf("cornerType = %s, want noCorner", stairCornerName(got))
-		}
-		assertBoxes(t, "Stair suppressed right outer", s.BBox(origin, src), stairWant(cube.North, false, noCorner))
-	})
-
-	t.Run("inner corner suppressed by stair on the right", func(t *testing.T) {
-		// The same right-hand stair cancels cornerRightInner. The branch has no
-		// else, so the function falls through to its final noCorner return.
-		src := stairSource(origin, s, cornerRightInner)
-		src[origin.Side(s.Facing.RotateRight().Face())] = fakeBlock{model: Stair{Facing: s.Facing}}
-		if got := s.cornerType(origin, src); got != noCorner {
-			t.Fatalf("cornerType = %s, want noCorner", stairCornerName(got))
-		}
-		assertBoxes(t, "Stair suppressed right inner", s.BBox(origin, src), stairWant(cube.North, false, noCorner))
-	})
-
-	t.Run("right hand stair with mismatched upside down does not suppress", func(t *testing.T) {
-		src := stairSource(origin, s, cornerRightOuter)
-		src[origin.Side(s.Facing.RotateRight().Face())] = fakeBlock{model: Stair{Facing: s.Facing, UpsideDown: true}}
-		if got := s.cornerType(origin, src); got != cornerRightOuter {
-			t.Fatalf("cornerType = %s, want cornerRightOuter", stairCornerName(got))
-		}
-	})
-
-	t.Run("neighbouring stair with mismatched upside down forms no corner", func(t *testing.T) {
-		src := fakeSource{
-			origin.Side(s.Facing.Face()): fakeBlock{model: Stair{Facing: s.Facing.RotateRight(), UpsideDown: true}},
-		}
-		if got := s.cornerType(origin, src); got != noCorner {
-			t.Fatalf("cornerType = %s, want noCorner", stairCornerName(got))
-		}
-	})
-
-	t.Run("neighbouring stair with the same facing forms no corner", func(t *testing.T) {
-		src := fakeSource{
-			origin.Side(s.Facing.Face()):            fakeBlock{model: Stair{Facing: s.Facing}},
-			origin.Side(s.Facing.Opposite().Face()): fakeBlock{model: Stair{Facing: s.Facing}},
-		}
-		if got := s.cornerType(origin, src); got != noCorner {
-			t.Fatalf("cornerType = %s, want noCorner", stairCornerName(got))
-		}
-	})
-
-	t.Run("non stair neighbours form no corner", func(t *testing.T) {
-		src := neighbours(origin, map[cube.Face]world.BlockModel{
-			cube.FaceNorth: Solid{}, cube.FaceSouth: Solid{},
-			cube.FaceWest: Solid{}, cube.FaceEast: Solid{},
-		})
-		if got := s.cornerType(origin, src); got != noCorner {
-			t.Fatalf("cornerType = %s, want noCorner", stairCornerName(got))
-		}
-	})
 }
 
 // ---------------------------------------------------------------------------
@@ -763,7 +674,7 @@ var (
 )
 
 func TestFenceBBoxConnectionMatrix(t *testing.T) {
-	// Solid neighbours connect through Fence.checkConnection's FaceSolid branch.
+	// Solid neighbours connect through Fence.Connects's FaceSolid branch.
 	for _, c := range []struct {
 		name    string
 		connect []cube.Face
