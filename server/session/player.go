@@ -1223,10 +1223,30 @@ func deleteDamage(st protocol.ItemStack) protocol.ItemStack {
 	return st
 }
 
+// Bounds for an incoming PlayerSkin. A legitimate skin is at most 128 pixels
+// per side with a handful of animations and a few kilobytes of geometry JSON:
+// every bound below is several times that while keeping one resendable packet
+// from forcing large JSON decodes or thousands of model allocations per send.
+const (
+	maxSkinDimension          = 256
+	maxSkinAnimations         = 32
+	maxSkinGeometryBytes      = 65536
+	maxSkinResourcePatchBytes = 65536
+)
+
 // protocolToSkin converts protocol.Skin to skin.Skin.
 func protocolToSkin(sk protocol.Skin) (s skin.Skin, err error) {
 	if sk.SkinID == "" {
 		return skin.Skin{}, fmt.Errorf("SkinID must not be an empty string")
+	}
+	if len(sk.Animations) > maxSkinAnimations {
+		return skin.Skin{}, fmt.Errorf("too many skin animations: %d", len(sk.Animations))
+	}
+	if len(sk.SkinGeometry) > maxSkinGeometryBytes {
+		return skin.Skin{}, fmt.Errorf("SkinGeometry can not be longer than 65536 bytes")
+	}
+	if len(sk.SkinResourcePatch) > maxSkinResourcePatchBytes {
+		return skin.Skin{}, fmt.Errorf("SkinResourcePatch can not be longer than 65536 bytes")
 	}
 
 	// protocol.Skin.validate compares width*height*4 against len(data) in uint32 arithmetic, while the
@@ -1235,6 +1255,12 @@ func protocolToSkin(sk protocol.Skin) (s skin.Skin, err error) {
 	// then ask for the full unwrapped size here. Repeating the check in the same int arithmetic the
 	// constructors use ties every allocation below to the length of the data actually received.
 	skinWidth, skinHeight := int(sk.SkinImageWidth), int(sk.SkinImageHeight)
+	// Which input was the problem: dimensions in the millions. The size check
+	// below ties the allocation to the bytes actually received, but absurd
+	// dimensions still forced a multi-megabyte New plus Pix aliasing per send.
+	if skinWidth > maxSkinDimension || skinHeight > maxSkinDimension {
+		return skin.Skin{}, fmt.Errorf("skin dimensions %vx%v exceed %v", skinWidth, skinHeight, maxSkinDimension)
+	}
 	// The required size is computed once and reused by the message, so the check and the message still
 	// report the same number in the same int arithmetic.
 	skinSize := skinWidth * skinHeight * 4
@@ -1250,6 +1276,9 @@ func protocolToSkin(sk protocol.Skin) (s skin.Skin, err error) {
 	s.FullID = sk.FullID
 
 	capeWidth, capeHeight := int(sk.CapeImageWidth), int(sk.CapeImageHeight)
+	if capeWidth > maxSkinDimension || capeHeight > maxSkinDimension {
+		return skin.Skin{}, fmt.Errorf("cape dimensions %vx%v exceed %v", capeWidth, capeHeight, maxSkinDimension)
+	}
 	capeSize := capeWidth * capeHeight * 4
 	if capeSize != len(sk.CapeData) {
 		return skin.Skin{}, fmt.Errorf("cape of %vx%v needs %v bytes of pixel data, but got %v", capeWidth, capeHeight, capeSize, len(sk.CapeData))
