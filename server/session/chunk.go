@@ -192,12 +192,23 @@ func (s *Session) sendBlobHashes(pos world.ChunkPos, dim world.Dimension, c *chu
 	}
 
 	s.blobMu.Lock()
-	s.openChunkTransactions = append(s.openChunkTransactions, m)
+	// Which input was the problem: a blob store already at the cap. The
+	// transaction was opened before the limit was checked, so a refused
+	// chunk leaked a transaction the client would never answer, and no
+	// packet went out while the loader still recorded the chunk as sent.
+	// The check runs first now, and a refused chunk falls back to the
+	// uncached encoding: the client still receives it, and the server
+	// stores nothing, so the cap keeps bounding memory.
+	// Why the behaviour is identical: on the accepted path the same lock
+	// still opens exactly one transaction and stores the same hashes
+	// before the same packet is written below.
 	if l := len(s.blobs); l >= 4096 {
 		s.blobMu.Unlock()
 		s.conf.Log.Error("too many blobs pending", "n", l)
+		s.sendNetworkChunk(pos, dim, c, blockEntities)
 		return
 	}
+	s.openChunkTransactions = append(s.openChunkTransactions, m)
 	for i := range hashes {
 		s.blobs[hashes[i]] = blobs[i]
 	}

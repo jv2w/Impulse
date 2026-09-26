@@ -200,25 +200,29 @@ func TestViewChunkWithClientCache(t *testing.T) {
 }
 
 // TestViewChunkWithClientCacheAtTheBlobLimit pins what a caching client is sent
-// once its blob store is full.
-//
-// PINNED BUG: when trackBlob refuses the biome blob, sendBlobHashes falls
-// through to the full chunk encoding, immediately hits the same limit again and
-// returns having written no packet at all. The chunk is silently dropped and
-// the loader still counts it as sent.
+// once its blob store is full: with nowhere to keep the hashes, the chunk
+// falls back to the uncached encoding instead of being dropped. Nothing is
+// stored, and no chunk transaction is opened, since no blob hashes were sent.
 func TestViewChunkWithClientCacheAtTheBlobLimit(t *testing.T) {
 	s := newStubSession(t, &stubConn{cacheEnabled: true})
-	for i := range uint64(4097) {
+	for i := range uint64(4096) {
 		s.blobs[i] = []byte{byte(i)}
 	}
 
 	s.ViewChunk(world.ChunkPos{0, 0}, world.Overworld, nil, emptyChunk(t))
 
-	if pks := sentPackets(t, s); len(pks) != 0 {
-		t.Fatalf("wrote %d packets at the blob limit, want none: %#v", len(pks), pks)
+	got := onlyPacket(t, s).(*packet.LevelChunk)
+	if got.CacheEnabled {
+		t.Fatal("chunk at the blob limit was sent cache-enabled with no tracked blobs")
 	}
-	if len(s.openChunkTransactions) != 1 {
-		t.Fatalf("open chunk transactions = %d, want the leaked 1", len(s.openChunkTransactions))
+	if len(got.BlobHashes) != 0 {
+		t.Fatalf("blob hashes = %v, want none on the uncached fallback", got.BlobHashes)
+	}
+	if len(s.blobs) != 4096 {
+		t.Fatalf("stored %d blobs, want the untouched 4096", len(s.blobs))
+	}
+	if len(s.openChunkTransactions) != 0 {
+		t.Fatalf("open chunk transactions = %d, want none: no hashes were sent", len(s.openChunkTransactions))
 	}
 }
 
