@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"maps"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
@@ -469,8 +470,17 @@ func (db *DB) storeEntities(batch *leveldb.Batch, k dbKey, entities []chunk.Enti
 
 	newIDs := make([]int64, 0, len(entities))
 	for _, e := range entities {
-		e.Data["UniqueID"] = e.ID
-		b, err := nbt.MarshalEncoding(e.Data, nbt.LittleEndian)
+		// Which input was the problem: the caller's Data map. Writing
+		// UniqueID into it made StoreColumn a mutating operation on its
+		// argument, so a caller reusing the column saw storage keys appear in
+		// memory. The clone keeps the on-disk bytes identical while the
+		// caller's map comes back untouched.
+		// Why the behaviour is identical: only the map StoreColumn writes to
+		// changed, from the caller's to a copy; the bytes marshalled are the
+		// same. Ownership: the clone is local to this iteration.
+		data := maps.Clone(e.Data)
+		data["UniqueID"] = e.ID
+		b, err := nbt.MarshalEncoding(data, nbt.LittleEndian)
 		if err != nil {
 			db.conf.Log.Error("store entities: encode NBT: " + err.Error())
 			continue
@@ -517,8 +527,11 @@ func (db *DB) storeBlockEntities(batch *leveldb.Batch, k dbKey, blockEntities []
 	buf := bytes.NewBuffer(nil)
 	enc := nbt.NewEncoderWithEncoding(buf, nbt.LittleEndian)
 	for _, b := range blockEntities {
-		b.Data["x"], b.Data["y"], b.Data["z"] = int32(b.Pos[0]), int32(b.Pos[1]), int32(b.Pos[2])
-		if err := enc.Encode(b.Data); err != nil {
+		// Same defect as storeEntities above: x/y/z were written into the
+		// caller's map. Encode a copy so the argument is read-only.
+		data := maps.Clone(b.Data)
+		data["x"], data["y"], data["z"] = int32(b.Pos[0]), int32(b.Pos[1]), int32(b.Pos[2])
+		if err := enc.Encode(data); err != nil {
 			db.conf.Log.Error("store block entities: encode nbt: " + err.Error())
 		}
 	}

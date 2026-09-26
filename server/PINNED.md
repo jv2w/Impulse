@@ -10,7 +10,7 @@ A green test run therefore means behaviour has not drifted, not that it is right
 Before fixing one, read CLAUDE.md section 4.3: a defect fix updates the test and deletes
 the marker, while a performance change that breaks one is itself the thing that is wrong.
 
-Totals: 232 BUG, 39 SCOPE, 49 CONSTRAINT.
+Totals: 231 BUG, 39 SCOPE, 49 CONSTRAINT.
 
 This file is generated. Regenerate it with:
 
@@ -526,7 +526,6 @@ IMPULSE_UPDATE_PINNED=1 go test ./server -run TestPinnedIndexIsCurrent
 
 - **BUG** — Column.Tick is an int64 but scheduledUpdates.CurrentTick is an int32, so any tick above 2^31-1 is silently truncated on store.
 - **BUG** — Column.Tick lives inside the keyPendingScheduledTicks value, and storeScheduledUpdates deletes that key outright when there is nothing scheduled. A column with no...
-- **BUG** — storeEntities and storeBlockEntities write into the maps the caller handed over instead of copying them, so StoreColumn is not a read-only operation on its argument.
 
 ## server/world/particle/particle_test.go
 

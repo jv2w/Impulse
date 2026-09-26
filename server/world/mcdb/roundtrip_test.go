@@ -773,9 +773,9 @@ func TestStoreColumnKeepsEntitiesThatStay(t *testing.T) {
 	}
 }
 
-// PINNED BUG: storeEntities and storeBlockEntities write into the maps
-// the caller handed over instead of copying them, so StoreColumn is not a read-only operation on its argument.
 func TestStoreColumnMutatesCallerData(t *testing.T) {
+	// StoreColumn is read-only on its argument: the storage keys live in the
+	// on-disk bytes, never in the caller's maps.
 	db := newDB(t)
 	col := emptyColumn(world.Overworld)
 	entityData := map[string]any{"identifier": "minecraft:pig"}
@@ -786,11 +786,11 @@ func TestStoreColumnMutatesCallerData(t *testing.T) {
 	if err := db.StoreColumn(world.ChunkPos{0, 0}, world.Overworld, col); err != nil {
 		t.Fatalf("store: %v", err)
 	}
-	if got, ok := entityData["UniqueID"]; !ok || got != int64(42) {
-		t.Fatalf("entity data[\"UniqueID\"] = %v (present %v); StoreColumn no longer writes into the caller's map", got, ok)
+	if _, ok := entityData["UniqueID"]; ok {
+		t.Fatalf("entity data gained UniqueID: StoreColumn wrote into the caller's map")
 	}
-	if got := blockEntityData["x"]; got != int32(1) {
-		t.Fatalf("block entity data[\"x\"] = %v; StoreColumn no longer writes into the caller's map", got)
+	if _, ok := blockEntityData["x"]; ok {
+		t.Fatalf("block entity data gained storage keys: StoreColumn wrote into the caller's map")
 	}
 }
 
