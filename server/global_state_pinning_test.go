@@ -81,7 +81,7 @@ func TestFirstServerRegistersVanillaContentGlobally(t *testing.T) {
 	want := globals{
 		recipes:         2814,
 		dynamicRecipes:  1,
-		creativeItems:   1415,
+		creativeItems:   1423,
 		creativeGroups:  123,
 		blocksFinalized: true,
 	}
@@ -134,8 +134,8 @@ func TestVanillaRecipesDisabledOnTheFirstServer(t *testing.T) {
 	if got["recipes"] != "0" || got["dynamic"] != "0" {
 		t.Errorf("recipes = %q and dynamic recipes = %q, want 0 for both", got["recipes"], got["dynamic"])
 	}
-	if got["creativeitems"] != "1415" {
-		t.Errorf("creative items = %q, want the usual 1415", got["creativeitems"])
+	if got["creativeitems"] != "1423" {
+		t.Errorf("creative items = %q, want the usual 1423", got["creativeitems"])
 	}
 }
 
@@ -155,7 +155,7 @@ func TestCreativeGroupsShiftWhenACallerRegistersFirst(t *testing.T) {
 		"groups":     "124",
 		"group0":     "impulse:pin",
 		"group1":     "itemGroup.name.planks",
-		"items":      "1415",
+		"items":      "1423",
 		"item0group": "impulse:pin",
 		"misplaced":  "13",
 		"planks":     "32",
