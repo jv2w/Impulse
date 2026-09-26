@@ -7,7 +7,6 @@ import (
 	"github.com/jv2w/Impulse/server/world"
 	"math/rand/v2"
 	"reflect"
-	"sort"
 	"strconv"
 	"strings"
 )
@@ -282,19 +281,24 @@ func (p parser) parseTargets(line *Line, tx *world.Tx) ([]Target, error) {
 	switch first[:min(len(first), 2)] {
 	case "@p":
 		if len(players) == 0 {
-			// Moved ahead of the sort: with no players the result was nil either
-			// way, so the distance slice and the sort closure are pure waste.
 			return nil, nil
 		}
 		pos := line.src.Position()
-		playerDistances := make([]float64, len(players))
-		for i, p := range players {
-			playerDistances[i] = p.Position().Sub(pos).Len()
+		// Which input was the problem: any player order that needed a swap.
+		// The old code sorted players while reading distances from a
+		// separate slice by index, so after the first swap the comparison
+		// read the distance of the player no longer at that index. A minimum
+		// scan keeps no second slice: only one player is ever returned, so
+		// the rest of the order is unobservable and sorting it was waste.
+		// Ties stay order-dependent, as they were under the unstable sort.
+		best := 0
+		bestDist := players[0].Position().Sub(pos).Len()
+		for i, p := range players[1:] {
+			if d := p.Position().Sub(pos).Len(); d < bestDist {
+				best, bestDist = i+1, d
+			}
 		}
-		sort.Slice(players, func(i, j int) bool {
-			return playerDistances[i] < playerDistances[j]
-		})
-		return sliceutil.Convert[Target](players[0:1]), nil
+		return sliceutil.Convert[Target](players[best : best+1]), nil
 	case "@e":
 		return entities, nil
 	case "@a":

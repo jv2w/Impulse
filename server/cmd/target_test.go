@@ -126,39 +126,26 @@ func TestSelectorSelfDoesNotConsultTheWorld(t *testing.T) {
 }
 
 func TestSelectorNearestIgnoresTheDistancesItComputed(t *testing.T) {
-	// PINNED BUG: @p sorts the player slice with sort.Slice while the comparison
-	// reads a separate playerDistances slice by index. sort.Slice only permutes
-	// players, so after the first swap the comparison is reading the distance of
-	// a player that is no longer at that index. @p therefore does not reliably
-	// select the nearest player.
-	//
-	// The failure is demonstrated rather than asserted loosely: the source sits
-	// at the origin and the nearest player is unambiguous, so a correct @p has
-	// exactly one right answer.
+	// @p selects the nearest player to the source. The source sits at the
+	// origin and the nearest player is unambiguous, so @p has exactly one
+	// right answer no matter what order the world yields its players in.
 	w := syncWorld(t)
 	mustDo(t, w, func(tx *world.Tx) {
 		spawn(tx, "far", mgl64.Vec3{1000, 64, 0})
 		spawn(tx, "near", mgl64.Vec3{1, 64, 0})
 		spawn(tx, "middle", mgl64.Vec3{100, 64, 0})
 
-		// The map iteration order decides which permutation the broken sort
-		// produces, so the selection is sampled until either the wrong player is
-		// picked, which proves the bug, or enough attempts have passed that the
-		// order can be considered exhausted.
-		wrong := 0
-		const attempts = 200
-		for range attempts {
+		// The world yields players in map order, so every attempt may see a
+		// different permutation. A correct @p answers "near" for all of them.
+		for range 200 {
 			res := &result{}
 			out := execTx(t, "@p", tx, &testSource{}, targetsRunnable{res: res})
 			if got := errStrings(out); len(got) != 0 {
 				t.Fatalf("errors = %q, want none", got)
 			}
 			if got := targetNames(res); !slices.Equal(got, []string{"near"}) {
-				wrong++
+				t.Fatalf("@p = %q, want [near]", got)
 			}
-		}
-		if wrong == 0 {
-			t.Fatalf("@p picked the nearest player in all %d attempts: the parallel-array sort in parseTargets appears to have been fixed, so this pin must be updated", attempts)
 		}
 	})
 }
