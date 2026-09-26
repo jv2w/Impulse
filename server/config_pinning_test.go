@@ -204,7 +204,9 @@ func TestDefaultConfig(t *testing.T) {
 	want.Players.Folder = "players"
 	want.Resources.AutoBuildPack = true
 	want.Resources.Folder = "resources"
-	if c != want {
+	// Network.Transport is a slice, so the struct is no longer comparable with
+	// ==: DeepEqual compares it by value instead.
+	if !reflect.DeepEqual(c, want) {
 		t.Fatalf("DefaultConfig() = %+v, want %+v", c, want)
 	}
 	// The fields left false are as much a part of the default as the ones set:

@@ -61,33 +61,33 @@ func TestCustomAllowerIsKept(t *testing.T) {
 	}
 }
 
-// PINNED CONSTRAINT: listenerFunc dereferences conf.Allower and conf.Log
+// PINNED CONSTRAINT: rakNetListenerFunc dereferences conf.Allower and conf.Log
 // without a nil check. It is only ever called from Config.New, after both have
 // been defaulted, so a Config assembled by hand and passed straight to
-// listenerFunc panics instead of reporting an error.
-func TestListenerFuncRequiresADefaultedConfig(t *testing.T) {
+// rakNetListenerFunc panics instead of reporting an error.
+func TestRakNetListenerFuncRequiresADefaultedConfig(t *testing.T) {
 	uc := UserConfig{}
 	uc.Network.Address = "127.0.0.1:0"
 
-	if got := caught(func() { uc.listenerFunc(Config{}) }); got == nil {
-		t.Fatal("listenerFunc on a zero Config did not panic")
+	if got := caught(func() { uc.rakNetListenerFunc(Config{}) }); got == nil {
+		t.Fatal("rakNetListenerFunc on a zero Config did not panic")
 	}
-	if got := caught(func() { uc.listenerFunc(Config{Log: quiet}) }); got == nil {
-		t.Fatal("listenerFunc without an Allower did not panic")
+	if got := caught(func() { uc.rakNetListenerFunc(Config{Log: quiet}) }); got == nil {
+		t.Fatal("rakNetListenerFunc without an Allower did not panic")
 	}
 }
 
 // The standard listener binds a real UDP socket, so a port of 0 is the only
 // address a test may use. A malformed address is reported as an error rather
 // than panicking.
-func TestListenerFunc(t *testing.T) {
+func TestRakNetListenerFunc(t *testing.T) {
 	uc := UserConfig{}
 	uc.Network.Address = "127.0.0.1:0"
 	conf := Config{Log: quiet, Allower: allower{}, MaxPlayers: 5}
 
-	l, err := uc.listenerFunc(conf)
+	l, err := uc.rakNetListenerFunc(conf)
 	if err != nil {
-		t.Fatalf("listenerFunc() = %v", err)
+		t.Fatalf("rakNetListenerFunc() = %v", err)
 	}
 	if _, ok := l.(listener); !ok {
 		t.Fatalf("listener type = %T, want server.listener", l)
@@ -97,11 +97,11 @@ func TestListenerFunc(t *testing.T) {
 	}
 
 	uc.Network.Address = "not-an-address"
-	if _, err = uc.listenerFunc(conf); err == nil {
+	if _, err = uc.rakNetListenerFunc(conf); err == nil {
 		t.Fatal("a malformed address produced no error")
 	}
-	if !strings.HasPrefix(err.Error(), "create minecraft listener: ") {
-		t.Fatalf("error = %q, want it wrapped by listenerFunc", err)
+	if !strings.HasPrefix(err.Error(), "create RakNet listener: ") {
+		t.Fatalf("error = %q, want it wrapped by rakNetListenerFunc", err)
 	}
 }
 
