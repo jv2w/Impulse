@@ -193,7 +193,7 @@ func (s *Session) sendBlobHashes(pos world.ChunkPos, dim world.Dimension, c *chu
 
 	s.blobMu.Lock()
 	s.openChunkTransactions = append(s.openChunkTransactions, m)
-	if l := len(s.blobs); l > 4096 {
+	if l := len(s.blobs); l >= 4096 {
 		s.blobMu.Unlock()
 		s.conf.Log.Error("too many blobs pending", "n", l)
 		return
@@ -270,11 +270,13 @@ func (s *Session) sendNetworkChunk(pos world.ChunkPos, dim world.Dimension, c *c
 	})
 }
 
-// trackBlob attempts to track the given blob. If the player has too many pending blobs, it returns false and closes the
-// connection.
+// trackBlob attempts to track the given blob. If the player has too many pending blobs, it returns false.
 func (s *Session) trackBlob(hash uint64, blob []byte) bool {
 	s.blobMu.Lock()
-	if l := len(s.blobs); l > 4096 {
+	// Which input was the problem: the 4097th blob. The check read
+	// len(s.blobs) > 4096, so the store grew one entry past the cap it was
+	// meant to enforce. Refusing at >= keeps the store at 4096 entries.
+	if l := len(s.blobs); l >= 4096 {
 		s.blobMu.Unlock()
 		s.conf.Log.Error("too many blobs pending", "n", l)
 		return false

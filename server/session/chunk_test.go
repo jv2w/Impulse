@@ -97,20 +97,18 @@ func TestTrackBlob(t *testing.T) {
 }
 
 // TestTrackBlobLimit pins the cap on pending blobs, which is the guard against
-// a client that never acknowledges what it was sent.
-//
-// PINNED BUG: the check is `len(s.blobs) > 4096`, so the store is allowed to
-// reach 4097 entries before anything is refused, and the doc comment claims the
-// connection is closed when it is not: trackBlob only logs and returns false.
+// a client that never acknowledges what it was sent: past 4096 tracked blobs
+// the next one is refused and never stored. A refusal is only logged, the
+// connection stays open.
 func TestTrackBlobLimit(t *testing.T) {
 	s := newStubSession(t, nil)
-	for i := range uint64(4097) {
+	for i := range uint64(4096) {
 		if !s.trackBlob(i, []byte{byte(i)}) {
-			t.Fatalf("trackBlob refused blob %d, want it accepted up to 4097", i)
+			t.Fatalf("trackBlob refused blob %d, want it accepted up to 4096", i)
 		}
 	}
-	if got := len(s.blobs); got != 4097 {
-		t.Fatalf("stored %d blobs, want 4097", got)
+	if got := len(s.blobs); got != 4096 {
+		t.Fatalf("stored %d blobs, want 4096", got)
 	}
 	if s.trackBlob(9999, []byte{1}) {
 		t.Fatal("trackBlob accepted a blob past the limit")
