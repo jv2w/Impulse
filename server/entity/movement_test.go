@@ -445,12 +445,9 @@ func TestTickMovementDeltaVelocityIsMeasuredBeforeForces(t *testing.T) {
 }
 
 func TestTickMovementNaNVelocity(t *testing.T) {
-	// PINNED BUG: nothing rejects a NaN velocity. It reaches blockBBoxsAround,
-	// where int(math.Floor(NaN)) and int(math.Ceil(NaN)) collapse to the same
-	// value, so the search loop runs zero times and no block is collected at all
-	// -- collision is silently disabled on every axis, not just the poisoned one.
-	// The NaN then survives every comparison in CheckCollision and lands in the
-	// entity position.
+	// Non-finite velocity components are rejected: the poisoned axis does not
+	// move and the healthy axes still collide normally, so a NaN can neither
+	// disable collision everywhere nor land in the entity position.
 	w := syncWorld(t)
 	start := mgl64.Vec3{0.5, 64, 0.5}
 	handle := world.EntitySpawnOpts{Position: start}.New(testMovingEntType{}, testMoveConfig{})
@@ -461,34 +458,33 @@ func TestTickMovementNaNVelocity(t *testing.T) {
 
 		c := &MovementComputer{}
 		dPos, _ := c.CheckCollision(tx, e, start, mgl64.Vec3{math.NaN(), 0, 0.5})
-		if !math.IsNaN(dPos[0]) {
-			t.Fatalf("delta X = %v, want NaN carried through unguarded", dPos[0])
+		if math.IsNaN(dPos[0]) || math.IsInf(dPos[0], 0) {
+			t.Fatalf("delta X = %v, want 0 for the rejected axis", dPos[0])
+		}
+		if dPos[0] != 0 {
+			t.Fatalf("delta X = %v, want 0 for the rejected axis", dPos[0])
 		}
 		if dPos[2] != 0.5 {
-			t.Fatalf("delta Z = %v, want the full 0.5: a NaN on X empties the block search for every axis", dPos[2])
+			t.Fatalf("delta Z = %v, want the full 0.5 on the healthy axis", dPos[2])
 		}
 	})
 }
 
-func TestBlockBBoxsAroundInfiniteVelocityDoesNotTerminate(t *testing.T) {
-	// PINNED BUG: an infinite velocity component makes blockBBoxsAround iterate
-	// from math.MinInt64 to a finite bound, which does not finish in any useful
-	// time. Any code path that lets a plugin or a packet set an infinite velocity
-	// therefore hangs the world goroutine. This test pins the arithmetic that
-	// causes it rather than calling the function, because calling it would never
-	// return.
-	box := cube.Box(-0.125, 0, -0.125, 0.125, 0.25, 0.125).
-		Translate(mgl64.Vec3{0.5, 64, 0.5}).
-		Extend(mgl64.Vec3{0, math.Inf(-1), 0}).
-		Grow(0.25)
+func TestBlockBBoxsAroundInfiniteVelocityReturnsNil(t *testing.T) {
+	// A box with a non-finite bound matches no real block, so the search
+	// returns nil promptly instead of walking from math.MinInt64 and hanging
+	// the world goroutine.
+	w := syncWorld(t)
+	mustDo(t, w, func(tx *world.Tx) {
+		box := cube.Box(-0.125, 0, -0.125, 0.125, 0.25, 0.125).
+			Translate(mgl64.Vec3{0.5, 64, 0.5}).
+			Extend(mgl64.Vec3{0, math.Inf(-1), 0}).
+			Grow(0.25)
 
-	minY, maxY := int(math.Floor(box.Min()[1])), int(math.Ceil(box.Max()[1]))
-	if minY != math.MinInt64 {
-		t.Fatalf("loop start = %d, want math.MinInt64 for an infinite lower bound", minY)
-	}
-	if maxY <= minY {
-		t.Fatalf("loop bounds = [%d, %d), want a range blockBBoxsAround would walk one block at a time", minY, maxY)
-	}
+		if got := blockBBoxsAround(tx, box); got != nil {
+			t.Fatalf("blockBBoxsAround() with infinite box = %v, want nil", got)
+		}
+	})
 }
 
 func TestTickMovementBelowWorldMinimum(t *testing.T) {

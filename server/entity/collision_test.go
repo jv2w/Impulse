@@ -379,11 +379,9 @@ func within(outer, inner cube.BBox) bool {
 }
 
 func TestCheckCollisionNonFiniteVelocity(t *testing.T) {
-	// PINNED BUG: CheckCollision does not reject non-finite velocities, and it
-	// splits them. The NaN is returned as the movement delta and lands in the
-	// entity position, while the "did this axis get blocked" test reads NaN as a
-	// mismatch and zeroes the velocity. The entity is therefore teleported to a
-	// NaN position and left with a velocity that says nothing happened.
+	// Non-finite velocities are rejected per axis: the poisoned axis does not
+	// move and nothing NaN or infinite reaches the delta or the velocity, so
+	// the entity position stays finite.
 	w := syncWorld(t)
 	pos := mgl64.Vec3{0.5, 64, 0.5}
 	handle := world.EntitySpawnOpts{Position: pos}.New(testMovingEntType{}, testMoveConfig{})
@@ -394,11 +392,14 @@ func TestCheckCollisionNonFiniteVelocity(t *testing.T) {
 		c := &MovementComputer{}
 		dPos, vel := c.CheckCollision(tx, e, pos, mgl64.Vec3{math.NaN(), 0, 0})
 
-		if !math.IsNaN(dPos[0]) {
-			t.Fatalf("delta X = %v, want NaN carried through unguarded", dPos[0])
+		if math.IsNaN(dPos[0]) || math.IsInf(dPos[0], 0) {
+			t.Fatalf("delta X = %v, want 0 for the rejected axis", dPos[0])
+		}
+		if dPos[0] != 0 {
+			t.Fatalf("delta X = %v, want 0 for the rejected axis", dPos[0])
 		}
 		if vel[0] != 0 {
-			t.Fatalf("velocity X = %v, want 0: NaN compares unequal to itself, so the axis reads as blocked", vel[0])
+			t.Fatalf("velocity X = %v, want 0 for the rejected axis", vel[0])
 		}
 	})
 }

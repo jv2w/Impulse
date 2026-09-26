@@ -120,11 +120,37 @@ func (c *MovementComputer) applyHorizontalForces(tx *world.Tx, pos, vel mgl64.Ve
 	return vel
 }
 
+// finiteVec3 reports whether every component of v is finite (neither NaN nor
+// an infinity). It is pure, allocates nothing and touches no shared state, so
+// it is safe on the tick hot path.
+func finiteVec3(v mgl64.Vec3) bool {
+	return !math.IsNaN(v[0]) && !math.IsInf(v[0], 0) &&
+		!math.IsNaN(v[1]) && !math.IsInf(v[1], 0) &&
+		!math.IsNaN(v[2]) && !math.IsInf(v[2], 0)
+}
+
 // CheckCollision handles the collision of the entity with blocks, adapting the velocity of the entity if it
 // happens to collide with a block.
 // The final velocity and the Vec3 that the entity should move is returned.
 func (c *MovementComputer) CheckCollision(tx *world.Tx, e world.Entity, pos, vel mgl64.Vec3) (mgl64.Vec3, mgl64.Vec3) {
 	// TODO: Implement collision with other entities.
+	// Which input was the problem: a non-finite velocity component (NaN or Inf)
+	// from a client packet or a plugin. Extend(vel) below turned it into a box
+	// with a non-finite bound, so blockBBoxsAround either walked from
+	// math.MinInt64 (hanging the world goroutine) or collapsed Floor/Ceil to the
+	// same int (disabling collision on every axis), and the NaN survived into
+	// the returned delta and then the entity position.
+	// Why the behaviour is identical: finite velocities skip the branch below
+	// untouched. Only a component that could never collide meaningfully is
+	// replaced by 0, the fail-closed choice (no movement on that axis). vel is
+	// an mgl64.Vec3 value, so the rewrite touches only this call's copy.
+	if !finiteVec3(vel) {
+		for i := range vel {
+			if math.IsNaN(vel[i]) || math.IsInf(vel[i], 0) {
+				vel[i] = 0
+			}
+		}
+	}
 	deltaX, deltaY, deltaZ := vel[0], vel[1], vel[2]
 
 	// Entities only ever have a single bounding box.
@@ -182,6 +208,19 @@ func (c *MovementComputer) CheckCollision(tx *world.Tx, e world.Entity, pos, vel
 func blockBBoxsAround(tx *world.Tx, box cube.BBox) []cube.BBox {
 	grown := box.Grow(0.25)
 	min, max := grown.Min(), grown.Max()
+	// Which input was the problem: a box with a non-finite bound, reached here
+	// through Extend with a non-finite velocity or a non-finite position from a
+	// packet. int(math.Floor(Inf)) converts to math.MinInt64, so the loops below
+	// walked billions of blocks and hung the world goroutine.
+	// Why the behaviour is identical: finite boxes take the same path below.
+	// Only a box that could never match a real block returns nil here, and nil
+	// already means "no blocks" on the open-air hot path, with no allocation
+	// either way.
+	// Concurrency: tx must be used on the world goroutine only; this only reads
+	// through it. The returned slice is freshly allocated and owned by the caller.
+	if !finiteVec3(min) || !finiteVec3(max) {
+		return nil
+	}
 	minX, minY, minZ := int(math.Floor(min[0])), int(math.Floor(min[1])), int(math.Floor(min[2]))
 	// The maximum bounds are exclusive: A block starting exactly at the box's
 	// maximum cannot collide with it.

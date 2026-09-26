@@ -10,7 +10,7 @@ A green test run therefore means behaviour has not drifted, not that it is right
 Before fixing one, read CLAUDE.md section 4.3: a defect fix updates the test and deletes
 the marker, while a performance change that breaks one is itself the thing that is wrong.
 
-Totals: 237 BUG, 39 SCOPE, 49 CONSTRAINT.
+Totals: 234 BUG, 39 SCOPE, 49 CONSTRAINT.
 
 This file is generated. Regenerate it with:
 
@@ -159,7 +159,6 @@ IMPULSE_UPDATE_PINNED=1 go test ./server -run TestPinnedIndexIsCurrent
 
 ## server/entity/collision_test.go
 
-- **BUG** — CheckCollision does not reject non-finite velocities, and it splits them. The NaN is returned as the movement delta and lands in the entity position, while the "did this...
 - **BUG** — the axis-skip guard is FloatEqualThreshold(delta, 0, epsilon) with epsilon = 0.001, but mgl64 squares the threshold when either operand is zero, so the real cutoff is...
 - **SCOPE** — entities do not collide with each other (movement.go:122 TODO). Intentionally out of scope; pinned so a rewrite cannot change it silently. A second entity sitting...
 
@@ -217,8 +216,6 @@ IMPULSE_UPDATE_PINNED=1 go test ./server -run TestPinnedIndexIsCurrent
 ## server/entity/movement_test.go
 
 - **BUG** — air is a block without a Friction method, so an entity marked on the ground over open air is slowed as if it stood on stone rather than sliding freely.
-- **BUG** — an infinite velocity component makes blockBBoxsAround iterate from math.MinInt64 to a finite bound, which does not finish in any useful time. Any code path that lets a...
-- **BUG** — nothing rejects a NaN velocity. It reaches blockBBoxsAround, where int(math.Floor(NaN)) and int(math.Ceil(NaN)) collapse to the same value, so the search loop runs zero...
 - **BUG** — the epsilon constant reads 0.001, but Send compares the deltas against the zero vector and mgl64.FloatEqualThreshold squares the threshold whenever either operand is...
 
 ## server/entity/projectile_test.go
