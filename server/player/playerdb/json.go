@@ -11,11 +11,20 @@ import (
 	"time"
 )
 
-func (p *Provider) fromJson(d jsonData, lookupWorld func(world.Dimension) *world.World) (player.Config, *world.World) {
+func (p *Provider) fromJson(d jsonData, lookupWorld func(world.Dimension) *world.World, id uuid.UUID) (player.Config, *world.World) {
 	dim, _ := world.DimensionByID(int(d.Dimension))
 	mode, _ := world.GameModeByID(int(d.GameMode))
+	// Which input was the problem: d.UUID is a string from the player's save
+	// file, so one corrupt byte made uuid.MustParse panic and bricked login
+	// for that player. The LevelDB key is the authoritative identity, so a
+	// UUID that no longer parses falls back to it and the next save rewrites
+	// the embedded copy. A UUID that parses keeps the existing behavior.
+	uid, err := uuid.Parse(d.UUID)
+	if err != nil {
+		uid = id
+	}
 	conf := player.Config{
-		UUID:                uuid.MustParse(d.UUID),
+		UUID:                uid,
 		XUID:                d.XUID,
 		Name:                d.Username,
 		Position:            d.Position,
@@ -45,13 +54,28 @@ func (p *Provider) fromJson(d jsonData, lookupWorld func(world.Dimension) *world
 	invData := dataToInv(d.Inventory)
 
 	for slot, stack := range invData.Items {
+		// Discarding the error is safe: slot ranges over a slice built for
+		// this 36-slot inventory, so it is always in range, the only error
+		// SetItem returns.
 		_ = conf.Inventory.SetItem(slot, stack)
 	}
+	// Discarding the error is safe: slot 0 always exists in the 1-slot
+	// off-hand inventory.
 	_ = conf.OffHand.SetItem(0, invData.OffHand)
 	conf.Armour.Set(invData.Helmet, invData.Chestplate, invData.Leggings, invData.Boots)
+	// Which input was the problem: MainHandSlot is a uint32 from the save file
+	// with no range check, so a corrupt value landed outside the 0-8 hotbar
+	// that SetHeldSlot enforces and was echoed back to the client. Fall back
+	// to the default slot; valid values pass through unchanged.
 	conf.HeldSlot = int(invData.MainHandSlot)
+	if conf.HeldSlot < 0 || conf.HeldSlot > 8 {
+		conf.HeldSlot = 0
+	}
 
 	for slot, stack := range echest {
+		// Discarding the error is safe: slot ranges over a slice built for
+		// this 27-slot inventory, so it is always in range, the only error
+		// SetItem returns.
 		_ = conf.EnderChestInventory.SetItem(slot, stack)
 	}
 	return conf, lookupWorld(dim)

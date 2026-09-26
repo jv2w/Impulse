@@ -64,6 +64,12 @@ func encodeItems(items []item.Stack) (encoded []jsonSlot) {
 
 func decodeItems(encoded []jsonSlot, items []item.Stack) {
 	for _, i := range encoded {
+		// Which input was the problem: Slot is an int from the save file, so
+		// a corrupt value indexed outside items and panicked the load. Drop
+		// the entry and keep the rest, so one bad slot cannot brick the file.
+		if i.Slot < 0 || i.Slot >= len(items) {
+			continue
+		}
 		items[i.Slot] = decodeItem(i.Item)
 	}
 }

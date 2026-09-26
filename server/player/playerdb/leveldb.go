@@ -50,7 +50,7 @@ func (p *Provider) Load(id uuid.UUID, world func(world.Dimension) *world.World) 
 	if err != nil {
 		return player.Config{}, nil, err
 	}
-	conf, w := p.fromJson(d, world)
+	conf, w := p.fromJson(d, world, id)
 
 	return conf, w, nil
 }
