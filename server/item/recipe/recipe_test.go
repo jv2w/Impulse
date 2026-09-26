@@ -279,14 +279,14 @@ func TestItemTag(t *testing.T) {
 // The tag table is embedded data read at init. Its size and a few of its
 // contents are pinned so a regenerated item_tags.json is visible.
 func TestItemTagTable(t *testing.T) {
-	if got, want := len(itemTags), 58; got != want {
+	if got, want := len(itemTags), 77; got != want {
 		t.Fatalf("len(itemTags) = %v, want %v", got, want)
 	}
 	for tag, want := range map[string]int{
-		"minecraft:planks":                   12,
-		"minecraft:logs":                     44,
-		"minecraft:digger":                   24,
-		"minecraft:is_sword":                 7,
+		"minecraft:planks":                   13,
+		"minecraft:logs":                     48,
+		"minecraft:digger":                   28,
+		"minecraft:is_sword":                 8,
 		"minecraft:decorated_pot_sherds":     24,
 		"minecraft:stone_crafting_materials": 3,
 	} {
@@ -390,7 +390,7 @@ func TestVanillaRegistryCensus(t *testing.T) {
 	for name, want := range map[string]int{
 		"Multi":                 14,
 		"Shaped":                70,
-		"Shapeless":             184,
+		"Shapeless":             185,
 		"UserDataShapeless":     0,
 		"SmithingTransform":     9,
 		"SmithingTrim":          1,

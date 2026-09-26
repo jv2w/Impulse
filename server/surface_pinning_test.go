@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/go-gl/mathgl/mgl64"
+	"github.com/jv2w/Impulse/server/world"
 	"github.com/sandertv/gophertunnel/minecraft"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/login"
@@ -156,11 +157,15 @@ func TestCustomEntryListsAreBuiltAtStartup(t *testing.T) {
 		t.Fatal("Config.New built the custom entry lists; startListening used to")
 	}
 	srv.Listen()
+	// Vanilla data driven blocks are always sent as block entries, so the block
+	// list holds exactly those when nothing custom is registered.
+	if got, want := len(srv.customBlocks), len(world.DataDrivenBlocks()); got != want {
+		t.Fatalf("custom blocks = %v, want the %v data driven ones with nothing registered", got, want)
+	}
 	for _, c := range []struct {
 		name string
 		n    int
 	}{
-		{"blocks", len(srv.customBlocks)},
 		{"items", len(srv.customItems)},
 		{"dimensions", len(srv.customDimensions)},
 	} {
@@ -178,7 +183,7 @@ func TestCustomEntryListsAreBuiltAtStartup(t *testing.T) {
 // registry a Config.New call touched.
 func TestItemEntries(t *testing.T) {
 	srv := firstServer
-	if got, want := len(vanillaItems), 1976; got != want {
+	if got, want := len(vanillaItems), 2076; got != want {
 		t.Fatalf("len(vanillaItems) = %v, want %v", got, want)
 	}
 	if got := len(srv.itemEntries()); got != len(vanillaItems) {

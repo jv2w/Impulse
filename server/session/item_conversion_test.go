@@ -76,7 +76,7 @@ const (
 	ridDecoratedPot = -551
 	ridAir          = -158
 
-	bridStone = 2736
+	bridStone = 3317
 )
 
 // TestStackFromItemGolden pins every field of the protocol.ItemStack that
@@ -119,7 +119,7 @@ func TestStackFromItemGolden(t *testing.T) {
 			want: protocol.ItemStack{
 				ItemType:       protocol.ItemType{NetworkID: ridDecoratedPot, MetadataValue: 0},
 				Count:          1,
-				BlockRuntimeID: 13694,
+				BlockRuntimeID: 17124,
 				NBTData: map[string]any{
 					"id": "DecoratedPot",
 					"sherds": []any{

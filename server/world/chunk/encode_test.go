@@ -179,8 +179,8 @@ func TestEncodeConstantsAreWireFormat(t *testing.T) {
 	if SubChunkVersion != 9 {
 		t.Errorf("SubChunkVersion = %d, want 9", SubChunkVersion)
 	}
-	if CurrentBlockVersion != 18040335 {
-		t.Errorf("CurrentBlockVersion = %d, want 18040335", CurrentBlockVersion)
+	if CurrentBlockVersion != 18168865 {
+		t.Errorf("CurrentBlockVersion = %d, want 18168865", CurrentBlockVersion)
 	}
 }
 

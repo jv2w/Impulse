@@ -41,8 +41,8 @@ func TestACustomRegistryCanBeFinalizedByHandFirst(t *testing.T) {
 	if cloneFinalizePanic != nil {
 		t.Fatalf("finalizing a fresh world.NewBlockRegistry() panicked: %v", cloneFinalizePanic)
 	}
-	if air := cloneFirst.AirRuntimeID(); air != 13629 {
-		t.Fatalf("hand-finalized clone air runtime ID = %v, want 13629", air)
+	if air := cloneFirst.AirRuntimeID(); air != 17025 {
+		t.Fatalf("hand-finalized clone air runtime ID = %v, want 17025", air)
 	}
 
 	// The probe is a Finalize on a registry of its own and nothing else: no
@@ -69,8 +69,8 @@ func TestCustomBlockRegistryWorksAsTheFirstServer(t *testing.T) {
 	}
 	// Both registries end up finalized and holding the same vanilla air, which
 	// is what says the caller's registry was filled rather than skipped.
-	if got["air"] != "13629" || got["defaultair"] != "13629" {
-		t.Fatalf("air runtime IDs = %q (custom) and %q (default), want 13629 for both", got["air"], got["defaultair"])
+	if got["air"] != "17025" || got["defaultair"] != "17025" {
+		t.Fatalf("air runtime IDs = %q (custom) and %q (default), want 17025 for both", got["air"], got["defaultair"])
 	}
 }
 
@@ -79,10 +79,10 @@ func TestCustomBlockRegistryWorksAsTheFirstServer(t *testing.T) {
 // which is the point: a silent change in what a server boots is visible.
 func TestFirstServerRegistersVanillaContentGlobally(t *testing.T) {
 	want := globals{
-		recipes:         2814,
+		recipes:         3539,
 		dynamicRecipes:  1,
-		creativeItems:   1423,
-		creativeGroups:  123,
+		creativeItems:   1506,
+		creativeGroups:  124,
 		blocksFinalized: true,
 	}
 	if gAfterFirst != want {
@@ -134,14 +134,14 @@ func TestVanillaRecipesDisabledOnTheFirstServer(t *testing.T) {
 	if got["recipes"] != "0" || got["dynamic"] != "0" {
 		t.Errorf("recipes = %q and dynamic recipes = %q, want 0 for both", got["recipes"], got["dynamic"])
 	}
-	if got["creativeitems"] != "1423" {
-		t.Errorf("creative items = %q, want the usual 1423", got["creativeitems"])
+	if got["creativeitems"] != "1506" {
+		t.Errorf("creative items = %q, want the usual 1506", got["creativeitems"])
 	}
 }
 
 // PINNED BUG: item/creative's vanilla data addresses groups by index into the
 // package-global group slice, so a group registered before the first
-// Config.New() shifts every vanilla group by one and 13 vanilla items are filed
+// Config.New() shifts every vanilla group by one and 14 vanilla items are filed
 // under the caller's group instead of their own. The itemGroup.name.planks
 // group, which owns 32 items when nothing is registered first, is one of the
 // groups that loses its contents to its neighbour.
@@ -152,12 +152,12 @@ func TestVanillaRecipesDisabledOnTheFirstServer(t *testing.T) {
 func TestCreativeGroupsShiftWhenACallerRegistersFirst(t *testing.T) {
 	got := scenario(t, scenarioCreativeGroupShift)
 	for k, want := range map[string]string{
-		"groups":     "124",
+		"groups":     "125",
 		"group0":     "impulse:pin",
 		"group1":     "itemGroup.name.planks",
-		"items":      "1423",
+		"items":      "1506",
 		"item0group": "impulse:pin",
-		"misplaced":  "13",
+		"misplaced":  "14",
 		"planks":     "32",
 	} {
 		if got[k] != want {
@@ -172,8 +172,8 @@ func TestCreativeGroupsShiftWhenACallerRegistersFirst(t *testing.T) {
 // the first Config.New() and there is no way for it to find out whether it is
 // too late other than by panicking.
 func TestBlockRegistrationIsClosedOnceAServerExists(t *testing.T) {
-	if got := airRIDAfterFirst; got != 13629 {
-		t.Fatalf("air runtime ID = %v, want 13629", got)
+	if got := airRIDAfterFirst; got != 17025 {
+		t.Fatalf("air runtime ID = %v, want 17025", got)
 	}
 	name, _, ok := world.DefaultBlockRegistry.RuntimeIDToState(airRIDAfterFirst)
 	if !ok || name != "minecraft:air" {

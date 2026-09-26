@@ -53,9 +53,11 @@ func TestUpgradeLegacyEntry(t *testing.T) {
 			if got.Name != c.wantName {
 				t.Errorf("name = %q, want %q", got.Name, c.wantName)
 			}
-			// Every mapping entry is stamped with the block version the mapping table was built for.
-			if got.Version != CurrentBlockVersion {
-				t.Errorf("version = %d, want %d", got.Version, CurrentBlockVersion)
+			// Every mapping entry is stamped with the block version the mapping table was built for. The table
+			// is versioned independently of CurrentBlockVersion: entries older than it are upgraded by
+			// blockupgrader and flagged legacy on decode, so the pin below is the table's own version.
+			if got.Version != 18040335 {
+				t.Errorf("version = %d, want %d", got.Version, 18040335)
 			}
 			conversionAssertProps(t, got.State, c.wantHave)
 		})
