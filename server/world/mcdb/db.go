@@ -608,17 +608,22 @@ func (db *DB) NewColumnIterator(r *IteratorRange) *ColumnIterator {
 func (db *DB) Close() error {
 	db.ldat.LastPlayed = time.Now().Unix()
 
+	// A failed save below used to return before ldb.Close, leaking the
+	// database handle and its file lock: the next open of the same directory
+	// then failed. The save error is kept, but the database is always closed.
+	var saveErr error
 	var ldat leveldat.LevelDat
 	if err := ldat.Marshal(*db.ldat); err != nil {
-		return fmt.Errorf("close: %w", err)
+		saveErr = fmt.Errorf("close: %w", err)
+	} else if err := ldat.WriteFile(filepath.Join(db.dir, "level.dat")); err != nil {
+		saveErr = fmt.Errorf("close: %w", err)
+	} else if err := os.WriteFile(filepath.Join(db.dir, "levelname.txt"), []byte(db.ldat.LevelName), 0644); err != nil {
+		saveErr = fmt.Errorf("close: write levelname.txt: %w", err)
 	}
-	if err := ldat.WriteFile(filepath.Join(db.dir, "level.dat")); err != nil {
-		return fmt.Errorf("close: %w", err)
+	if err := db.ldb.Close(); err != nil && saveErr == nil {
+		saveErr = fmt.Errorf("close: %w", err)
 	}
-	if err := os.WriteFile(filepath.Join(db.dir, "levelname.txt"), []byte(db.ldat.LevelName), 0644); err != nil {
-		return fmt.Errorf("close: write levelname.txt: %w", err)
-	}
-	return db.ldb.Close()
+	return saveErr
 }
 
 // dbKey holds a position and dimension.
