@@ -152,12 +152,10 @@ func (r *chunkRequest) signal(tx *Tx) {
 	}
 	if r.err != nil {
 		w.conf.Log.Error("load chunk: "+r.err.Error(), "X", pos[0], "Z", pos[1])
-		for _, recv := range r.callbacks {
-			recv(tx, nil)
-		}
-		return
+		r.result = w.addFailedChunk(pos)
+	} else {
+		r.result = w.addChunk(pos, r.col)
 	}
-	r.result = w.addChunk(pos, r.col)
 	if w.closed.Load() {
 		return
 	}

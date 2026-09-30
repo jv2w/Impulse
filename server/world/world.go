@@ -1261,7 +1261,7 @@ func (w *World) saveChunk(_ *Tx, pos ChunkPos, c *Column) {
 	// an entity's state. Inventories and entities change without going through
 	// SetBlock, so modified stayed false and the change was dropped on unload.
 	// Any chunk holding either is stored.
-	if !w.conf.ReadOnly && (c.modified || len(c.BlockEntities) > 0 || len(c.Entities) > 0) {
+	if !w.conf.ReadOnly && !c.loadFailed && (c.modified || len(c.BlockEntities) > 0 || len(c.Entities) > 0) {
 		c.Compact()
 		if err := w.conf.Provider.StoreColumn(pos, w.conf.Dim, w.columnTo(c, pos)); err != nil {
 			w.conf.Log.Error("save chunk: "+err.Error(), "X", pos[0], "Z", pos[1])
@@ -1442,11 +1442,26 @@ func (tx *Tx) chunk(pos ChunkPos) *Column {
 	col, err := w.loadChunk(pos)
 	if err != nil {
 		w.conf.Log.Error("load chunk: "+err.Error(), "X", pos[0], "Z", pos[1])
-	}
-	if col == nil {
-		return w.emptyColumn()
+		return w.addFailedChunk(pos)
 	}
 	return w.addChunk(pos, col)
+}
+
+// addFailedChunk adds an empty chunk at pos in place of one that failed to
+// load. It is never stored, so the data on disk is left as it is.
+//
+// Which input was the problem: a chunk whose stored data cannot be read. A
+// stand-in column that was never added to the world was returned instead, so
+// every later access read and decoded the chunk again on the tick goroutine and
+// logged the error again, every loader near it requested it again each tick,
+// and entities added there were registered in the world but held by a column
+// that was thrown away.
+func (w *World) addFailedChunk(pos ChunkPos) *Column {
+	col := &chunk.Column{Chunk: chunk.New(w.conf.Blocks, w.Range())}
+	w.fillLight(pos, col)
+	c := w.addChunk(pos, col)
+	c.loadFailed = true
+	return c
 }
 
 // loadChunk loads a chunk from the provider, or generates a chunk if one
@@ -1461,6 +1476,12 @@ func (w *World) loadChunk(pos ChunkPos) (*chunk.Column, error) {
 		w.conf.Generator.GenerateChunk(pos, ch)
 		column = &chunk.Column{Chunk: ch}
 	}
+	w.fillLight(pos, column)
+	return column, nil
+}
+
+// fillLight calculates the light within the chunk of column, at pos.
+func (w *World) fillLight(pos ChunkPos, column *chunk.Column) {
 	area := chunk.LightArea([]*chunk.Chunk{column.Chunk}, int(pos[0]), int(pos[1]))
 	if w.FixedLight() != 0 {
 		// Tx.Light and Tx.SkyLight answer from the rule instead of the column,
@@ -1469,13 +1490,6 @@ func (w *World) loadChunk(pos ChunkPos) (*chunk.Column, error) {
 	} else {
 		area.Fill()
 	}
-	return column, nil
-}
-
-// emptyColumn returns an empty column, used as a stand-in when a chunk could
-// not be loaded.
-func (w *World) emptyColumn() *Column {
-	return w.columnFrom(&chunk.Column{Chunk: chunk.New(w.conf.Blocks, w.Range())}, ChunkPos{})
 }
 
 // loadChunkAsync loads or generates the chunk at pos in the background,
@@ -1607,6 +1621,9 @@ func (w *World) closeUnusedChunks(tx *Tx) {
 // viewers and loaders.
 type Column struct {
 	modified bool
+	// loadFailed is set on the empty column standing in for a chunk that could
+	// not be loaded. Such a column is never stored.
+	loadFailed bool
 
 	*chunk.Chunk
 	Entities      []*EntityHandle
