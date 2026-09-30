@@ -82,6 +82,31 @@ func (s *Session) closeCurrentContainer(tx *world.Tx, clientRequested bool) {
 	}
 }
 
+// closeContainerInOldWorld closes the container the player has open, which is
+// in old, the world being left.
+//
+// Which input was the problem: a player changing worlds with a container open.
+// The window stayed open, and requests went on moving items in and out of a
+// container in a world the player had left. The viewer is removed on old's own
+// goroutine, as the transaction at hand belongs to the new world; the task is
+// not waited for, so the switch does not wait on the old world.
+func (s *Session) closeContainerInOldWorld(old *world.World) {
+	pos := *s.openedPos.Load()
+	if !s.closeWindow(false) {
+		return
+	}
+	// The task is not waited for, and a failed one means old is closing and its
+	// blocks go away with their viewers, so there is nothing left to remove.
+	_ = old.Do(func(tx *world.Tx) {
+		b := tx.Block(pos)
+		if container, ok := b.(block.Container); ok {
+			container.RemoveViewer(s, tx, pos)
+		} else if enderChest, ok := b.(block.EnderChest); ok {
+			enderChest.RemoveViewer(tx, pos)
+		}
+	})
+}
+
 // SendRespawn spawns the Controllable entity of the session client-side in the world, provided it has died.
 func (s *Session) SendRespawn(pos mgl64.Vec3, c Controllable) {
 	s.writePacket(&packet.Respawn{
@@ -345,14 +370,14 @@ func (s *Session) invByID(id int32, tx *world.Tx) (*inventory.Inventory, bool) {
 		}
 		switch id {
 		case protocol.ContainerLevelEntity:
-			return s.openedWindow.Load(), true
+			return s.openedContainerWindow(tx)
 		case protocol.ContainerShulkerBox:
 			if _, shulkerbox := tx.Block(*s.openedPos.Load()).(block.ShulkerBox); shulkerbox {
-				return s.openedWindow.Load(), true
+				return s.openedContainerWindow(tx)
 			}
 		case protocol.ContainerBarrel:
 			if _, barrel := tx.Block(*s.openedPos.Load()).(block.Barrel); barrel {
-				return s.openedWindow.Load(), true
+				return s.openedContainerWindow(tx)
 			}
 		case protocol.ContainerBeaconPayment:
 			if _, beacon := tx.Block(*s.openedPos.Load()).(block.Beacon); beacon {
@@ -360,7 +385,7 @@ func (s *Session) invByID(id int32, tx *world.Tx) (*inventory.Inventory, bool) {
 			}
 		case protocol.ContainerBrewingStandInput, protocol.ContainerBrewingStandResult, protocol.ContainerBrewingStandFuel:
 			if _, brewingStand := tx.Block(*s.openedPos.Load()).(block.BrewingStand); brewingStand {
-				return s.openedWindow.Load(), true
+				return s.openedContainerWindow(tx)
 			}
 		case protocol.ContainerAnvilInput, protocol.ContainerAnvilMaterial:
 			if _, anvil := tx.Block(*s.openedPos.Load()).(block.Anvil); anvil {
@@ -389,11 +414,39 @@ func (s *Session) invByID(id int32, tx *world.Tx) (*inventory.Inventory, bool) {
 		case protocol.ContainerFurnaceIngredient, protocol.ContainerFurnaceFuel, protocol.ContainerFurnaceResult,
 			protocol.ContainerBlastFurnaceIngredient, protocol.ContainerSmokerIngredient:
 			if _, ok := tx.Block(*s.openedPos.Load()).(smelter); ok {
-				return s.openedWindow.Load(), true
+				return s.openedContainerWindow(tx)
 			}
 		}
 	}
 	return nil, false
+}
+
+// openedContainerWindow returns the inventory of the opened container if the
+// block at the opened position still holds exactly that inventory. Otherwise it
+// closes the window and returns false.
+//
+// Which input was the problem: requests naming a container whose block had
+// changed since it was opened. Breaking one half of an open double chest
+// dropped that half's items and left the other half in the surviving chest,
+// while the window still held all 54 slots to take from; a broken shulker box,
+// a chest paired or unpaired by a neighbour, or a chest in a chunk unloaded
+// since kept serving its old inventory the same way.
+func (s *Session) openedContainerWindow(tx *world.Tx) (*inventory.Inventory, bool) {
+	pos, window := *s.openedPos.Load(), s.openedWindow.Load()
+	var valid bool
+	switch b := tx.Block(pos).(type) {
+	case block.EnderChest:
+		valid = window == s.enderChest
+	case block.Container:
+		valid = b.Inventory(tx, pos) == window
+	}
+	if !valid {
+		// Only the window is closed: the block now at the position is not the
+		// one the viewer was added to, so it has no viewer to remove.
+		s.closeWindow(false)
+		return nil, false
+	}
+	return window, true
 }
 
 // Disconnect disconnects the client and ultimately closes the session. If the message passed is non-empty,

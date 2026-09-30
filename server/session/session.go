@@ -560,6 +560,7 @@ func (s *Session) handleWorldSwitch(w *world.World, tx *world.Tx, c Controllable
 		s.changeDimension(int32(dim), false, c)
 	}
 	s.ViewEntityTeleport(c, c.Position())
+	s.closeContainerInOldWorld(s.chunkLoader.World())
 	s.chunkLoader.ChangeWorld(tx, w)
 }
 
