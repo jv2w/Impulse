@@ -272,50 +272,35 @@ func TestExhaustBelowFourNeverTouchesTheBar(t *testing.T) {
 	checkHunger(t, m, 20, 5, 3.999)
 }
 
-// PINNED BUG: exhaust never clamps the exhaustion level at 0, so a negative
-// value from a caller is stored and permanently offsets every later drain.
-// player.Exhaust passes its argument straight through, so any handler or block
-// that exhausts by a negative amount buys the player free food.
-func TestNegativeExhaustPermanentlyOffsetsTheDrain(t *testing.T) {
+// TestNegativeExhaustIsIgnored pins that a negative amount is dropped rather
+// than stored, where it offset every later drain and bought free food.
+func TestNegativeExhaustIsIgnored(t *testing.T) {
 	m := newHungerManager()
 	m.exhaust(-100)
-	checkHunger(t, m, 20, 5, -100)
+	checkHunger(t, m, 20, 5, 0)
 
-	// 24 exhaustion would normally have cost a food point, see
+	// 24 exhaustion costs the 5 saturation and then a food point, see
 	// TestFirstFoodPointCostsTwentyFourExhaustion.
 	for range 24 {
 		m.exhaust(1)
 	}
-	checkHunger(t, m, 20, 5, -76)
+	checkHunger(t, m, 19, 0, 0)
 }
 
-// PINNED BUG: NaN is neither < 4 nor >= 4, so the loop in exhaust never runs
-// and the NaN is stored. Every later exhaust adds to NaN and stays NaN, so one
-// NaN from a caller disables the hunger bar for the rest of the player's life.
-//
-// The +Inf case is worse and is deliberately not exercised here: +Inf >= 4 is
-// true and +Inf - 4 is still +Inf, so exhaust spins forever while holding m.mu.
-// A test for it could not terminate.
-func TestNaNExhaustDisablesTheHungerBarForever(t *testing.T) {
+// TestNonFiniteExhaustIsBounded pins that NaN is ignored instead of switching
+// the hunger bar off, and that +Inf and huge amounts, which a movement packet
+// far away produces, empty the bar and return instead of looping.
+func TestNonFiniteExhaustIsBounded(t *testing.T) {
 	m := newHungerManager()
 	m.exhaust(math.NaN())
-	if !math.IsNaN(m.exhaustionLevel) {
-		t.Fatalf("exhaustion = %v, want NaN", m.exhaustionLevel)
-	}
-	checkHunger := func(food int, saturation float64) {
-		t.Helper()
-		if m.foodLevel != food || !closeTo(m.saturationLevel, saturation) {
-			t.Fatalf("hunger = (food %v, saturation %v), want (food %v, saturation %v)",
-				m.foodLevel, m.saturationLevel, food, saturation)
-		}
-	}
-	checkHunger(20, 5)
+	checkHunger(t, m, 20, 5, 0)
 
-	m.exhaust(1e9)
-	if !math.IsNaN(m.exhaustionLevel) {
-		t.Fatalf("exhaustion after a large exhaust = %v, want NaN", m.exhaustionLevel)
-	}
-	checkHunger(20, 5)
+	m.exhaust(math.Inf(1))
+	checkHunger(t, m, 0, 0, 0)
+
+	m = newHungerManager()
+	m.exhaust(1e30)
+	checkHunger(t, m, 0, 0, 0)
 }
 
 // PINNED BUG: resetExhaustion is named and documented as if it only cleared the

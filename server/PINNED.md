@@ -10,7 +10,7 @@ A green test run therefore means behaviour has not drifted, not that it is right
 Before fixing one, read CLAUDE.md section 4.3: a defect fix updates the test and deletes
 the marker, while a performance change that breaks one is itself the thing that is wrong.
 
-Totals: 217 BUG, 39 SCOPE, 48 CONSTRAINT.
+Totals: 215 BUG, 39 SCOPE, 48 CONSTRAINT.
 
 This file is generated. Regenerate it with:
 
@@ -344,8 +344,6 @@ IMPULSE_UPDATE_PINNED=1 go test ./server -run TestPinnedIndexIsCurrent
 
 ## server/player/hunger_test.go
 
-- **BUG** — NaN is neither < 4 nor >= 4, so the loop in exhaust never runs and the NaN is stored. Every later exhaust adds to NaN and stays NaN, so one NaN from a caller disables...
-- **BUG** — exhaust never clamps the exhaustion level at 0, so a negative value from a caller is stored and permanently offsets every later drain. player.Exhaust passes its argument...
 - **BUG** — only the exported methods and exhaust/saturate take m.mu. Player.sendFood (player.go:818) and Player.tickFood (player.go:2805) read foodLevel, saturationLevel,...
 - **BUG** — resetExhaustion is named and documented as if it only cleared the exhaustion level, but it also wipes the saturation and rewinds the food tick. player.Exhaust calls it...
 
