@@ -45,9 +45,13 @@ func (f Flat) GenerateChunk(pos world.ChunkPos, chunk *chunk.Chunk) {
 
 	for x := range uint8(16) {
 		for z := range uint8(16) {
-			for y := int16(0); y <= max; y++ {
-				at := min + y
-				if y < n {
+			// Which input was the problem: any dimension whose range does not
+			// start at 0. The loop counted the offset from the bottom up to the
+			// top coordinate, so it stopped min blocks short of the top: the
+			// overworld left the biome of everything above y 255 unset, which
+			// the client draws with the default sky, fog and weather.
+			for at := min; at <= max; at++ {
+				if y := at - min; y < n {
 					chunk.SetBlock(x, at, z, 0, f.layers[n-y-1])
 				}
 				chunk.SetBiome(x, at, z, f.biome)
