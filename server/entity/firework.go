@@ -50,7 +50,11 @@ func (fireworkType) DecodeNBT(m map[string]any, data *world.EntityData) {
 	conf := fireworkConf
 	// DecodeNBT has no channel to report an item this build cannot resolve on.
 	it, _ := item.MapNBT(m, "Item")
-	conf.Firework = it.Item().(item.Firework)
+	// Which input was the problem: a stored firework entity whose item is not a
+	// firework, as in a world written by another version or a corrupt record.
+	// The assertion panicked on the goroutine loading the chunk. It launches as
+	// a firework with no explosions instead.
+	conf.Firework, _ = it.Item().(item.Firework)
 	conf.ExistenceDuration = conf.Firework.RandomisedDuration()
 
 	data.Data = conf.New()
