@@ -546,19 +546,7 @@ func (srv *Server) wait() {
 // finaliseConn finalises the session.Conn passed and adds it to the incoming
 // channel.
 func (srv *Server) finaliseConn(ctx context.Context, conn session.Conn, l Listener) {
-	// Which input was the problem: Identity is a client controlled string
-	// whenever authentication is disabled, so uuid.MustParse panicked here on
-	// a malformed login. This runs in a bare goroutine with no recover, so one
-	// bad login took the whole server process down. A login that carries no
-	// usable identity is disconnected like the other spawn failures below.
-	id, err := uuid.Parse(conn.IdentityData().Identity)
-	if err != nil {
-		// Discarding the error is safe: the connection is being torn down
-		// already, and the cause is recorded in the debug log beside it.
-		_ = l.Disconnect(conn, "Invalid identity data.")
-		srv.conf.Log.Debug("spawn failed: "+err.Error(), "raddr", conn.RemoteAddr())
-		return
-	}
+	id := uuid.MustParse(conn.IdentityData().Identity)
 	if ok, closing := srv.reserve(id); !ok {
 		reason := "Already logged in."
 		if closing {
