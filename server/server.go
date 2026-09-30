@@ -59,9 +59,24 @@ type Server struct {
 	// p holds a map of all players currently connected to the server. When they
 	// leave, they are removed from the map.
 	p map[uuid.UUID]*onlinePlayer
+	// reserved holds the UUID of every login from the moment it passes its
+	// identity check until its player data has been saved after it left. A
+	// UUID is in p only for part of that time, so p alone cannot tell whether
+	// a login would load data another session of the same UUID is about to
+	// overwrite. Guarded by pmu.
+	reserved map[uuid.UUID]struct{}
+	// closing is set under pmu once the server starts closing. No login is
+	// reserved or added to p after that.
+	closing bool
 	// pwg is a sync.WaitGroup used to wait for all players to be disconnected
-	// before server shutdown, so that their data is saved properly.
+	// before server shutdown, so that their data is saved properly. It counts
+	// the entries of reserved.
 	pwg sync.WaitGroup
+	// joinCtx is cancelled when the server starts closing, so that logins still
+	// being set up stop waiting on the client and on Accept. cancelJoins
+	// cancels it.
+	joinCtx     context.Context
+	cancelJoins context.CancelFunc
 	// wg is used to wait for all Listeners to be closed and their respective
 	// goroutines to be finished.
 	wg sync.WaitGroup
@@ -142,9 +157,19 @@ func (srv *Server) Accept() iter.Seq[*player.Player] {
 			// the lock returns what both calls returned before.
 			id := inc.p.handle.UUID()
 
+			// Which input was the problem: a login handed to Accept after close
+			// had already disconnected everyone in p. Nothing disconnected it,
+			// so close waited for it forever and the worlds were never saved.
 			srv.pmu.Lock()
-			srv.p[id] = inc.p
+			closing := srv.closing
+			if !closing {
+				srv.p[id] = inc.p
+			}
 			srv.pmu.Unlock()
+			if closing {
+				srv.abortJoin(inc, "server closing")
+				continue
+			}
 
 			ret, err := world.Call(context.Background(), inc.w, func(tx *world.Tx) (bool, error) {
 				p := tx.AddEntity(inc.p.handle).(*player.Player)
@@ -155,13 +180,7 @@ func (srv *Server) Accept() iter.Seq[*player.Player] {
 				srv.pmu.Lock()
 				delete(srv.p, id)
 				srv.pmu.Unlock()
-				srv.pwg.Done()
-				// Join failed before spawn: the entity was never added, so close
-				// the orphaned handle and fully tear the session down (Disconnect
-				// only writes a packet; CloseConnection frees the conn/goroutines).
-				_ = inc.p.handle.Close()
-				inc.s.Disconnect("join failed")
-				inc.s.CloseConnection()
+				srv.abortJoin(inc, "join failed")
 				continue
 			}
 			if ret {
@@ -343,6 +362,16 @@ func (srv *Server) Close() error {
 func (srv *Server) close() {
 	srv.conf.Log.Info("Server closing...")
 
+	// No login is reserved or spawned from here on, and the ones still being
+	// set up stop waiting and release their reservation, so the wait below
+	// covers only players that are disconnected here or were already leaving.
+	// The listeners stay open until the end: closing them closes the
+	// connections before the disconnect messages below reach the clients.
+	srv.pmu.Lock()
+	srv.closing = true
+	srv.pmu.Unlock()
+	srv.cancelJoins()
+
 	srv.conf.Log.Debug("Disconnecting players...")
 	for p := range srv.Players(nil) {
 		p.Disconnect(chat.MessageServerDisconnect.Resolve(p.Locale()))
@@ -375,7 +404,7 @@ func (srv *Server) close() {
 // automatically. The limit must be enforced by the Listener.
 func (srv *Server) listen(l Listener) {
 	wg := new(sync.WaitGroup)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(srv.joinCtx)
 	for {
 		c, err := l.Accept()
 		if err != nil {
@@ -497,6 +526,17 @@ func (srv *Server) finaliseConn(ctx context.Context, conn session.Conn, l Listen
 		srv.conf.Log.Debug("spawn failed: "+err.Error(), "raddr", conn.RemoteAddr())
 		return
 	}
+	if ok, closing := srv.reserve(id); !ok {
+		reason := "Already logged in."
+		if closing {
+			reason = "Server closing."
+		}
+		// Discarding the error is safe: the connection is being torn down
+		// already, and the reason is recorded in the debug log beside it.
+		_ = l.Disconnect(conn, reason)
+		srv.conf.Log.Debug("spawn failed: "+reason, "raddr", conn.RemoteAddr())
+		return
+	}
 	data := srv.defaultGameData()
 
 	d, w, err := srv.conf.PlayerProvider.Load(id, srv.dimension)
@@ -509,6 +549,7 @@ func (srv *Server) finaliseConn(ctx context.Context, conn session.Conn, l Listen
 		// already, and the cause is logged beside it.
 		_ = l.Disconnect(conn, "Failed to load player data.")
 		srv.conf.Log.Error("spawn failed: load player data: "+err.Error(), "uuid", id, "raddr", conn.RemoteAddr())
+		srv.release(id)
 		return
 	}
 	if err != nil {
@@ -528,15 +569,66 @@ func (srv *Server) finaliseConn(ctx context.Context, conn session.Conn, l Listen
 		_ = l.Disconnect(conn, "Connection timeout.")
 
 		srv.conf.Log.Debug("spawn failed: "+err.Error(), "raddr", conn.RemoteAddr())
-		return
-	}
-	if _, ok := srv.Player(id); ok {
-		_ = l.Disconnect(conn, "Already logged in.")
-		srv.conf.Log.Debug("spawn failed: already logged in", "raddr", conn.RemoteAddr())
+		srv.release(id)
 		return
 	}
 	_ = conn.WritePacket(&packet.ItemRegistry{Items: srv.customItems})
-	srv.incoming <- srv.createPlayer(id, conn, d, w)
+	inc := srv.createPlayer(id, conn, d, w)
+	select {
+	case srv.incoming <- inc:
+	case <-ctx.Done():
+		// The server is closing and Accept may never take this login, which
+		// would leave this goroutine, the listener waiting for it and close
+		// waiting on the reservation blocked forever.
+		srv.abortJoin(inc, "server closing")
+	}
+}
+
+// reserve reserves id for a login and reports whether that succeeded. It fails
+// while another login of the same UUID is being set up, is online or is still
+// having its data saved, and once the server is closing.
+//
+// Which input was the problem: two logins of one UUID. The "already logged in"
+// check looked only at p, which a login enters after its data is loaded and
+// leaves before that data is saved. A second login loaded the data of a session
+// that was about to save over it, and spawned with the items the first session
+// had since given away; two logins at once both passed and spawned from the
+// same data. Reserving before the load and releasing after the save closes both.
+func (srv *Server) reserve(id uuid.UUID) (ok, closing bool) {
+	srv.pmu.Lock()
+	defer srv.pmu.Unlock()
+	if srv.closing {
+		return false, true
+	}
+	if _, reserved := srv.reserved[id]; reserved {
+		return false, false
+	}
+	srv.reserved[id] = struct{}{}
+	// Added under pmu, which close takes to set closing before it waits, so
+	// the counter never goes up after close has started waiting on it.
+	srv.pwg.Add(1)
+	return true, false
+}
+
+// release ends the reservation of id made by reserve.
+func (srv *Server) release(id uuid.UUID) {
+	srv.pmu.Lock()
+	delete(srv.reserved, id)
+	srv.pmu.Unlock()
+	srv.pwg.Done()
+}
+
+// abortJoin tears down a login created by createPlayer that never spawned and
+// releases its reservation.
+func (srv *Server) abortJoin(inc incoming, reason string) {
+	// The entity was never added to a world, so the handle is closed here, and
+	// the session is torn down in full: Disconnect only writes a packet, while
+	// CloseConnection frees the connection and its goroutines. Closing a handle
+	// that is in no world cannot fail in a way that leaves anything to undo.
+	_ = inc.p.handle.Close()
+	inc.s.Disconnect(reason)
+	inc.s.CloseConnection()
+	srv.release(inc.p.handle.UUID())
 }
 
 // defaultGameData returns a minecraft.GameData as sent for a new player. It
@@ -611,14 +703,14 @@ func (srv *Server) handleSessionClose(tx *world.Tx, c session.Controllable) {
 	} else {
 		srv.conf.Log.Error("Save player data: player's worlds closed before teardown; data not saved", "uuid", id)
 	}
-	srv.pwg.Done()
+	// Released only now, so that a new login of this UUID loads the data just
+	// saved rather than what was stored before this session.
+	srv.release(id)
 }
 
 // createPlayer creates a new player instance using the UUID and connection
-// passed.
+// passed. id must be reserved.
 func (srv *Server) createPlayer(id uuid.UUID, conn session.Conn, conf player.Config, w *world.World) incoming {
-	srv.pwg.Add(1)
-
 	s := session.Config{
 		Log:            srv.conf.Log,
 		MaxChunkRadius: srv.conf.MaxChunkRadius,

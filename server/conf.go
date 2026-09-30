@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -205,8 +206,10 @@ func (conf Config) New() *Server {
 		conf:     conf,
 		incoming: make(chan incoming),
 		p:        make(map[uuid.UUID]*onlinePlayer),
+		reserved: make(map[uuid.UUID]struct{}),
 		world:    &world.World{}, nether: &world.World{}, end: &world.World{},
 	}
+	srv.joinCtx, srv.cancelJoins = context.WithCancel(context.Background())
 	// Presized to the listener count so append never grows the slice; the loop
 	// still appends the same listeners in the same order.
 	srv.listeners = make([]Listener, 0, len(conf.Listeners))
