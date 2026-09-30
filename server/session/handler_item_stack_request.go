@@ -281,6 +281,16 @@ func (h *ItemStackRequestHandler) handleTransfer(from, to protocol.StackRequestS
 	if err := h.verifySlots(s, tx, from, to); err != nil {
 		return fmt.Errorf("source slot out of sync: %w", err)
 	}
+	invA, _ := s.invByID(int32(from.Container.ContainerID), tx)
+	invB, _ := s.invByID(int32(to.Container.ContainerID), tx)
+	// Which input was the problem: a source and destination naming the same
+	// slot, directly or through another container ID for the same inventory
+	// such as HotBar and Inventory, or any two offhand slot numbers. Both were
+	// read before either was written, so the destination write added count to
+	// the stale full stack and the slot grew by count.
+	if invA == invB && (from.Slot == to.Slot || invA == s.offHand) {
+		return fmt.Errorf("client tried transferring from slot %v to itself", from.Slot)
+	}
 	i, _ := h.itemInSlot(from, s, tx)
 	dest, _ := h.itemInSlot(to, s, tx)
 	if !i.Comparable(dest) {
@@ -299,9 +309,6 @@ func (h *ItemStackRequestHandler) handleTransfer(from, to protocol.StackRequestS
 	if destEmpty {
 		dest = i.Grow(-math.MaxInt32)
 	}
-
-	invA, _ := s.invByID(int32(from.Container.ContainerID), tx)
-	invB, _ := s.invByID(int32(to.Container.ContainerID), tx)
 
 	ctx := event.C(inventory.Holder(c))
 	_ = call(ctx, int(from.Slot), i.Grow(int(count)-i.Count()), invA.Handler().HandleTake)
