@@ -64,6 +64,9 @@ type playerData struct {
 	sleepPos cube.Pos
 
 	usingSince time.Time
+	// usingStack is the stack the player started using at usingSince. It is
+	// only meaningful while usingItem is set.
+	usingStack item.Stack
 
 	glideTicks   int64
 	fireTicks    int64
@@ -1658,6 +1661,16 @@ func (p *Player) UseItem() {
 	i, left := p.HeldItems()
 	it := i.Item()
 
+	// Which input was the problem: the held stack being replaced while it was in
+	// use, for example a stack request moving a golden apple into the slot the
+	// player started eating bread from. usingSince was kept, so the new item
+	// finished at once on the old one's elapsed time. Using the new stack starts
+	// over. Comparable ignores count and durability, so eating or charging the
+	// same item is unaffected.
+	if p.usingItem && !i.Comparable(p.usingStack) {
+		p.usingItem = false
+	}
+
 	if cd, ok := it.(item.Cooldown); ok {
 		p.SetCooldown(it, cd.Cooldown())
 	}
@@ -1666,7 +1679,7 @@ func (p *Player) UseItem() {
 		if !p.canRelease() {
 			return
 		}
-		p.usingSince, p.usingItem = time.Now(), true
+		p.usingSince, p.usingItem, p.usingStack = time.Now(), true, i
 		p.updateState()
 	}
 	switch usable := it.(type) {
@@ -1675,7 +1688,7 @@ func (p *Player) UseItem() {
 		if !p.usingItem {
 			if !usable.ReleaseCharge(p, p.tx, useCtx) && usable.CanCharge(p, p.tx, useCtx) {
 				// If the item was not charged yet, start charging.
-				p.usingSince, p.usingItem = time.Now(), true
+				p.usingSince, p.usingItem, p.usingStack = time.Now(), true, i
 			}
 			p.handleUseContext(useCtx)
 			p.updateState()
@@ -1713,7 +1726,7 @@ func (p *Player) UseItem() {
 		}
 		if !p.usingItem {
 			// Consumable starts being consumed: Set the start timestamp and update the using state to viewers.
-			p.usingItem, p.usingSince = true, time.Now()
+			p.usingItem, p.usingSince, p.usingStack = true, time.Now(), i
 			p.updateState()
 			return
 		}
