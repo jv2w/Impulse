@@ -546,26 +546,23 @@ func TestProtocolToSkinErrorsAreNotWrapped(t *testing.T) {
 	}
 }
 
-// TestProtocolToSkinPixelDataIsNotValidated pinned the absence of any check between the declared dimensions
-// and the pixel slice, which is the defect protocolToSkin now rejects, so it pins the rejection instead: a
-// skin declaring 64x32 against four bytes of pixel data no longer converts into a skin whose bounds its data
-// cannot fill. The name is the one the marker was written under and is left alone.
-//
-// The wasted allocation the marker also described is still there: skin.New allocates width*height*4 bytes
-// and the next line replaces that slice with the client's SkinData. It is no longer an amplification, since
-// the check above ties the allocation to the length of the data received.
+// TestProtocolToSkinPixelDataIsNotValidated pins that protocolToSkin does not
+// check the declared dimensions against the pixel slice itself. Its only caller
+// passes skins decoded from a PlayerSkin packet, and gophertunnel's decoder
+// already rejects a skin whose data does not match its dimensions, which the
+// 256 dimension cap keeps from wrapping.
 func TestProtocolToSkinPixelDataIsNotValidated(t *testing.T) {
 	sk := validProtocolSkin()
 	sk.SkinData = []byte{1, 2, 3, 4}
 
 	got, err := protocolToSkin(sk)
-	if err == nil {
-		t.Fatal("protocolToSkin accepted mismatched pixel data, want an error")
+	if err != nil {
+		t.Fatalf("protocolToSkin rejected mismatched pixel data: %v", err)
 	}
-	if !strings.Contains(err.Error(), "skin of 64x32 needs 8192 bytes of pixel data, but got 4") {
-		t.Errorf("error = %q, want it to report the declared size against the data length", err)
+	if got.Bounds().Max.X != 64 || got.Bounds().Max.Y != 32 {
+		t.Fatalf("bounds = %v, want the declared 64x32", got.Bounds())
 	}
-	if !reflect.DeepEqual(got, skin.Skin{}) {
-		t.Errorf("a rejected skin still returned data: %#v", got)
+	if len(got.Pix) != 4 {
+		t.Fatalf("pixel data length = %d, want the client's 4", len(got.Pix))
 	}
 }

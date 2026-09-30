@@ -1315,21 +1315,15 @@ func protocolToSkin(sk protocol.Skin) (s skin.Skin, err error) {
 
 	// protocol.Skin.validate compares width*height*4 against len(data) in uint32 arithmetic, while the
 	// constructors below allocate width*height*4 in int arithmetic. Dimensions whose product is a multiple
-	// of 2^32, such as 1073741824x1, wrap to zero for gophertunnel and validate against empty pixel data,
-	// then ask for the full unwrapped size here. Repeating the check in the same int arithmetic the
-	// constructors use ties every allocation below to the length of the data actually received.
+	// of 2^32, such as 1073741824x1, wrap to zero for gophertunnel and validate against empty pixel data.
+	// The skin and the cape are capped at maxSkinDimension, far below any wrap, so gophertunnel's check
+	// holds for them; animations have no such cap and repeat the check in int arithmetic below.
 	skinWidth, skinHeight := int(sk.SkinImageWidth), int(sk.SkinImageHeight)
-	// Which input was the problem: dimensions in the millions. The size check
-	// below ties the allocation to the bytes actually received, but absurd
-	// dimensions still forced a multi-megabyte New plus Pix aliasing per send.
+	// Which input was the problem: dimensions in the millions. The packet
+	// decoder ties the pixel data to the dimensions, but absurd dimensions
+	// still forced a multi-megabyte New plus Pix aliasing per send.
 	if skinWidth > maxSkinDimension || skinHeight > maxSkinDimension {
 		return skin.Skin{}, fmt.Errorf("skin dimensions %vx%v exceed %v", skinWidth, skinHeight, maxSkinDimension)
-	}
-	// The required size is computed once and reused by the message, so the check and the message still
-	// report the same number in the same int arithmetic.
-	skinSize := skinWidth * skinHeight * 4
-	if skinSize != len(sk.SkinData) {
-		return skin.Skin{}, fmt.Errorf("skin of %vx%v needs %v bytes of pixel data, but got %v", skinWidth, skinHeight, skinSize, len(sk.SkinData))
 	}
 
 	s = skin.New(skinWidth, skinHeight)
@@ -1342,10 +1336,6 @@ func protocolToSkin(sk protocol.Skin) (s skin.Skin, err error) {
 	capeWidth, capeHeight := int(sk.CapeImageWidth), int(sk.CapeImageHeight)
 	if capeWidth > maxSkinDimension || capeHeight > maxSkinDimension {
 		return skin.Skin{}, fmt.Errorf("cape dimensions %vx%v exceed %v", capeWidth, capeHeight, maxSkinDimension)
-	}
-	capeSize := capeWidth * capeHeight * 4
-	if capeSize != len(sk.CapeData) {
-		return skin.Skin{}, fmt.Errorf("cape of %vx%v needs %v bytes of pixel data, but got %v", capeWidth, capeHeight, capeSize, len(sk.CapeData))
 	}
 
 	s.Cape = skin.NewCape(capeWidth, capeHeight)
