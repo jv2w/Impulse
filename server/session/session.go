@@ -260,6 +260,17 @@ func (s *Session) SetHandle(handle *world.EntityHandle, skin skin.Skin) {
 	sessions.Add(s)
 }
 
+// Abandon removes a Session that was given a handle through SetHandle but will
+// never be spawned from the sessions shown to other players.
+//
+// Which input was the problem: a join that failed after SetHandle, such as one
+// refused while the server closes. SetHandle had added the Session to the
+// player list every other player sees, and nothing removed it, so a player who
+// never joined stayed listed.
+func (s *Session) Abandon() {
+	sessions.Remove(s, nil)
+}
+
 // Spawn makes the Controllable passed spawn in the world.World.
 // The function passed will be called when the session stops running.
 func (s *Session) Spawn(c Controllable, tx *world.Tx) {

@@ -659,6 +659,7 @@ func (srv *Server) abortJoin(inc incoming, reason string) {
 	// CloseConnection frees the connection and its goroutines. Closing a handle
 	// that is in no world cannot fail in a way that leaves anything to undo.
 	_ = inc.p.handle.Close()
+	inc.s.Abandon()
 	inc.s.Disconnect(reason)
 	inc.s.CloseConnection()
 	srv.release(inc.p.handle.UUID())
