@@ -2,6 +2,7 @@ package world
 
 import (
 	"sync"
+	"sync/atomic"
 
 	"github.com/jv2w/Impulse/server/world/chunk"
 )
@@ -13,10 +14,14 @@ type chunkRequest struct {
 	callbacks []chunkCallback
 	signalled bool
 
-	done   chan struct{}
-	col    *chunk.Column
-	err    error
-	result *Column
+	// claimed is set by whichever of a worker, a transaction needing the chunk
+	// right away and the shutdown drain takes the request first. Only that one
+	// loads it or aborts it and closes done.
+	claimed atomic.Bool
+	done    chan struct{}
+	col     *chunk.Column
+	err     error
+	result  *Column
 }
 
 // defaultChunkLoadWorkers is the number of chunk load workers started when
@@ -40,25 +45,44 @@ func newChunkWorkerPool(w *World) *chunkWorkerPool {
 	return &chunkWorkerPool{w: w, queue: make(chan *chunkRequest, 4096)}
 }
 
-// doImmediate blocks until the chunk is ready and returns it.
+// doImmediate blocks until the chunk is ready and returns it. A request no
+// worker has taken yet is loaded right here.
+//
+// Which input was the problem: a transaction reading a chunk whose load was
+// queued but not started, as when a player moves into chunks it just requested.
+// It waited until the workers had worked through every load queued ahead of it,
+// from every player, stalling the tick for seconds. Now it waits for at most
+// this one chunk. The chunk loaded and the callbacks run are the same, as
+// signal below is what a worker's load would have run.
 func (r *chunkRequest) doImmediate(tx *Tx) *Column {
-	<-r.done
+	if r.claimed.CompareAndSwap(false, true) {
+		r.col, r.err = tx.World().loadChunk(r.pos)
+		close(r.done)
+	} else {
+		<-r.done
+	}
 	r.signal(tx)
 	return r.result
 }
 
 // load loads or generates the chunk and hands it back to the world to be
-// added.
+// added. It does nothing if a transaction took the request first.
 func (r *chunkRequest) load(w *World) {
+	if !r.claimed.CompareAndSwap(false, true) {
+		return
+	}
 	r.col, r.err = w.loadChunk(r.pos)
 	close(r.done)
 	w.Do(r.signal)
 }
 
 // abort cancels a request that will never be carried out because the world is
-// closing, releasing any callers waiting on it.
+// closing, releasing any callers waiting on it. It does nothing if the request
+// was already taken, as whoever took it closes done.
 func (r *chunkRequest) abort() {
-	close(r.done)
+	if r.claimed.CompareAndSwap(false, true) {
+		close(r.done)
+	}
 }
 
 // schedule hands r to the workers without blocking. It returns false if the
