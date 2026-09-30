@@ -1171,10 +1171,7 @@ func decodeItemNBT(t world.Item, data map[string]any) (decoded world.Item) {
 			decoded = t
 		}
 	}()
-	if d, ok := nbter.DecodeNBT(data).(world.Item); ok {
-		decoded = d
-	}
-	return decoded
+	return nbter.DecodeNBT(data).(world.Item)
 }
 
 // stackToItem converts a network ItemStack representation back to an item.Stack.
