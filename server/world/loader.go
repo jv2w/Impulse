@@ -50,14 +50,7 @@ func (l *Loader) World() *World {
 // is done from the new World.
 func (l *Loader) ChangeWorld(tx *Tx, new *World) {
 	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	loaded := maps.Clone(l.loaded)
-	l.w.exec(func(tx *Tx) {
-		for pos := range loaded {
-			tx.World().removeViewer(tx, pos, l)
-		}
-	})
+	old, loaded := l.w, maps.Clone(l.loaded)
 	clear(l.loaded)
 	clear(l.pending)
 	l.w.viewerMu.Lock()
@@ -65,6 +58,30 @@ func (l *Loader) ChangeWorld(tx *Tx, new *World) {
 	l.w.viewerMu.Unlock()
 
 	l.world(new)
+	l.mu.Unlock()
+
+	// Which input was the problem: a player changing worlds while the old
+	// world's queue was full, as it is under load, or after the old world was
+	// closed. The removal below was sent with a blocking send while l.mu was
+	// held on the new world's goroutine; the old world's tick waits on l.mu, so
+	// both worlds stalled, and a closed old world stalled the new one forever.
+	// Do never blocks and drops the task for a closed world, whose chunks and
+	// viewers are gone anyway, and it is sent with l.mu released, as a
+	// synchronous world runs it right here. Do may run after later tasks when
+	// the queue is full, so positions the Loader has loaded in old again since
+	// are kept.
+	_ = old.Do(func(tx *Tx) {
+		l.mu.RLock()
+		if l.w == old {
+			for pos := range l.loaded {
+				delete(loaded, pos)
+			}
+		}
+		l.mu.RUnlock()
+		for pos := range loaded {
+			tx.World().removeViewer(tx, pos, l)
+		}
+	})
 }
 
 // ChangeRadius changes the maximum chunk radius of the Loader.
