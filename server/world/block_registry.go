@@ -545,11 +545,10 @@ func (br *BasicBlockRegistry) BlockByRuntimeID(rid uint32) (Block, bool) {
 }
 
 // BlockByName attempts to return a Block by its name and properties. If not found, the bool returned is
-// false. A registry that has not been finalized holds no usable runtime IDs yet and reports every name as not found;
-// the lookup is reachable from block entity NBT, so it must not depend on the registry's lifetime to stay alive.
+// false.
 func (br *BasicBlockRegistry) BlockByName(name string, properties map[string]any) (Block, bool) {
 	if !br.finalized {
-		return nil, false
+		panic("BlockRegistry.BlockByName called on non finalized BlockRegistry")
 	}
 	rid, ok := br.stateRuntimeID(name, properties)
 	if !ok {

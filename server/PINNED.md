@@ -10,7 +10,7 @@ A green test run therefore means behaviour has not drifted, not that it is right
 Before fixing one, read CLAUDE.md section 4.3: a defect fix updates the test and deletes
 the marker, while a performance change that breaks one is itself the thing that is wrong.
 
-Totals: 216 BUG, 39 SCOPE, 48 CONSTRAINT.
+Totals: 216 BUG, 39 SCOPE, 47 CONSTRAINT.
 
 This file is generated. Regenerate it with:
 
@@ -237,7 +237,6 @@ IMPULSE_UPDATE_PINNED=1 go test ./server -run TestPinnedIndexIsCurrent
 - **BUG** — the outcome depends on whether the block has any state at all. A stateless block still resolves, so the corruption is invisible; a stateful one fails the...
 - **BUG** — the round trip is asymmetric. Int32FromRGBA keys its special case on R, G and B alone, ignoring A, so any colour with zero RGB - including a deliberately transparent one...
 - **CONSTRAINT** — an entry whose count is of the wrong type reads as a count of 0, which is indistinguishable from an empty slot, so it is dropped without an error. The count is read in...
-- **CONSTRAINT** — the two-phase lifetime itself remains; only its panic is gone.
 - **SCOPE** — block state upgrading across game versions is not implemented here; this test records the absence rather than demanding it.
 
 ## server/internal/sliceutil/sliceutil_test.go

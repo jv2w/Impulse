@@ -48,14 +48,3 @@ func TestStateToRuntimeIDUnencodablePropertyFallsBack(t *testing.T) {
 		}
 	}
 }
-
-// TestBlockByNameOnNonFinalizedRegistry verifies that a lookup before Finalize reports a miss instead of panicking. The
-// lookup is reachable from block entity decoding, so the state of a registry's lifetime must not decide whether
-// decoding a chest takes the world goroutine down.
-func TestBlockByNameOnNonFinalizedRegistry(t *testing.T) {
-	br := NewBlockRegistry()
-	b, ok := br.BlockByName("minecraft:stone", nil)
-	if b != nil || ok {
-		t.Errorf("BlockByName on a non-finalized registry = (%#v, %v), want (nil, false)", b, ok)
-	}
-}
