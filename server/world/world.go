@@ -1250,7 +1250,13 @@ func (w *World) save(f func(*Tx, ChunkPos, *Column)) execFunc {
 			f(tx, pos, c)
 		}
 		w.conf.Log.Debug("Updating level.dat values...")
+		// Which input was the problem: the Settings the dimensions share. The
+		// ticks of the other dimensions write it under its lock while this save
+		// read it without one, a data race on every autosave. Held for the save
+		// only, which reads the values and does not take the lock itself.
+		w.set.Lock()
 		w.conf.Provider.SaveSettings(w.set)
+		w.set.Unlock()
 	}
 }
 
