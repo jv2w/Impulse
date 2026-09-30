@@ -85,7 +85,15 @@ func (l Leaves) RandomTick(pos cube.Pos, tx *world.Tx, _ *rand.Rand) {
 }
 
 // NeighbourUpdateTick ...
-func (l Leaves) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
+func (l Leaves) NeighbourUpdateTick(pos, changedNeighbour cube.Pos, tx *world.Tx) {
+	// Which input was the problem: the update a block receives about its own
+	// change. Clearing ShouldUpdate sets the leaves, which updated them about
+	// themselves and set it again the next tick, so every tree kept running
+	// the log search and resending its leaves, and a plugin cancelling decay
+	// was asked again at every random tick. Only a changed neighbour counts.
+	if changedNeighbour == pos {
+		return
+	}
 	if !l.Persistent && !l.ShouldUpdate {
 		l.ShouldUpdate = true
 		tx.SetBlock(pos, l, nil)
