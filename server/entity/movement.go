@@ -229,7 +229,13 @@ func blockBBoxsAround(tx *world.Tx, box cube.BBox) []cube.BBox {
 	// A prediction of one BBox per block, plus an additional 2, in case. Allocate
 	// it lazily so that entities moving through air do not allocate an empty slice
 	// every tick.
+	// The prediction is bounded: the box of a fast entity, such as TNT launched
+	// by many explosions, spans a volume of millions of blocks that are mostly
+	// air, and sizing the slice by that volume allocated hundreds of megabytes.
 	predicted := (maxX-minX)*(maxY-minY)*(maxZ-minZ) + 2
+	if predicted > 64 {
+		predicted = 64
+	}
 	var blockBBoxs []cube.BBox
 	for y := minY; y < maxY; y++ {
 		// The int to float64 conversions of the block position were redone for
@@ -240,7 +246,13 @@ func blockBBoxsAround(tx *world.Tx, box cube.BBox) []cube.BBox {
 			fx := float64(x)
 			for z := minZ; z < maxZ; z++ {
 				pos := cube.Pos{x, y, z}
-				boxes := tx.Block(pos).Model().BBox(pos, tx)
+				// Which input was the problem: an entity moving fast enough for
+				// its path to cross chunks that are not loaded, such as TNT
+				// launched by many explosions. Reading them loaded or generated
+				// every chunk on the path on the world goroutine within one tick.
+				// A block in a chunk that is not loaded is read as air instead.
+				b, _ := tx.BlockLoaded(pos)
+				boxes := b.Model().BBox(pos, tx)
 				if len(boxes) == 0 {
 					continue
 				}
