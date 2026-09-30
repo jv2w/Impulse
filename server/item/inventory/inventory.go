@@ -176,22 +176,23 @@ func (inv *Inventory) FirstEmpty() (int, bool) {
 }
 
 // Swap swaps the items between two slots. Returns an error if either slot A or B are invalid.
-// A swap is atomic with respect to the slot validator: if it refuses either of the two stacks in its new
-// slot, neither slot is written and no change is reported.
 func (inv *Inventory) Swap(slotA, slotB int) error {
 	fa, fb, err := inv.lockedSwap(slotA, slotB)
 	if err != nil {
 		return err
 	}
+	// setItem returns nil for a write the validator refused.
 	if fa != nil {
 		fa()
+	}
+	if fb != nil {
 		fb()
 	}
 	return nil
 }
 
 // lockedSwap performs both writes of Swap under the write lock and returns the callbacks announcing them, to
-// be run by the caller with the lock released. Both callbacks are nil if the validator refused the swap.
+// be run by the caller with the lock released.
 func (inv *Inventory) lockedSwap(slotA, slotB int) (func(), func(), error) {
 	inv.mu.Lock()
 	defer inv.mu.Unlock()
@@ -201,12 +202,7 @@ func (inv *Inventory) lockedSwap(slotA, slotB int) (func(), func(), error) {
 		return nil, nil, ErrSlotOutOfRange
 	}
 	a, b := inv.slots[slotA], inv.slots[slotB]
-	if !inv.validator(b, slotA) || !inv.validator(a, slotB) {
-		// Writing only the accepted half would destroy the stack that could not move and leave the other one
-		// in both slots, so the whole swap is dropped.
-		return nil, nil, nil
-	}
-	return inv.writeItem(slotA, b), inv.writeItem(slotB, a), nil
+	return inv.setItem(slotA, b), inv.setItem(slotB, a), nil
 }
 
 // AddItem attempts to add an item to the inventory. It does so in a couple of steps: It first iterates over

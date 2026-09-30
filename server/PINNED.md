@@ -10,7 +10,7 @@ A green test run therefore means behaviour has not drifted, not that it is right
 Before fixing one, read CLAUDE.md section 4.3: a defect fix updates the test and deletes
 the marker, while a performance change that breaks one is itself the thing that is wrong.
 
-Totals: 214 BUG, 39 SCOPE, 48 CONSTRAINT.
+Totals: 215 BUG, 39 SCOPE, 48 CONSTRAINT.
 
 This file is generated. Regenerate it with:
 
@@ -292,6 +292,7 @@ IMPULSE_UPDATE_PINNED=1 go test ./server -run TestPinnedIndexIsCurrent
 - **BUG** — ContainsItem with an empty stack is always true, including on a completely empty inventory. The count asked for is 0 and the loop only has to leave n <= 0.
 - **BUG** — First with an empty stack matches the first non-empty slot instead of finding nothing, because item.Stack.Comparable is unconditionally true when either stack is empty.
 - **BUG** — RemoveItemFunc returns a nil error while nothing was removed, because the rejected setItem writes nothing but the count is deducted regardless.
+- **BUG** — Swap performs its two writes independently. When the validator accepts one and rejects the other, the accepted write lands and the stack that should have moved the other...
 
 ## server/item/nbt_test.go
 

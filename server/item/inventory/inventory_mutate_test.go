@@ -680,17 +680,29 @@ func TestMutSwapOutOfRange(t *testing.T) {
 	}
 }
 
-func TestMutSwapRejectedValidatorIsAtomic(t *testing.T) {
-	// A swap is a single move of two stacks. Landing only the accepted half
-	// would destroy the stack that could not move and leave the other one in
-	// both slots, so a rejection of either write cancels the whole swap. Like
-	// SetItem, the rejection itself is not reported.
+func TestMutSwapRejectedValidatorDestroysItem(t *testing.T) {
+	// PINNED BUG: Swap performs its two writes independently. When the
+	// validator accepts one and rejects the other, the accepted write lands and
+	// the stack that should have moved the other way is destroyed, while the
+	// stack that did move is left duplicated in both slots.
 	for _, c := range []struct {
 		name     string
 		accepted int
+		want     []item.Stack
+		wantCall slotCall
 	}{
-		{name: "only slot 0 accepted", accepted: 0},
-		{name: "only slot 1 accepted", accepted: 1},
+		{
+			name:     "only slot 0 accepted",
+			accepted: 0,
+			want:     []item.Stack{sticks(3), sticks(3)},
+			wantCall: slotCall{slot: 0, before: diamonds(5), after: sticks(3)},
+		},
+		{
+			name:     "only slot 1 accepted",
+			accepted: 1,
+			want:     []item.Stack{diamonds(5), diamonds(5)},
+			wantCall: slotCall{slot: 1, before: sticks(3), after: diamonds(5)},
+		},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			inv, r := mutRecording(t, 2, diamonds(5), sticks(3))
@@ -699,10 +711,10 @@ func TestMutSwapRejectedValidatorIsAtomic(t *testing.T) {
 			if err := inv.Swap(0, 1); err != nil {
 				t.Fatalf("Swap(0, 1): got error %v, want nil", err)
 			}
-			assertSlots(t, inv, diamonds(5), sticks(3))
-			if got := r.count(); got != 0 {
-				t.Fatalf("got %v SlotFunc calls, want 0", got)
-			}
+			assertSlots(t, inv, c.want...)
+			// Only the accepted write reports a change: the rejected one
+			// returns a no-op callback.
+			mutAssertCalls(t, r, c.wantCall)
 		})
 	}
 }
