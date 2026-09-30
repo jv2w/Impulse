@@ -34,12 +34,6 @@ type SlotValidatorFunc func(s item.Stack, slot int) bool
 // range of valid values for the inventory.
 var ErrSlotOutOfRange = errors.New("slot is out of range: must be in range 0 <= slot < inventory.Size()")
 
-// ErrCountOutOfRange is returned by RemoveItemFunc, and by RemoveItem for an empty stack, when the count of
-// items to remove is not positive. It is a sentinel rather than a panic because the count usually originates
-// from an item.Stack a caller obtained elsewhere, and it must be distinguishable from the shortfall error a
-// removal returns when the inventory simply did not hold enough items.
-var ErrCountOutOfRange = errors.New("count is out of range: must be > 0")
-
 // New creates a new inventory with the size passed. The inventory size cannot be changed after it has been
 // constructed.
 // A function may be passed which is called every time a slot is changed. The function may also be nil, if
@@ -275,8 +269,7 @@ func (inv *Inventory) lockedAddItem(it item.Stack) (fs []func(), n int, err erro
 
 // RemoveItem attempts to remove an item from the inventory. It will visit all slots in the inventory and
 // empties them until it.Count() items have been removed from the inventory.
-// If less than it.Count() items were removed from the inventory, an error is returned. An empty stack has a
-// count of 0 and is rejected with ErrCountOutOfRange.
+// If less than it.Count() items were removed from the inventory, an error is returned.
 func (inv *Inventory) RemoveItem(it item.Stack) error {
 	return inv.RemoveItemFunc(it.Count(), it.Comparable)
 }
@@ -285,13 +278,8 @@ func (inv *Inventory) RemoveItem(it item.Stack) error {
 // until n items have been removed from the inventory, assuming the comparable function returns true for the slots
 // visited. No items will be deducted from slots if the comparable function returns false.
 // The removal is all or nothing: if the slots visited hold fewer than n items in total, an error is returned and
-// the inventory is left untouched. If n is not positive, ErrCountOutOfRange is returned and no slot is touched.
+// the inventory is left untouched.
 func (inv *Inventory) RemoveItemFunc(n int, comparable func(stack item.Stack) bool) error {
-	if n <= 0 {
-		// A non-positive n reaches the Grow below with a positive argument, growing the stack it was meant to
-		// shrink: a negative count duplicates items rather than removing them.
-		return ErrCountOutOfRange
-	}
 	fs, err := inv.lockedRemoveItemFunc(n, comparable)
 	runSlotFuncs(fs)
 	return err

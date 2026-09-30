@@ -10,7 +10,7 @@ A green test run therefore means behaviour has not drifted, not that it is right
 Before fixing one, read CLAUDE.md section 4.3: a defect fix updates the test and deletes
 the marker, while a performance change that breaks one is itself the thing that is wrong.
 
-Totals: 216 BUG, 39 SCOPE, 47 CONSTRAINT.
+Totals: 219 BUG, 39 SCOPE, 47 CONSTRAINT.
 
 This file is generated. Regenerate it with:
 
@@ -290,8 +290,11 @@ IMPULSE_UPDATE_PINNED=1 go test ./server -run TestPinnedIndexIsCurrent
 
 - **BUG** — ContainsItem with an empty stack is always true, including on a completely empty inventory. The count asked for is 0 and the loop only has to leave n <= 0.
 - **BUG** — First with an empty stack matches the first non-empty slot instead of finding nothing, because item.Stack.Comparable is unconditionally true when either stack is empty.
+- **BUG** — RemoveItem with an empty stack removes nothing but still rewrites the first non-empty slot and fires the SlotFunc for it. RemoveItem passes it.Comparable, which is...
 - **BUG** — RemoveItemFunc returns a nil error while nothing was removed, because the rejected setItem writes nothing but the count is deducted regardless.
+- **BUG** — RemoveItemFunc with n == 0 rewrites the first matching slot with an identical stack and fires the SlotFunc for it, because the loop is entered before n is tested.
 - **BUG** — Swap performs its two writes independently. When the validator accepts one and rejects the other, the accepted write lands and the stack that should have moved the other...
+- **BUG** — a negative n makes RemoveItemFunc ADD items. The count written is slotIt.Grow(-n), which grows for a negative n, and the result is only bounded by the max count clamp...
 
 ## server/item/nbt_test.go
 
