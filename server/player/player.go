@@ -1042,6 +1042,18 @@ func (p *Player) respawn(f func(p *Player)) {
 	blockPos, w, spawnObstructed, _ := p.spawnLocation()
 	pos := blockPos.Vec3Middle()
 
+	// Which input was the problem: a player with a bed in the overworld dying
+	// in the nether or the end. The bed was looked up in the world of death,
+	// which has no bed there, so the player was sent to world spawn and told
+	// the bed was missing. That world cannot read the overworld's blocks, so
+	// the bed is checked on arrival instead, unless a handler moves the spawn.
+	checkBed := false
+	if dest := p.tx.World().PortalDestination(p.tx.World().Dimension()); dest != p.tx.World() {
+		if bedPos := p.tx.World().PlayerSpawn(p.UUID()); bedPos != dest.Spawn() {
+			blockPos, w, spawnObstructed, checkBed = bedPos, dest, false, true
+			pos = bedPos.Vec3Middle()
+		}
+	}
 	if spawnObstructed {
 		p.Messaget(chat.MessageBedNotValid)
 	}
@@ -1052,7 +1064,9 @@ func (p *Player) respawn(f func(p *Player)) {
 	p.Extinguish()
 	p.ResetFallDistance()
 
+	bedPos, bedWorld := pos, w
 	p.Handler().HandleRespawn(p, &pos, &w)
+	checkBed = checkBed && pos == bedPos && w == bedWorld
 
 	sess := p.session()
 	src := p.tx.World()
@@ -1069,6 +1083,19 @@ func (p *Player) respawn(f func(p *Player)) {
 	}
 	task := w.Do(func(tx *world.Tx) {
 		np := tx.AddEntity(handle).(*Player)
+		if checkBed {
+			if b, ok := tx.Block(blockPos).(block.Bed); ok && b.CanRespawnOn() {
+				if safe, ok := b.SafeSpawn(blockPos, tx); ok {
+					pos = safe.Vec3Middle()
+				} else {
+					pos = tx.World().Spawn().Vec3Middle()
+					np.Messaget(chat.MessageBedNotValid)
+				}
+			} else {
+				pos = tx.World().Spawn().Vec3Middle()
+				np.Messaget(chat.MessageBedNotValid)
+			}
+		}
 		np.Teleport(pos)
 		np.session().SendRespawn(pos, p)
 		np.SetVisible()
