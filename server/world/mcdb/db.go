@@ -131,10 +131,8 @@ func (db *DB) SavePlayerSpawnPosition(id uuid.UUID, pos cube.Pos) error {
 	if errors.Is(err, leveldb.ErrNotFound) {
 		d, k = make(map[string]any), "player_server_"+idStr
 		var merr error
-		// The player record comes from the UUID alone, not from the world,
-		// but a failed encode must still be an error, never a panic.
 		if playerRecord, merr = nbt.MarshalEncoding(playerData{UUID: idStr, ServerID: k}, nbt.LittleEndian); merr != nil {
-			return fmt.Errorf("encode player data (uuid=%v): %w", id, merr)
+			panic(merr)
 		}
 	} else if d, k, _, err = db.loadPlayerData(id); err != nil {
 		return err
