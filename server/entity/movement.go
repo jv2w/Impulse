@@ -221,6 +221,20 @@ func blockBBoxsAround(tx *world.Tx, box cube.BBox) []cube.BBox {
 	if !finiteVec3(min) || !finiteVec3(max) {
 		return nil
 	}
+	// Which input was the problem: a finite but huge position or velocity read
+	// from a stored entity, up to the float32 limit of about 3.4e38. Both
+	// passed the check above, the int conversions below wrapped to arbitrary
+	// values and the loops ran for as long as the world lived. No block exists
+	// beyond the chunk positions an int32 can address, and a sweep of more
+	// than 1<<24 blocks read at least that many blocks per tick, which stalled
+	// the world just as surely; both are boxes no real block can be found in.
+	// The bounds are compared as floats, before any conversion can wrap.
+	const maxBlockCoord = 1 << 35
+	if math.Abs(min[0]) > maxBlockCoord || math.Abs(min[1]) > maxBlockCoord || math.Abs(min[2]) > maxBlockCoord ||
+		math.Abs(max[0]) > maxBlockCoord || math.Abs(max[1]) > maxBlockCoord || math.Abs(max[2]) > maxBlockCoord ||
+		(max[0]-min[0]+1)*(max[1]-min[1]+1)*(max[2]-min[2]+1) > 1<<24 {
+		return nil
+	}
 	minX, minY, minZ := int(math.Floor(min[0])), int(math.Floor(min[1])), int(math.Floor(min[2]))
 	// The maximum bounds are exclusive: A block starting exactly at the box's
 	// maximum cannot collide with it.
