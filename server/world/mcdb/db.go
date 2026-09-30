@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
@@ -520,7 +521,7 @@ func (db *DB) storeEntities(batch *leveldb.Batch, k dbKey, entities []chunk.Enti
 
 	// Remove entities that are no longer referenced.
 	for _, uniqueID := range previousIDs {
-		if !slices.Contains(newIDs, uniqueID) {
+		if !slices.Contains(newIDs, uniqueID) && !db.entityStoredElsewhere(uniqueID, k.pos) {
 			batch.Delete(entityIndex(uniqueID))
 		}
 	}
@@ -538,6 +539,54 @@ func (db *DB) storeEntities(batch *leveldb.Batch, k dbKey, entities []chunk.Enti
 	// Remove old entity data for this chunk.
 	batch.Delete(k.Sum(keyEntitiesOld))
 	return nil
+}
+
+// entityStoredElsewhere reports whether the record of entity id on disk places
+// it in a chunk other than pos. Records are keyed by ID for the whole world, so
+// when an entity walked from pos into another chunk and that chunk was stored
+// first, the record already belongs to the other chunk's index.
+//
+// Which input was the problem: that store order. The store of pos saw the ID in
+// its old index but not in its new entities and deleted the record the other
+// chunk now referenced, losing the entity on the next load. A record that is
+// missing, unreadable or has no readable position is not claimed, so it is
+// deleted as before.
+func (db *DB) entityStoredElsewhere(id int64, pos world.ChunkPos) bool {
+	b, err := db.ldb.Get(entityIndex(id), nil)
+	if err != nil {
+		return false
+	}
+	var data map[string]any
+	if err := nbt.UnmarshalEncoding(b, &data, nbt.LittleEndian); err != nil {
+		return false
+	}
+	x, z, ok := entityXZ(data["Pos"])
+	if !ok {
+		return false
+	}
+	// The same arithmetic as the world's chunkPosFromVec3, so the record lands
+	// in the chunk the world itself would put it in.
+	return world.ChunkPos{int32(math.Floor(x)) >> 4, int32(math.Floor(z)) >> 4} != pos
+}
+
+// entityXZ reads the X and Z components of an entity's Pos value, which is a
+// list of three float32 values in both the encoded and the decoded form.
+func entityXZ(v any) (x, z float64, ok bool) {
+	switch p := v.(type) {
+	case []float32:
+		if len(p) != 3 {
+			return 0, 0, false
+		}
+		return float64(p[0]), float64(p[2]), true
+	case []any:
+		if len(p) != 3 {
+			return 0, 0, false
+		}
+		px, okx := p[0].(float32)
+		pz, okz := p[2].(float32)
+		return float64(px), float64(pz), okx && okz
+	}
+	return 0, 0, false
 }
 
 func entityIndex(id int64) []byte {

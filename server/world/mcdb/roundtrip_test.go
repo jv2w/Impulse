@@ -773,6 +773,59 @@ func TestStoreColumnKeepsEntitiesThatStay(t *testing.T) {
 	}
 }
 
+// TestStoreColumnKeepsEntityMovedToAnotherChunk stores an entity in chunk A, then
+// stores it again in chunk B after it walked there, then stores A without it: the
+// order a save pass may take. A's store must not delete the record B now points at.
+func TestStoreColumnKeepsEntityMovedToAnotherChunk(t *testing.T) {
+	db := newDB(t)
+	dim := world.Overworld
+	a, b := world.ChunkPos{0, 0}, world.ChunkPos{1, 0}
+
+	colA := emptyColumn(dim)
+	colA.Entities = []chunk.Entity{{ID: 5, Data: map[string]any{"identifier": "minecraft:pig", "Pos": []float32{1, 64, 1}}}}
+	if err := db.StoreColumn(a, dim, colA); err != nil {
+		t.Fatalf("store A: %v", err)
+	}
+	colB := emptyColumn(dim)
+	colB.Entities = []chunk.Entity{{ID: 5, Data: map[string]any{"identifier": "minecraft:pig", "Pos": []float32{17, 64, 1}}}}
+	if err := db.StoreColumn(b, dim, colB); err != nil {
+		t.Fatalf("store B: %v", err)
+	}
+	colA.Entities = nil
+	if err := db.StoreColumn(a, dim, colA); err != nil {
+		t.Fatalf("store A again: %v", err)
+	}
+
+	got, err := db.LoadColumn(b, dim)
+	if err != nil {
+		t.Fatalf("load B: %v", err)
+	}
+	if len(got.Entities) != 1 || got.Entities[0].ID != 5 {
+		t.Fatalf("entities in B after A was stored without it = %v, want entity 5", got.Entities)
+	}
+}
+
+// TestStoreColumnDeletesEntityRemovedInPlace stores an entity positioned inside
+// its chunk and then stores the chunk without it, as when it is killed: its
+// record goes.
+func TestStoreColumnDeletesEntityRemovedInPlace(t *testing.T) {
+	db := newDB(t)
+	pos, dim := world.ChunkPos{0, 0}, world.Overworld
+
+	col := emptyColumn(dim)
+	col.Entities = []chunk.Entity{{ID: 6, Data: map[string]any{"identifier": "minecraft:pig", "Pos": []float32{1, 64, 1}}}}
+	if err := db.StoreColumn(pos, dim, col); err != nil {
+		t.Fatalf("store: %v", err)
+	}
+	col.Entities = nil
+	if err := db.StoreColumn(pos, dim, col); err != nil {
+		t.Fatalf("store: %v", err)
+	}
+	if _, ok := getRaw(t, db, entityIndex(6)); ok {
+		t.Error("entity 6 survived although it was removed from its chunk")
+	}
+}
+
 func TestStoreColumnMutatesCallerData(t *testing.T) {
 	// StoreColumn is read-only on its argument: the storage keys live in the
 	// on-disk bytes, never in the caller's maps.
