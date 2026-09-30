@@ -473,10 +473,10 @@ func TestSendScoreboardResendSameName(t *testing.T) {
 		t.Fatalf("first packet = %#v, want %#v", got, removal)
 	}
 
-	// PINNED BUG: the same-name path never updates currentLines, so the next
-	// resend still removes two entries even though only one line is displayed.
-	if got, want := *s.currentLines.Load(), []string{"a", "b"}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("recorded lines = %#v, want the stale %#v this pins", got, want)
+	// The same-name path records the lines now shown, so the next resend
+	// removes exactly those.
+	if got, want := *s.currentLines.Load(), []string{"c"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("recorded lines = %#v, want %#v", got, want)
 	}
 }
 

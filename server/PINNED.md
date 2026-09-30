@@ -10,7 +10,7 @@ A green test run therefore means behaviour has not drifted, not that it is right
 Before fixing one, read CLAUDE.md section 4.3: a defect fix updates the test and deletes
 the marker, while a performance change that breaks one is itself the thing that is wrong.
 
-Totals: 215 BUG, 39 SCOPE, 48 CONSTRAINT.
+Totals: 214 BUG, 39 SCOPE, 48 CONSTRAINT.
 
 This file is generated. Regenerate it with:
 
@@ -443,7 +443,6 @@ IMPULSE_UPDATE_PINNED=1 go test ./server -run TestPinnedIndexIsCurrent
 ## server/session/text_test.go
 
 - **BUG** — chat.Translation.F panics when the argument count does not match the count the Translation was declared with, and SendTranslation calls it without checking. A...
-- **BUG** — the same-name path never updates currentLines, so the next resend still removes two entries even though only one line is displayed.
 - **SCOPE** — negative durations are neither rejected nor clamped. Out of scope.
 
 ## server/surface_pinning_test.go
