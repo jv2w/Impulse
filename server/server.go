@@ -373,21 +373,37 @@ func (srv *Server) close() {
 	srv.cancelJoins()
 
 	srv.conf.Log.Debug("Disconnecting players...")
-	for p := range srv.Players(nil) {
-		p.Disconnect(chat.MessageServerDisconnect.Resolve(p.Locale()))
+	srv.pmu.RLock()
+	handles := make([]*world.EntityHandle, 0, len(srv.p))
+	for _, p := range srv.p {
+		handles = append(handles, p.handle)
+	}
+	srv.pmu.RUnlock()
+	for _, handle := range handles {
+		srv.closeStep("disconnect player", func() {
+			// An error means the player already left, which is what this asks for.
+			_, _ = player.Call(context.Background(), handle, func(_ *world.Tx, p *player.Player) (struct{}, error) {
+				p.Disconnect(chat.MessageServerDisconnect.Resolve(p.Locale()))
+				return struct{}{}, nil
+			})
+		})
 	}
 	srv.pwg.Wait()
 
 	srv.conf.Log.Debug("Closing player provider...")
-	if err := srv.conf.PlayerProvider.Close(); err != nil {
-		srv.conf.Log.Error("Close player provider: " + err.Error())
-	}
+	srv.closeStep("close player provider", func() {
+		if err := srv.conf.PlayerProvider.Close(); err != nil {
+			srv.conf.Log.Error("Close player provider: " + err.Error())
+		}
+	})
 
 	srv.conf.Log.Debug("Closing worlds...")
 	for _, w := range []*world.World{srv.end, srv.nether, srv.world} {
-		if err := w.Close(); err != nil {
-			srv.conf.Log.Error(fmt.Sprintf("Close dimension %v: ", w.Dimension()) + err.Error())
-		}
+		srv.closeStep("close world", func() {
+			if err := w.Close(); err != nil {
+				srv.conf.Log.Error(fmt.Sprintf("Close dimension %v: ", w.Dimension()) + err.Error())
+			}
+		})
 	}
 
 	srv.conf.Log.Debug("Closing listeners...")
@@ -396,6 +412,23 @@ func (srv *Server) close() {
 			srv.conf.Log.Error("Close listener: " + err.Error())
 		}
 	}
+}
+
+// closeStep runs one step of close, logging a panic in it instead of letting it
+// end the process.
+//
+// Which input was the problem: a panic in a plugin's quit handler or player
+// provider during shutdown. A world raises a panic from its goroutine again on
+// the goroutine waiting on it, which here is close itself, so the process ended
+// before the worlds were saved. What is swallowed is that panic, raised by a
+// handler or provider the step called; the steps after it still run.
+func (srv *Server) closeStep(step string, f func()) {
+	defer func() {
+		if r := recover(); r != nil {
+			srv.conf.Log.Error("panic while closing server", "step", step, "panic", r, "stack", string(debug.Stack()))
+		}
+	}()
+	f()
 }
 
 // listen makes the Server listen for new connections from the Listener passed.

@@ -420,14 +420,36 @@ func (s *Session) handlePacketRecovered(pk packet.Packet) (err error) {
 	})
 }
 
+// errSessionPanic is wrapped by the error withControllableRecovered returns for
+// a recovered panic.
+var errSessionPanic = errors.New("panic in session task")
+
+// withControllableRecovered runs f like withControllable, but turns a panic in
+// f into an error instead of letting it end the process. The world recovers a
+// panic on its own goroutine and raises it again on the goroutine waiting for
+// the result, which for the session goroutines outside packet handling had no
+// recover: one panicking plugin handler, such as a quit handler or a command
+// Allower, took the whole server down. What is swallowed is that panic, raised
+// by f or by a handler it called; the session is ended by the caller.
+func (s *Session) withControllableRecovered(task string, f func(tx *world.Tx, c Controllable) error) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.conf.Log.Error("panic in session task", "task", task, "panic", r, "stack", string(rdebug.Stack()))
+			err = fmt.Errorf("%w %v: %v", errSessionPanic, task, r)
+		}
+	}()
+	return s.withControllable(context.Background(), f)
+}
+
 // handlePackets continuously handles incoming packets from the connection. It processes them accordingly.
 // Once the connection is closed, handlePackets will return.
 func (s *Session) handlePackets() {
 	defer func() {
 		// First close the Controllable. This might lead to a world change
 		// (player might be dead while disconnecting, in which case it will
-		// respawn first).
-		if err := s.withControllable(context.Background(), func(_ *world.Tx, c Controllable) error {
+		// respawn first). A panic here must not stop the session close below,
+		// which saves the player's data.
+		if err := s.withControllableRecovered("close controllable", func(_ *world.Tx, c Controllable) error {
 			_ = c.Close()
 			return nil
 		}); err != nil && !sessionOwnerStopped(err) {
@@ -435,7 +457,7 @@ func (s *Session) handlePackets() {
 		}
 		// Because the player might no longer be in the same world after
 		// closing, we create a new transaction
-		if err := s.withControllable(context.Background(), func(tx *world.Tx, c Controllable) error {
+		if err := s.withControllableRecovered("close session", func(tx *world.Tx, c Controllable) error {
 			s.Close(tx, c)
 			return nil
 		}); err != nil && !sessionOwnerStopped(err) {
@@ -470,7 +492,7 @@ func (s *Session) background() {
 		i          int
 	)
 
-	if err := s.withControllable(context.Background(), func(_ *world.Tx, c Controllable) error {
+	if err := s.withControllableRecovered("prepare command updates", func(_ *world.Tx, c Controllable) error {
 		r = s.sendAvailableCommands(c, softEnums)
 		enums, enumValues = s.enums(c)
 		return nil
@@ -478,6 +500,7 @@ func (s *Session) background() {
 		if !sessionOwnerStopped(err) {
 			s.conf.Log.Debug("prepare command updates: " + err.Error())
 		}
+		s.endAfterPanic(err)
 		return
 	}
 
@@ -486,7 +509,7 @@ func (s *Session) background() {
 	for {
 		select {
 		case <-t.C:
-			if err := s.withControllable(context.Background(), func(tx *world.Tx, c Controllable) error {
+			if err := s.withControllableRecovered("update session background", func(tx *world.Tx, c Controllable) error {
 				if i++; i%20 == 0 {
 					// Enum resending happens relatively often and frequent updates are more important than with full
 					// command changes. Those are generally only related to permission changes, which doesn't happen often.
@@ -504,11 +527,22 @@ func (s *Session) background() {
 				if !sessionOwnerStopped(err) {
 					s.conf.Log.Debug("update session background: " + err.Error())
 				}
+				s.endAfterPanic(err)
 				return
 			}
 		case <-s.closeBackground:
 			return
 		}
+	}
+}
+
+// endAfterPanic closes the connection if err is a panic recovered by
+// withControllableRecovered. Without its background work the session would
+// stay connected but never receive chunks again, so it is ended; closing the
+// connection makes handlePackets run the normal close, which saves the player.
+func (s *Session) endAfterPanic(err error) {
+	if errors.Is(err, errSessionPanic) {
+		s.CloseConnection()
 	}
 }
 

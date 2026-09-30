@@ -395,7 +395,11 @@ func TestPortalTravelClosesHandleWhenBothWorldsClose(t *testing.T) {
 	}
 }
 
-func TestPortalTravelRethrowsDestinationPanic(t *testing.T) {
+// TestPortalTravelSurvivesDestinationPanic has a spawn handler in the
+// destination world panic. transfer runs in a goroutine of its own, so a panic
+// escaping it ends the process: it must return, with the entity left in the
+// destination world it was added to before the handler ran.
+func TestPortalTravelSurvivesDestinationPanic(t *testing.T) {
 	source := world.Config{Synchronous: true}.New()
 	destination := world.Config{Dim: world.Nether, Synchronous: true}.New()
 	t.Cleanup(func() {
@@ -413,14 +417,20 @@ func TestPortalTravelRethrowsDestinationPanic(t *testing.T) {
 		}
 	})
 
-	defer func() {
-		if recovered := recover(); recovered != "spawn panic" {
-			t.Fatalf("transfer panic = %v, want spawn panic", recovered)
-		}
-	}()
 	tc := NewPortalTravelComputer()
 	tc.CreatePortal = true
 	tc.transfer(handle, source, destination, origin, cube.Pos{10, 64, 10}, world.Overworld, world.Nether)
+
+	if handle.Closed() {
+		t.Fatal("entity handle closed, want it kept in the destination world")
+	}
+	var inDestination bool
+	mustDo(t, destination, func(tx *world.Tx) {
+		_, inDestination = handle.Entity(tx)
+	})
+	if !inDestination {
+		t.Fatal("entity is not in the destination world it was added to")
+	}
 }
 
 func TestFallingBlockDoesNotTravelThroughPortal(t *testing.T) {

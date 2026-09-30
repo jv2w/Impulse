@@ -2,6 +2,7 @@ package entity
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -229,21 +230,29 @@ func (t *PortalTravelComputer) travelQueued(e Traveller, tx *world.Tx, destinati
 // transfer adds the removed entity to the destination world at the arrival position. If no destination portal was
 // found and the entity may not create one, the entity is returned to its origin in the source world instead.
 func (t *PortalTravelComputer) transfer(handle *world.EntityHandle, source, destination *world.World, origin mgl64.Vec3, pos cube.Pos, sourceDim, destinationDim world.Dimension) {
-	travelled, err := world.Call(context.Background(), destination, func(tx *world.Tx) (bool, error) {
+	// added is only written by the destination world's goroutine before the
+	// call below returns, so it is safe to read once it has.
+	var added bool
+	travelled, err := callRecovered(destination, func(tx *world.Tx) (bool, error) {
 		spawn, ok := t.destinationSpawn(tx, sourceDim, pos)
 		if !ok {
 			return false, nil
 		}
+		// Set before the call: the entity belongs to this world as soon as
+		// AddEntityAt has started, even if a spawn handler it calls panics.
+		added = true
 		if e, ok := tx.AddEntityAt(handle, spawn).(Traveller); ok {
 			t.finishTravel(e, spawn, sourceDim, destinationDim)
 		}
 		return true, nil
 	})
 	if err != nil {
-		travelled = false
+		// An entity added before the failure is in the destination world, and
+		// adding it to the source as well is not possible.
+		travelled = added
 	}
 	if !travelled {
-		_, err = world.Call(context.Background(), source, func(tx *world.Tx) (struct{}, error) {
+		_, err = callRecovered(source, func(tx *world.Tx) (struct{}, error) {
 			tx.AddEntityAt(handle, origin)
 			return struct{}{}, nil
 		})
@@ -261,6 +270,23 @@ func (t *PortalTravelComputer) transfer(handle *world.EntityHandle, source, dest
 		t.timedOut = false
 	}
 	t.mu.Unlock()
+}
+
+// callRecovered runs f like world.Call, but turns a panic in f into an error.
+//
+// Which input was the problem: a panic in the portal search or creation, or in a
+// plugin's portal travel or teleport handler. The world recovers it on its own
+// goroutine and raises it again on the one waiting for the result, which here
+// is a bare goroutine, so the whole process ended with the entity in no world.
+// What is swallowed is that panic; the world has already logged it with its
+// stack, and the caller puts the entity back.
+func callRecovered[T any](w *world.World, f func(tx *world.Tx) (T, error)) (res T, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("portal travel panicked: %v", r)
+		}
+	}()
+	return world.Call(context.Background(), w, f)
 }
 
 // destinationSpawn returns the position the entity should be placed at in the destination world. False is returned
