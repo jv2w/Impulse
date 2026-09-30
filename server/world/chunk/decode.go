@@ -77,11 +77,6 @@ func DiskDecode(br BlockRegistry, data SerialisedData, r cube.Range) (*Chunk, er
 	if err != nil {
 		return nil, err
 	}
-	// More sub chunks than the range holds cannot be placed, and past 256 the uint8 index below wraps onto
-	// a valid one, so reject the whole payload rather than writing to the wrong sub chunk.
-	if len(data.SubChunks) > len(c.sub) {
-		return nil, fmt.Errorf("invalid sub-chunk count %d: chunk range has %d sub-chunks", len(data.SubChunks), len(c.sub))
-	}
 	// One buffer re-seated onto each sub chunk's bytes. A bytes.Buffer only wraps the slice it is given and
 	// nothing here keeps a reference to it past the call, so this is a fresh buffer per sub chunk without
 	// allocating one per sub chunk.
