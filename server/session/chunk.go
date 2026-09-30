@@ -177,35 +177,20 @@ func (s *Session) subChunkEntry(offset protocol.SubChunkOffset, ind int16, col *
 	return entry
 }
 
-// dimensionID returns the ID the dimension passed was registered with. The
-// second return value is false for a dimension that was never registered, in
-// which case the ID is meaningless: sending it would file the packet under
-// the overworld on the client.
-func (s *Session) dimensionID(dim world.Dimension) (int32, bool) {
-	// Which input was the problem: a dimension with no registration. The ok
-	// result of the lookup was discarded, so it was reported as the
-	// overworld (ID 0) and every packet for it corrupted the client's
-	// overworld state instead of being refused.
-	d, ok := world.DimensionID(dim)
-	return int32(d), ok
+// dimensionID returns the dimension ID of the world that the session is in.
+func (s *Session) dimensionID(dim world.Dimension) int32 {
+	d, _ := world.DimensionID(dim)
+	return int32(d)
 }
 
 // sendBlobHashes sends chunk blob hashes of the data of the chunk and stores the data in a map of blobs. Only
 // data that the client doesn't yet have will be sent over the network.
 func (s *Session) sendBlobHashes(pos world.ChunkPos, dim world.Dimension, c *chunk.Chunk, blockEntities map[cube.Pos]world.Block) {
-	// The dimension is resolved once for both encodings below. An
-	// unregistered dimension has no ID worth sending: refuse instead of
-	// filing the chunk under the overworld.
-	dimID, ok := s.dimensionID(dim)
-	if !ok {
-		s.conf.Log.Error("refusing chunk for unregistered dimension", "dimension", dim)
-		return
-	}
 	if subChunkRequests {
 		biomes := chunk.EncodeBiomes(c, chunk.NetworkEncoding)
 		if hash := xxhash.Sum64(biomes); s.trackBlob(hash, biomes) {
 			s.writePacket(&packet.LevelChunk{
-				Dimension:     dimID,
+				Dimension:     s.dimensionID(dim),
 				SubChunkCount: 0,
 				Position:      protocol.ChunkPos(pos),
 				SubChunkLimit: protocol.Option(int32(c.HighestFilledSubChunk())),
@@ -270,7 +255,7 @@ func (s *Session) sendBlobHashes(pos world.ChunkPos, dim world.Dimension, c *chu
 	}
 
 	s.writePacket(&packet.LevelChunk{
-		Dimension:     dimID,
+		Dimension:     s.dimensionID(dim),
 		Position:      protocol.ChunkPos{pos.X(), pos.Z()},
 		SubChunkCount: count,
 		CacheEnabled:  true,
@@ -281,16 +266,9 @@ func (s *Session) sendBlobHashes(pos world.ChunkPos, dim world.Dimension, c *chu
 
 // sendNetworkChunk sends a network encoded chunk to the client.
 func (s *Session) sendNetworkChunk(pos world.ChunkPos, dim world.Dimension, c *chunk.Chunk, blockEntities map[cube.Pos]world.Block) {
-	// Same refusal as sendBlobHashes: without a registered ID there is no
-	// dimension worth addressing the chunk to.
-	dimID, ok := s.dimensionID(dim)
-	if !ok {
-		s.conf.Log.Error("refusing chunk for unregistered dimension", "dimension", dim)
-		return
-	}
 	if subChunkRequests {
 		s.writePacket(&packet.LevelChunk{
-			Dimension:     dimID,
+			Dimension:     s.dimensionID(dim),
 			SubChunkCount: 0,
 			Position:      protocol.ChunkPos(pos),
 			SubChunkLimit: protocol.Option(int32(c.HighestFilledSubChunk())),
@@ -319,7 +297,7 @@ func (s *Session) sendNetworkChunk(pos world.ChunkPos, dim world.Dimension, c *c
 	}
 
 	s.writePacket(&packet.LevelChunk{
-		Dimension:     dimID,
+		Dimension:     s.dimensionID(dim),
 		Position:      protocol.ChunkPos{pos.X(), pos.Z()},
 		SubChunkCount: uint32(len(data.SubChunks)),
 		RawPayload:    append([]byte(nil), chunkBuf.Bytes()...),

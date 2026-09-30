@@ -10,7 +10,7 @@ A green test run therefore means behaviour has not drifted, not that it is right
 Before fixing one, read CLAUDE.md section 4.3: a defect fix updates the test and deletes
 the marker, while a performance change that breaks one is itself the thing that is wrong.
 
-Totals: 213 BUG, 39 SCOPE, 48 CONSTRAINT.
+Totals: 214 BUG, 39 SCOPE, 48 CONSTRAINT.
 
 This file is generated. Regenerate it with:
 
@@ -388,6 +388,7 @@ IMPULSE_UPDATE_PINNED=1 go test ./server -run TestPinnedIndexIsCurrent
 
 ## server/session/chunk_test.go
 
+- **BUG** — the lookup's ok result is discarded, so an unregistered dimension is reported as the overworld rather than refused.
 - **SCOPE** — sendNetworkChunk takes a blockEntities map and, with subChunkRequests on, never reads it. Out of scope.
 - **SCOPE** — subChunkRequests is a compile-time const true, so the full chunk encodings below it in sendNetworkChunk and sendBlobHashes are dead code that no test can reach. Out of...
 

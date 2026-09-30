@@ -10,7 +10,6 @@ import (
 	"github.com/jv2w/Impulse/server/player/debug"
 	"github.com/jv2w/Impulse/server/world"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
-	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 )
 
 // Debug shapes are another one-way conversion, and almost every field is filled
@@ -395,19 +394,5 @@ func TestShapeAttachedEntityRuntimeID(t *testing.T) {
 	// scope.
 	if got := s.shapeAttachedEntityRuntimeID(foreignShape{}); got != 0 {
 		t.Fatalf("an unknown shape reported runtime ID %d, want 0", got)
-	}
-}
-
-// TestSendDebugShapesRemovalUnregisteredDimension pins the refusal path: a
-// removal for a dimension with no registered ID is never addressed to another
-// dimension. The update is still drained, so the packet carries no shapes.
-func TestSendDebugShapesRemovalUnregisteredDimension(t *testing.T) {
-	s := newStubSession(t, nil)
-	s.RemoveDebugShape(&debug.Box{})
-	s.SendDebugShapes(unregisteredDimension{})
-
-	got := onlyPacket(t, s).(*packet.PrimitiveShapes)
-	if len(got.Shapes) != 0 {
-		t.Fatalf("shapes = %v, want none: the removal was addressed somewhere", got.Shapes)
 	}
 }

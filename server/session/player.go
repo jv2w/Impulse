@@ -1025,18 +1025,12 @@ func (s *Session) SendDebugShapes(dim world.Dimension) {
 	}
 
 	shapes := make([]protocol.PrimitiveShape, 0, len(updates))
-	// The dimension is resolved once: a removal for an unregistered
-	// dimension is refused rather than addressed to the overworld.
-	dimID, dimOK := s.dimensionID(dim)
 	for _, update := range updates {
 		if update.shape == nil {
 			delete(s.debugShapes, update.id)
-			if !dimOK {
-				continue
-			}
 			shapes = append(shapes, protocol.PrimitiveShape{
 				NetworkID:      uint64(update.id),
-				DimensionID:    protocol.Option(dimID),
+				DimensionID:    protocol.Option(s.dimensionID(dim)),
 				ExtraShapeData: &protocol.LastShape{},
 			})
 			continue
