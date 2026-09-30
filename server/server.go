@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"iter"
 	"maps"
@@ -499,6 +500,17 @@ func (srv *Server) finaliseConn(ctx context.Context, conn session.Conn, l Listen
 	data := srv.defaultGameData()
 
 	d, w, err := srv.conf.PlayerProvider.Load(id, srv.dimension)
+	if err != nil && !errors.Is(err, player.ErrNoData) {
+		// Which input was the problem: a record that exists but could not be
+		// read, such as a corrupt entry or an I/O error. It was treated as no
+		// record, and the empty inventory the player then got was saved over
+		// it when they left. The join is refused so the record is kept.
+		// Discarding the error is safe: the connection is being torn down
+		// already, and the cause is logged beside it.
+		_ = l.Disconnect(conn, "Failed to load player data.")
+		srv.conf.Log.Error("spawn failed: load player data: "+err.Error(), "uuid", id, "raddr", conn.RemoteAddr())
+		return
+	}
 	if err != nil {
 		w = srv.world
 		d.Position = w.Spawn().Vec3Centre()

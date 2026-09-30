@@ -60,24 +60,18 @@ func TestNewRefOnANilHandle(t *testing.T) {
 	}
 }
 
-// PINNED BUG: NopProvider.Load reports "there is no stored data" with
-// errors.New(""), a fresh empty-message error on every call. The server
-// branches on it (server.go), so it is a condition callers must distinguish,
-// which needs a sentinel or an error type. As written it matches nothing,
-// carries no message, and cannot even be compared to itself.
-func TestNopProviderLoadReturnsAnUnmatchableError(t *testing.T) {
+// TestNopProviderLoadReportsNoData pins that NopProvider.Load reports "there is
+// no stored data" as ErrNoData, the one error the server treats as a new player.
+func TestNopProviderLoadReportsNoData(t *testing.T) {
 	var p NopProvider
 
 	cfg, w, err := p.Load(stubUUID, func(world.Dimension) *world.World { return nil })
 
-	if err == nil {
-		t.Fatal("Load returned a nil error, want a failure")
+	if !errors.Is(err, ErrNoData) {
+		t.Fatalf("Load error = %v, want ErrNoData", err)
 	}
-	if err.Error() != "" {
-		t.Fatalf("Load error message = %q, want the empty string", err.Error())
-	}
-	if _, _, err2 := p.Load(stubUUID, nil); errors.Is(err, err2) {
-		t.Fatal("two Load errors compare equal; the sentinel was introduced")
+	if err.Error() != "no player data stored" {
+		t.Fatalf("Load error message = %q, want %q", err.Error(), "no player data stored")
 	}
 	if w != nil {
 		t.Fatalf("Load world = %v, want nil", w)

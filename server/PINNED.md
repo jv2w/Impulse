@@ -10,7 +10,7 @@ A green test run therefore means behaviour has not drifted, not that it is right
 Before fixing one, read CLAUDE.md section 4.3: a defect fix updates the test and deletes
 the marker, while a performance change that breaks one is itself the thing that is wrong.
 
-Totals: 218 BUG, 39 SCOPE, 48 CONSTRAINT.
+Totals: 217 BUG, 39 SCOPE, 48 CONSTRAINT.
 
 This file is generated. Regenerate it with:
 
@@ -351,7 +351,6 @@ IMPULSE_UPDATE_PINNED=1 go test ./server -run TestPinnedIndexIsCurrent
 
 ## server/player/misc_test.go
 
-- **BUG** — NopProvider.Load reports "there is no stored data" with errors.New(""), a fresh empty-message error on every call. The server branches on it (server.go), so it is a...
 - **BUG** — format trims the newline suffix twice, so on top of the one fmt.Sprintln adds it also eats one the caller wrote. A message deliberately ending in a blank line loses it,...
 - **BUG** — the doc comment on EyeHeight promises 1.62, 1.26 sneaking and 0.52 prone. The code returns 1.62, 1.27 and 0.4. Eye height decides reach and line of sight, so the comment...
 

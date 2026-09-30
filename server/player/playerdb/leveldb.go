@@ -2,6 +2,7 @@ package playerdb
 
 import (
 	"encoding/json"
+	"errors"
 	"github.com/df-mc/goleveldb/leveldb"
 	"github.com/df-mc/goleveldb/leveldb/opt"
 	"github.com/google/uuid"
@@ -42,6 +43,9 @@ func (p *Provider) Save(id uuid.UUID, d player.Config, w *world.World) error {
 // Load ...
 func (p *Provider) Load(id uuid.UUID, world func(world.Dimension) *world.World) (player.Config, *world.World, error) {
 	b, err := p.db.Get(id[:], nil)
+	if errors.Is(err, leveldb.ErrNotFound) {
+		return player.Config{}, nil, player.ErrNoData
+	}
 	if err != nil {
 		return player.Config{}, nil, err
 	}
