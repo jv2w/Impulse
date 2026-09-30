@@ -119,6 +119,27 @@ func (storage *PalettedStorage) addNew(v uint32) int16 {
 	return index
 }
 
+// maxPaletteIndex returns the largest Palette index any of the 4096 values in the PalettedStorage points to.
+func (storage *PalettedStorage) maxPaletteIndex() uint16 {
+	if storage.bitsPerIndex == 0 {
+		return 0
+	}
+	bits := uint32(storage.bitsPerIndex)
+	perWord := uint32BitSize / bits
+	var maxIndex uint32
+	// Only the 4096 indices of the storage are read: with 3, 5 or 6 bits per
+	// index the last word ends in padding slots that hold no index.
+	remaining := uint32(4096)
+	for _, w := range storage.indices {
+		n := min(perWord, remaining)
+		for i := uint32(0); i < n; i++ {
+			maxIndex = max(maxIndex, (w>>(i*bits))&storage.indexMask)
+		}
+		remaining -= n
+	}
+	return uint16(maxIndex)
+}
+
 // paletteIndex looks up the Palette index at a given x, y and z value in the PalettedStorage. This palette
 // index is not the value at this offset, but merely an index in the Palette pointing to a value.
 func (storage *PalettedStorage) paletteIndex(x, y, z byte) uint16 {

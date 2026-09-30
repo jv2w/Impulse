@@ -220,5 +220,16 @@ func decodePalettedStorage(buf *bytes.Buffer, e Encoding, pe paletteEncoding) (*
 		uint32s[i] = uint32(d[0]) | uint32(d[1])<<8 | uint32(d[2])<<16 | uint32(d[3])<<24
 	}
 	p, err := e.decodePalette(buf, paletteSize(blockSize), pe)
-	return newPalettedStorage(uint32s, p), err
+	storage := newPalettedStorage(uint32s, p)
+	if err != nil {
+		return storage, err
+	}
+	// Which input was the problem: a storage with an index past the end of its
+	// palette, such as index 3 with two entries. It decoded, and the first read
+	// of that block indexed the palette out of range and panicked, on a chunk
+	// worker with nothing to recover it, ending the process.
+	if maxIndex := storage.maxPaletteIndex(); int(maxIndex) >= p.Len() {
+		return nil, fmt.Errorf("paletted storage index %v is past the end of its palette of %v entries", maxIndex, p.Len())
+	}
+	return storage, nil
 }
