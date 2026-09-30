@@ -78,19 +78,20 @@ In code you touched, write the following.
 
 ## 3. Performance
 
-### 3.1 The precondition for optimizing is behavioral identity
+### 3.1 The precondition for optimizing is identical observable results
 
-The threshold is not a benchmark number. It is **behavior not changing by one bit**.
+The threshold is not a benchmark number. It is **observable results not changing by one bit**. Internal structure is free: data structures may be swapped, indexes added and code paths redesigned when it makes the runtime faster.
 
-- Return values and errors are the same
-- Side effects are the same — down to the number and order of callback invocations
-- **Aliasing is the same** — a function that handed out a copy must not start handing out an internal slice, and a function that copied its argument must not start holding onto the argument itself
-- Where iteration order was observable, the order is the same too
-- **Floating-point results are bit-identical** — reordering operations changes the value through reassociation
+What must stay identical:
 
-**If you cannot prove identity by eye, do not do it.** When it is ambiguous, leave it alone.
+- **Bytes stored on disk** — world, player data, level.dat
+- **Packets sent to clients** — content and order
+- **Public API results** — return values and errors, the number and order of handler and callback invocations, and aliasing: a function that handed out a copy must not start handing out an internal slice, and a function that copied its argument must not start holding onto it
+- **Floating-point results that reach any of the above are bit-identical** — reordering operations changes the value through reassociation
 
-**Never swap the data structure of existing code as an optimization.** map↔slice changes iteration order, so it is a behavior change under the rule above. Adding an index to existing code (§3.2) is the same kind of change — report first.
+Internal iteration order that reaches one of these is observable and is kept. Where the old order was already random (Go map iteration), any order is acceptable.
+
+**If you cannot prove identity, do not do it.** When it is ambiguous, leave it alone.
 
 If you touched the hot path, attach a benchmark. `allocs/op` from `-benchmem` is the primary metric.
 
@@ -102,7 +103,7 @@ On the tick loop, block setting, entity iteration, and packet handling paths:
 - Put reusable buffers in an instance field or hand ownership to the caller. `sync.Pool` is the last resort.
 - Hoist loop invariants out of the loop. Never do the same lookup twice in one function.
 - Never determine a type by string comparison. Use a type switch or a precomputed flag.
-- Never filter by iterating a whole map. In new code, keep an index on the axis you need; in existing code, adding one is a data-structure change (§3.1).
+- Never filter by iterating a whole map. Keep an index on the axis you need.
 
 ### 3.3 Tick budget
 
