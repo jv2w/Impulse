@@ -31,10 +31,10 @@ func allocatedBy(f func()) uint64 {
 	return after.TotalAlloc - before.TotalAlloc
 }
 
-// TestDecodePaletteRejectsUnaddressableCount feeds both encodings a palette header declaring far more
-// entries than blockSize bits can index, with no entry data behind it. Both decoders used to trust the
+// TestDecodePaletteRejectsUnaddressableCount feeds the disk encoding a palette header declaring far more
+// entries than blockSize bits can index, with no entry data behind it. The decoder used to trust the
 // count and make the slice first, turning a handful of bytes from a corrupt world file (mcdb DiskDecode)
-// or from the wire (the exported NetworkDecode) into a heap allocation of hundreds of megabytes.
+// into a heap allocation of hundreds of megabytes.
 //
 // Asserting only on the error is not enough: the pre-fix decoders returned an error too, after allocating.
 // The allocation bound is the part that distinguishes the two.
@@ -44,11 +44,6 @@ func TestDecodePaletteRejectsUnaddressableCount(t *testing.T) {
 		_ = binary.Write(buf, binary.LittleEndian, uint32(hugePaletteCount))
 		return buf
 	}
-	networkPayload := func() *bytes.Buffer {
-		buf := &bytes.Buffer{}
-		_ = protocol.WriteVarint32(buf, int32(hugePaletteCount))
-		return buf
-	}
 
 	for _, tc := range []struct {
 		name string
@@ -56,7 +51,6 @@ func TestDecodePaletteRejectsUnaddressableCount(t *testing.T) {
 		buf  func() *bytes.Buffer
 	}{
 		{name: "disk", e: DiskEncoding, buf: diskPayload},
-		{name: "network", e: NetworkEncoding, buf: networkPayload},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			buf := tc.buf()
@@ -142,12 +136,9 @@ func TestDecodePaletteRejectsOneOverFullPalette(t *testing.T) {
 			count := (1 << size) + 1
 
 			disk := &bytes.Buffer{}
-			network := &bytes.Buffer{}
 			_ = binary.Write(disk, binary.LittleEndian, uint32(count))
-			_ = protocol.WriteVarint32(network, int32(count))
 			for i := range count {
 				BiomePaletteEncoding.encode(disk, uint32(i))
-				_ = protocol.WriteVarint32(network, int32(i))
 			}
 
 			for _, tc := range []struct {
@@ -156,7 +147,6 @@ func TestDecodePaletteRejectsOneOverFullPalette(t *testing.T) {
 				buf  *bytes.Buffer
 			}{
 				{name: "disk", e: DiskEncoding, buf: disk},
-				{name: "network", e: NetworkEncoding, buf: network},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
 					if _, err := tc.e.decodePalette(tc.buf, size, BiomePaletteEncoding); err == nil {

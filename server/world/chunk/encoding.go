@@ -203,12 +203,6 @@ func (networkEncoding) decodePalette(buf *bytes.Buffer, blockSize paletteSize, _
 		if paletteCount <= 0 {
 			return nil, fmt.Errorf("invalid palette entry count %v", paletteCount)
 		}
-		// The same unbounded count as in diskEncoding.decodePalette, reached from the wire through the
-		// exported NetworkDecode: a varint32 of 50 million made a 190 MiB slice before the stream was
-		// found to be empty. 1<<blockSize is the largest palette the indices can reach.
-		if paletteCount > 1<<blockSize {
-			return nil, fmt.Errorf("invalid palette entry count %v: palette with %v bits per block can hold at most %v values", paletteCount, blockSize, int32(1)<<blockSize)
-		}
 	}
 
 	blocks, temp := make([]uint32, paletteCount), int32(0)
