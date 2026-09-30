@@ -1,6 +1,7 @@
 package entity
 
 import (
+	"github.com/jv2w/Impulse/server/block"
 	"github.com/jv2w/Impulse/server/block/cube"
 	"github.com/jv2w/Impulse/server/internal/nbtconv"
 	"github.com/jv2w/Impulse/server/world"
@@ -35,6 +36,12 @@ func (fallingBlockType) BBox(world.Entity) cube.BBox {
 func (fallingBlockType) DecodeNBT(m map[string]any, data *world.EntityData) {
 	conf := fallingBlockConf
 	conf.Block = nbtconv.Block(m, "FallingBlock")
+	if conf.Block == nil {
+		// Which input was the problem: a stored falling block holding a block
+		// this build does not know. It decoded to nil, and saving the chunk
+		// again dereferenced it and panicked. It falls as air instead.
+		conf.Block = block.Air{}
+	}
 	conf.DistanceFallen = nbtconv.Float64(m, "FallDistance")
 	data.Data = conf.New()
 }
