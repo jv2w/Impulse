@@ -86,8 +86,11 @@ func (p *Provider) toJson(d player.Config, w *world.World) jsonData {
 	mode, _ := world.GameModeID(d.GameMode)
 	offHand, _ := d.OffHand.Item(0)
 	return jsonData{
-		UUID:            d.UUID.String(),
-		Username:        d.Name,
+		UUID:     d.UUID.String(),
+		Username: d.Name,
+		// Which input was the problem: every save. The XUID was read back on
+		// load but never written, so it always loaded empty.
+		XUID:            d.XUID,
 		Position:        d.Position,
 		Velocity:        d.Velocity,
 		Yaw:             d.Rotation.Yaw(),
