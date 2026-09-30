@@ -5,6 +5,7 @@ import (
 	"github.com/go-gl/mathgl/mgl64"
 	"github.com/jv2w/Impulse/server/internal/sliceutil"
 	"github.com/jv2w/Impulse/server/world"
+	"math"
 	"math/rand/v2"
 	"reflect"
 	"strconv"
@@ -176,7 +177,10 @@ func (p parser) float(line *Line, v reflect.Value) error {
 		return line.UsageError()
 	}
 	value, err := strconv.ParseFloat(arg, v.Type().Bits())
-	if err != nil {
+	// Which input was the problem: a player typing "NaN" or "Inf". ParseFloat
+	// accepts them, and they reached command positions and amounts, where a
+	// NaN poisons health and positions for good. They are not numbers here.
+	if err != nil || math.IsNaN(value) || math.IsInf(value, 0) {
 		return MessageNumberInvalid.F(arg)
 	}
 	v.SetFloat(value)

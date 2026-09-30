@@ -179,11 +179,8 @@ func TestParseUint(t *testing.T) {
 }
 
 func TestParseFloat(t *testing.T) {
-	// PINNED BUG: strconv.ParseFloat accepts "NaN", "Inf", "+Inf" and "-Inf",
-	// and the parser passes them straight into the command parameter. Every
-	// downstream consumer of a float parameter (positions, velocities, health)
-	// therefore has to defend itself: server/entity already pins that a NaN
-	// reaching Hurt or a velocity travels the whole way through unchecked.
+	// strconv.ParseFloat accepts "NaN", "Inf", "+Inf" and "-Inf"; the parser
+	// rejects them, so no float parameter receives a non-finite value.
 	runParseCases(t, []parseCase{
 		{name: "integer text", args: "5", want: []any{5.0}},
 		{name: "decimal", args: "1.5", want: []any{1.5}},
@@ -197,12 +194,11 @@ func TestParseFloat(t *testing.T) {
 		t.Run("non-finite "+arg, func(t *testing.T) {
 			res := &result{}
 			out := exec(t, arg, float64Runnable{res: res})
-			if got := errStrings(out); len(got) != 0 {
-				t.Fatalf("errors = %q, want none: %q is accepted as a float parameter", got, arg)
+			if got := errStrings(out); len(got) != 2 || got[1] != "§r§c> '"+arg+"' is not a valid number§r" {
+				t.Fatalf("errors = %q, want %q rejected as not a valid number", got, arg)
 			}
-			v := res.args[0].(float64)
-			if !math.IsNaN(v) && !math.IsInf(v, 0) {
-				t.Fatalf("parsed %q as %v, want a non-finite value", arg, v)
+			if len(res.args) != 0 {
+				t.Fatalf("command ran with %v, want it not run", res.args)
 			}
 		})
 	}
