@@ -148,12 +148,6 @@ func fillDefaults(conf Config) Config {
 	if conf.MaxHealth <= 0 {
 		conf.MaxHealth, conf.Health = 20, 20
 	}
-	// Which input was the problem: a HeldSlot outside the hotbar, which a custom
-	// Provider may store. The slot was used as given, so the held item was read
-	// from a slot the client cannot show and appeared to vanish.
-	if conf.HeldSlot < 0 || conf.HeldSlot > 8 {
-		conf.HeldSlot = 0
-	}
 	if conf.GameMode == nil {
 		conf.GameMode = world.GameModeSurvival
 	}

@@ -3468,10 +3468,7 @@ func (p *Player) damageItem(s item.Stack, d int) item.Stack {
 // subtractItem subtracts d from the count of the item stack passed and returns it, if the player is in
 // survival or adventure mode.
 func (p *Player) subtractItem(s item.Stack, d int) item.Stack {
-	// Which input was the problem: a negative CountSub from an item's use. It
-	// grew the held stack instead of shrinking it, so using such an item minted
-	// items out of nothing.
-	if !p.GameMode().CreativeInventory() && d > 0 {
+	if !p.GameMode().CreativeInventory() && d != 0 {
 		return s.Grow(-d)
 	}
 	return s

@@ -50,7 +50,7 @@ func TestSubtractItemOnlyDeductsOutsideCreative(t *testing.T) {
 		{name: "spectator deducts", mode: world.GameModeSpectator, sub: 3, want: 7},
 		{name: "creative keeps the stack whole", mode: world.GameModeCreative, sub: 3, want: 10},
 		{name: "a zero subtraction is a no-op", mode: world.GameModeSurvival, sub: 0, want: 10},
-		{name: "a negative subtraction is a no-op", mode: world.GameModeSurvival, sub: -5, want: 10},
+		{name: "a negative subtraction grows the stack", mode: world.GameModeSurvival, sub: -5, want: 15},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := newStubPlayer(Config{GameMode: tc.mode})
@@ -61,10 +61,12 @@ func TestSubtractItemOnlyDeductsOutsideCreative(t *testing.T) {
 	}
 }
 
-// TestNegativeCountSubLeavesTheHeldStack pins that a negative CountSub, which
-// an item's Use may write, leaves the held stack alone rather than growing it
-// and minting items out of nothing.
-func TestNegativeCountSubLeavesTheHeldStack(t *testing.T) {
+// PINNED BUG: a negative CountSub grows the stack instead of shrinking it, and
+// handleUseContext feeds item.UseContext.CountSub straight into subtractItem
+// with no check. Any item whose Use writes a negative CountSub duplicates
+// itself. Inventory.RemoveItemFunc guards the same mistake explicitly
+// (inventory.go:295); this path does not.
+func TestNegativeCountSubDuplicatesTheHeldStack(t *testing.T) {
 	p := newStubPlayer(Config{})
 	if err := p.inv.SetItem(0, apples(10)); err != nil {
 		t.Fatalf("inv.SetItem: %v", err)
@@ -72,8 +74,8 @@ func TestNegativeCountSubLeavesTheHeldStack(t *testing.T) {
 
 	p.handleUseContext(&item.UseContext{CountSub: -22})
 
-	if got := heldOf(p); got[0] != 10 {
-		t.Fatalf("held count = %v, want the 10 held before the use", got[0])
+	if got := heldOf(p); got[0] != 32 {
+		t.Fatalf("held count = %v, want 32: a negative CountSub minted %v apples", got[0], got[0]-10)
 	}
 }
 
@@ -301,26 +303,31 @@ func TestHandleUseContextAppliesEveryFieldInOrder(t *testing.T) {
 	}
 }
 
-// TestAnOutOfRangeHeldSlotFallsBackToTheFirst pins that a HeldSlot outside the
-// hotbar, which a custom Provider may store, is replaced by slot 0. It used to
-// be stored verbatim, giving a player whose main hand was permanently empty and
-// who destroyed every item written to it, because SetHeldItems discards the
-// out-of-range error.
-func TestAnOutOfRangeHeldSlotFallsBackToTheFirst(t *testing.T) {
+// PINNED BUG: Config.HeldSlot is never range-checked. fillDefaults leaves it
+// alone (conf.go:120) and Apply stores it verbatim (conf.go:58), while
+// SetHeldSlot rejects anything outside 0-8 (player.go:1487). A Config that
+// names a slot the inventory does not have gives a player whose main hand is
+// permanently empty and who destroys every item written to it: SetHeldItems
+// discards the ErrSlotOutOfRange at player.go:1477, so handleUseContext loses
+// the item it was holding.
+func TestAnOutOfRangeHeldSlotSilentlyDestroysTheHeldItem(t *testing.T) {
 	p := newStubPlayer(Config{HeldSlot: 40})
 
-	p.SetHeldItems(apples(5), item.Stack{})
-	if got := totalOf(p, apples(1)); got != 5 {
-		t.Fatalf("apples = %v, want the 5 written to the held slot", got)
-	}
 	main, _ := p.HeldItems()
-	if main.Count() != 5 {
-		t.Fatalf("main hand = %v, want the 5 apples", main)
+	if !main.Empty() {
+		t.Fatalf("main hand = %v, want empty", main)
 	}
 
+	p.SetHeldItems(apples(5), item.Stack{})
+	if got := totalOf(p, apples(1)); got != 0 {
+		t.Fatalf("apples = %v, want 0: the write unexpectedly landed somewhere", got)
+	}
+
+	// The new item takes the same route, so an item use on such a player mints
+	// nothing and loses whatever it produced.
 	p.addNewItem(&item.UseContext{NewItem: apples(3)})
-	if got := totalOf(p, apples(1)); got != 8 {
-		t.Fatalf("apples = %v, want 8", got)
+	if got := totalOf(p, apples(1)); got != 0 {
+		t.Fatalf("apples = %v, want 0", got)
 	}
 }
 

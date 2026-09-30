@@ -126,17 +126,26 @@ func TestHealthManagerAddHealthEscapesANonPositiveMax(t *testing.T) {
 	}
 }
 
-func TestHealthManagerAddHealthIgnoresNaN(t *testing.T) {
-	// Go's builtin min and max propagate NaN, which would leave health neither
-	// alive nor dead for good, so a NaN amount is ignored.
+func TestHealthManagerAddHealthNaNPoisonsHealth(t *testing.T) {
+	// PINNED BUG: Go's builtin min and max propagate NaN, so a single NaN reaches
+	// the health field through both clamps and can never be cleared: every later
+	// AddHealth folds the stored NaN back into the result. Every threshold test a
+	// caller runs (health <= 0, health < max) then answers false, so the entity is
+	// neither alive nor dead.
 	m := NewHealthManager(10, 20)
 	m.AddHealth(math.NaN())
-	if got := m.Health(); got != 10 {
-		t.Fatalf("AddHealth(NaN) then Health() = %v, want 10", got)
+	if got := m.Health(); !math.IsNaN(got) {
+		t.Fatalf("AddHealth(NaN) then Health() = %v, want NaN", got)
 	}
 	m.AddHealth(20)
-	if got := m.Health(); got != 20 {
-		t.Fatalf("AddHealth(20) after a NaN then Health() = %v, want 20", got)
+	if got := m.Health(); !math.IsNaN(got) {
+		t.Fatalf("AddHealth(20) after a NaN then Health() = %v, want NaN (unrecoverable)", got)
+	}
+	if dead := m.Health() <= 0; dead {
+		t.Fatalf("health <= 0 with NaN health = %v, want false", dead)
+	}
+	if full := m.Health() >= m.MaxHealth(); full {
+		t.Fatalf("health >= max with NaN health = %v, want false", full)
 	}
 }
 
@@ -168,14 +177,16 @@ func TestHealthManagerSetMaxHealth(t *testing.T) {
 }
 
 func TestHealthManagerSetMaxHealthNaN(t *testing.T) {
-	// A NaN max is treated like one that is too low and becomes one.
+	// PINNED BUG: the `max <= 0` guard is false for NaN, so NaN passes straight
+	// through into the max and then into health via min. The same permanent
+	// poisoning as AddHealth(NaN), reached from the other setter.
 	m := NewHealthManager(10, 20)
 	m.SetMaxHealth(math.NaN())
-	if got := m.MaxHealth(); got != 1 {
-		t.Fatalf("SetMaxHealth(NaN) then MaxHealth() = %v, want 1", got)
+	if got := m.MaxHealth(); !math.IsNaN(got) {
+		t.Fatalf("SetMaxHealth(NaN) then MaxHealth() = %v, want NaN", got)
 	}
-	if got := m.Health(); got != 1 {
-		t.Fatalf("SetMaxHealth(NaN) then Health() = %v, want 1", got)
+	if got := m.Health(); !math.IsNaN(got) {
+		t.Fatalf("SetMaxHealth(NaN) then Health() = %v, want NaN", got)
 	}
 }
 
@@ -1412,17 +1423,26 @@ func TestHurtEntityHealthConsequencesOfExtremeDamage(t *testing.T) {
 		}
 	})
 
-	t.Run("NaN damage leaves health alone", func(t *testing.T) {
-		// NaN damage reaches HealthManager.AddHealth, which ignores it, so the
-		// entity can still be killed afterwards.
+	t.Run("NaN damage poisons health", func(t *testing.T) {
+		// PINNED BUG: NaN damage travels through HurtEntity unchanged, past the
+		// only numeric guard in Player.Hurt (`dmg < 0`, false for NaN), into
+		// HealthManager.AddHealth, where Go's min and max propagate it into the
+		// health field forever. The entity is then permanently neither alive nor
+		// dead: Dead() is health <= 0 and NaN compares false against everything.
 		e := newLivingFake(10, 20)
 		HurtEntity(e, math.NaN(), AttackDamageSource{})
-		if e.Health() != 10 {
-			t.Fatalf("Health() after NaN damage = %v, want 10", e.Health())
+		if !math.IsNaN(e.Health()) {
+			t.Fatalf("Health() after NaN damage = %v, want NaN", e.Health())
+		}
+		if e.Dead() {
+			t.Fatal("Dead() = true with NaN health, want false")
 		}
 		HurtEntity(e, 1000, AttackDamageSource{})
-		if !e.Dead() {
-			t.Fatalf("Dead() = false after 1000 damage, want true (health %v)", e.Health())
+		if !math.IsNaN(e.Health()) {
+			t.Fatalf("Health() after 1000 damage on top of NaN = %v, want NaN (unkillable)", e.Health())
+		}
+		if e.Dead() {
+			t.Fatal("Dead() = true after 1000 damage on NaN health, want false (the entity cannot be killed)")
 		}
 	})
 }

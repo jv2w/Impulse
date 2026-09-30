@@ -33,14 +33,6 @@ func (absorption) End(e world.Entity, lvl int) {
 		SetAbsorption(health float64)
 	}); ok {
 		i.SetAbsorption(i.Absorption() - 4*float64(lvl))
-		return
-	}
-	if i, ok := e.(interface {
-		SetAbsorption(health float64)
-	}); ok {
-		// An entity that does not report its absorption cannot have part of it
-		// taken away, so it keeps the behaviour it had.
-		i.SetAbsorption(0)
 	}
 }
 

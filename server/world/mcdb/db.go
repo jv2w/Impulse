@@ -569,24 +569,16 @@ func (db *DB) entityStoredElsewhere(id int64, pos world.ChunkPos) bool {
 	return world.ChunkPos{int32(math.Floor(x)) >> 4, int32(math.Floor(z)) >> 4} != pos
 }
 
-// entityXZ reads the X and Z components of an entity's Pos value, which is a
-// list of three float32 values in both the encoded and the decoded form.
+// entityXZ reads the X and Z components of an entity's Pos value as decoded
+// from a record: a list of three float32 values.
 func entityXZ(v any) (x, z float64, ok bool) {
-	switch p := v.(type) {
-	case []float32:
-		if len(p) != 3 {
-			return 0, 0, false
-		}
-		return float64(p[0]), float64(p[2]), true
-	case []any:
-		if len(p) != 3 {
-			return 0, 0, false
-		}
-		px, okx := p[0].(float32)
-		pz, okz := p[2].(float32)
-		return float64(px), float64(pz), okx && okz
+	p, ok := v.([]any)
+	if !ok || len(p) != 3 {
+		return 0, 0, false
 	}
-	return 0, 0, false
+	px, okx := p[0].(float32)
+	pz, okz := p[2].(float32)
+	return float64(px), float64(pz), okx && okz
 }
 
 func entityIndex(id int64) []byte {

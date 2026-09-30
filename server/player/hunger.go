@@ -1,7 +1,6 @@
 package player
 
 import (
-	"math"
 	"sync"
 )
 
@@ -79,14 +78,10 @@ func (m *hungerManager) exhaust(points float64) {
 	// desaturate only reads and writes fields of m, so nothing in the loop can
 	// panic and the deferred unlock is replaced by a direct one.
 	// Which input was the problem: a movement packet placing the player about
-	// 1e30 blocks away, which exhausts by a tenth of the distance. The loop
-	// below ran once per 4 points, about 1e29 times, holding the world
-	// goroutine; +Inf never ended, NaN switched hunger off for good and a
-	// negative amount bought free food. Those amounts are ignored, and past 40
-	// passes, which empty any food and saturation, the rest is dropped.
-	if math.IsNaN(points) || points <= 0 {
-		return
-	}
+	// 1e38 blocks away, the float32 limit, which exhausts by a tenth of the
+	// distance. The loop below ran once per 4 points, about 1e37 times, holding
+	// the world goroutine. Past 40 passes, which empty any food and saturation,
+	// the rest is dropped.
 	m.mu.Lock()
 	m.exhaustionLevel += points
 	for i := 0; m.exhaustionLevel >= 4; i++ {
