@@ -115,6 +115,12 @@ func (s *Session) SendScoreboard(sb *scoreboard.Scoreboard) {
 		if len(pk.Entries) > 0 {
 			s.writePacket(pk)
 		}
+		// Which input was the problem: a board of the same name sent again with
+		// more lines than before. The lines were not recorded here, so the next
+		// send removed only as many lines as the first board had, and the rest
+		// stayed on the client's sidebar.
+		lines := append([]string(nil), boardLines...)
+		s.currentLines.Store(&lines)
 	}
 	// One entry per line, so the slice is allocated once instead of grown.
 	pk := &packet.SetScore{Entries: make([]protocol.ScoreboardEntry, 0, len(boardLines))}
