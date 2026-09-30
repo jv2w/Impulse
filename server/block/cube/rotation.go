@@ -94,8 +94,16 @@ func (r Rotation) Vec3() mgl64.Vec3 {
 // as described above.
 func (r Rotation) fix() Rotation {
 	signYaw, signPitch := math.Copysign(180, r[0]), math.Copysign(90, r[1])
+	pitch := math.Mod(r[1]+signPitch, 180) - signPitch
+	// Which input was the problem: a pitch of exactly 90 or -90, which the
+	// client sends when looking straight down or up. The wrap above turns 90
+	// into -90, so things thrown straight down flew straight up. Both ends lie
+	// in the range and are kept; every other pitch is wrapped as before.
+	if r[1] == 90 || r[1] == -90 {
+		pitch = r[1]
+	}
 	return Rotation{
 		math.Mod(r[0]+signYaw, 360) - signYaw,
-		math.Mod(r[1]+signPitch, 180) - signPitch,
+		pitch,
 	}
 }

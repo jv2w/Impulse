@@ -25,14 +25,14 @@ func TestRotationFix(t *testing.T) {
 		{Rotation{0, 100}, Rotation{0, -80}},
 		{Rotation{0, 200}, Rotation{0, 20}},
 		{Rotation{0, -100}, Rotation{0, 80}},
-		// PINNED BUG: the two half-turn endpoints do not fold into the
+		// PINNED BUG: the two yaw half-turn endpoints do not fold into the
 		// documented open range, they swap. A yaw of 180 becomes -180 but a yaw
-		// of -180 becomes 180, which the doc comment excludes. The same holds
-		// for a pitch of exactly +/-90.
+		// of -180 becomes 180, which the doc comment excludes.
 		{Rotation{180, 0}, Rotation{-180, 0}},
 		{Rotation{-180, 0}, Rotation{180, 0}},
-		{Rotation{0, 90}, Rotation{0, -90}},
-		{Rotation{0, -90}, Rotation{0, 90}},
+		// A pitch of exactly +/-90 is kept.
+		{Rotation{0, 90}, Rotation{0, 90}},
+		{Rotation{0, -90}, Rotation{0, -90}},
 	}
 	for _, test := range tests {
 		if got := test.in.fix(); got != test.want {
@@ -220,11 +220,10 @@ func TestRotationVec3(t *testing.T) {
 		// A positive pitch looks downwards, as documented.
 		{Rotation{0, 45}, mgl64.Vec3{0, -math.Sqrt2 / 2, math.Sqrt2 / 2}},
 		{Rotation{0, -45}, mgl64.Vec3{0, math.Sqrt2 / 2, math.Sqrt2 / 2}},
-		// PINNED BUG: at exactly +/-90 the pitch is flipped by fix first, so a
-		// pitch of 90 (documented as looking down) produces a vector pointing
-		// straight up and vice versa.
-		{Rotation{0, 90}, mgl64.Vec3{0, 1, 0}},
-		{Rotation{0, -90}, mgl64.Vec3{0, -1, 0}},
+		// At exactly +/-90 the pitch is kept, so looking straight down points
+		// straight down.
+		{Rotation{0, 90}, mgl64.Vec3{0, -1, 0}},
+		{Rotation{0, -90}, mgl64.Vec3{0, 1, 0}},
 	}
 	for _, test := range tests {
 		got := test.in.Vec3()

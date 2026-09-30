@@ -10,7 +10,7 @@ A green test run therefore means behaviour has not drifted, not that it is right
 Before fixing one, read CLAUDE.md section 4.3: a defect fix updates the test and deletes
 the marker, while a performance change that breaks one is itself the thing that is wrong.
 
-Totals: 210 BUG, 39 SCOPE, 48 CONSTRAINT.
+Totals: 209 BUG, 39 SCOPE, 48 CONSTRAINT.
 
 This file is generated. Regenerate it with:
 
@@ -53,9 +53,8 @@ IMPULSE_UPDATE_PINNED=1 go test ./server -run TestPinnedIndexIsCurrent
 ## server/block/cube/rotation_test.go
 
 - **BUG** — Neg of a half turn yields a yaw of exactly 180, outside the documented (-180, 180) range, because the negation happens after the last fix.
-- **BUG** — at exactly +/-90 the pitch is flipped by fix first, so a pitch of 90 (documented as looking down) produces a vector pointing straight up and vice versa.
 - **BUG** — the shift is guarded by yaw < -step/2, so a yaw of exactly -11.25 misses it and rounds to -1 instead of 15.
-- **BUG** — the two half-turn endpoints do not fold into the documented open range, they swap. A yaw of 180 becomes -180 but a yaw of -180 becomes 180, which the doc comment...
+- **BUG** — the two yaw half-turn endpoints do not fold into the documented open range, they swap. A yaw of 180 becomes -180 but a yaw of -180 becomes 180, which the doc comment...
 
 ## server/block/cube/trace/perform_test.go
 
