@@ -655,27 +655,18 @@ func TestExplosionCancelledLeavesTheWorldUntouched(t *testing.T) {
 	}
 }
 
-// TestExplosionPanicsOnBoundingBoxSampleAtOrigin pins a crash in
-// ExplosionConfig.exposure.
-//
-// PINNED BUG: Explode guards only against an entity whose Position equals the
-// blast origin (`dist == 0`). exposure then ray-traces from the origin to sample
-// points taken from the entity's bounding box, and trace.TraverseBlocks panics
-// when start and end coincide. An entity whose box is offset from its position
-// can put a sample point exactly on the origin while its position is far from
-// it, and nothing rejects that.
+// TestExplosionSurvivesBoundingBoxSampleAtOrigin pins that a sample point of an
+// entity's bounding box landing exactly on the blast origin does not abort the
+// explosion. trace.TraverseBlocks panics on a zero length ray, and exposure used
+// to hand it one, which the world recovered into a *world.PanicError after the
+// handler ran but before any block was broken or any sound played.
 //
 // The entity below has a 1x1x1 box offset to (1,1,1)..(2,2,2) and stands at
 // origin-(1,1,1), so its position is sqrt(3) away — well inside the blast — but
 // its box minimum lands on the origin. diff is (1*2+1) = 3 on every axis, so
 // xOffset and zOffset are (1 - floor(3)/3)/2 = 0 and the very first sample,
 // x=y=z=0, is the box minimum, which is the origin.
-//
-// The blast is aborted at that point: the world recovers the panic into a
-// *world.PanicError on the Task, so the world goroutine survives, but no block
-// is broken and no sound or particle is emitted. A value a caller controls must
-// not be able to reach a panic. Not fixed here.
-func TestExplosionPanicsOnBoundingBoxSampleAtOrigin(t *testing.T) {
+func TestExplosionSurvivesBoundingBoxSampleAtOrigin(t *testing.T) {
 	rec := &explRecord{}
 	typ := explEntityType{box: cube.Box(1, 1, 1, 2, 2, 2), rec: rec}
 
@@ -690,26 +681,26 @@ func TestExplosionPanicsOnBoundingBoxSampleAtOrigin(t *testing.T) {
 	}).Err()
 
 	var panicErr *world.PanicError
-	if !asPanicError(err, &panicErr) {
-		t.Fatalf("explosion task error = %v, want a *world.PanicError", err)
+	if asPanicError(err, &panicErr) {
+		t.Fatalf("explosion panicked with %v, want it to finish", panicErr.Value)
 	}
-	if got, want := panicErr.Value, "start and end points are the same, giving a zero direction vector"; got != want {
-		t.Fatalf("panic value = %v, want %q", got, want)
+	if err != nil {
+		t.Fatalf("explosion task error = %v, want nil", err)
 	}
 	if h.calls != 1 {
-		t.Fatalf("HandleExplosion called %d times, want 1: the panic must happen after the handler", h.calls)
+		t.Fatalf("HandleExplosion called %d times, want 1", h.calls)
 	}
 	if !slices.Contains(h.blocks, stone) {
-		t.Fatalf("the stone at %v was not in the affected set, so the abort proves nothing", stone)
+		t.Fatalf("the stone at %v was not in the affected set, so the test proves nothing", stone)
 	}
-	if len(h.sounds) != 0 {
-		t.Errorf("sounds = %#v, want none: the explosion aborts before playing one", h.sounds)
+	if len(h.sounds) != 1 {
+		t.Errorf("sounds = %#v, want the one explosion sound", h.sounds)
 	}
 
 	var got world.Block
 	w.Do(func(tx *world.Tx) { got = tx.Block(stone) })
-	if got != (world.Block)(block.Stone{}) {
-		t.Errorf("block at %v = %#v, want it left as stone by the aborted explosion", stone, got)
+	if got == (world.Block)(block.Stone{}) {
+		t.Errorf("block at %v is still stone, want it broken by the explosion", stone)
 	}
 }
 

@@ -270,6 +270,16 @@ func (c ExplosionConfig) exposure(tx *world.Tx, origin mgl64.Vec3, e world.Entit
 					lerp(z, boxMin[2], boxMax[2]) + zOffset,
 				}
 				var collided bool
+				// Which input was the problem: a sample point of the entity's
+				// box landing exactly on the blast origin. TraverseBlocks
+				// panics on a zero length ray, which aborted the whole
+				// explosion: no blocks broken, no sound, no particles. There is
+				// nothing between a point and itself, so it is unobstructed.
+				if point == origin {
+					misses++
+					checks++
+					continue
+				}
 				trace.TraverseBlocks(origin, point, func(pos cube.Pos) (cont bool) {
 					if c.SuppressUnderwaterImpact {
 						if _, liquid := tx.Liquid(pos); liquid {
