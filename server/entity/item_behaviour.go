@@ -84,9 +84,16 @@ func (i *ItemBehaviour) Item() item.Stack {
 // or if it should merge with nearby item entities.
 func (i *ItemBehaviour) Tick(e *Ent, tx *world.Tx) *Movement {
 	pos := cube.PosFromVec3(e.Position())
-	blockPos := pos.Side(cube.FaceDown)
-
+	// Which input was the problem: an item dropped into the middle of a hopper.
+	// It comes to rest on the floor of the bowl, inside the hopper's own block,
+	// and only the block below the item was checked, so it lay there until it
+	// despawned. The block the item is in is checked first.
+	blockPos := pos
 	bl, ok := tx.Block(blockPos).(block.Hopper)
+	if !ok {
+		blockPos = pos.Side(cube.FaceDown)
+		bl, ok = tx.Block(blockPos).(block.Hopper)
+	}
 	if ok && !bl.Powered && bl.CollectCooldown <= 0 {
 		addedCount, err := bl.Inventory(tx, blockPos).AddItem(i.i)
 		if err != nil {
