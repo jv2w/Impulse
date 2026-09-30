@@ -1256,7 +1256,12 @@ func (w *World) save(f func(*Tx, ChunkPos, *Column)) execFunc {
 
 // saveChunk saves a chunk and its entities to disk after compacting the chunk.
 func (w *World) saveChunk(_ *Tx, pos ChunkPos, c *Column) {
-	if !w.conf.ReadOnly && c.modified {
+	// Which input was the problem: a chunk loaded from disk whose only change
+	// was to a block entity's contents, such as items put into a chest, or to
+	// an entity's state. Inventories and entities change without going through
+	// SetBlock, so modified stayed false and the change was dropped on unload.
+	// Any chunk holding either is stored.
+	if !w.conf.ReadOnly && (c.modified || len(c.BlockEntities) > 0 || len(c.Entities) > 0) {
 		c.Compact()
 		if err := w.conf.Provider.StoreColumn(pos, w.conf.Dim, w.columnTo(c, pos)); err != nil {
 			w.conf.Log.Error("save chunk: "+err.Error(), "X", pos[0], "Z", pos[1])
