@@ -8,6 +8,7 @@ import (
 	"github.com/jv2w/Impulse/server/item/inventory"
 	"github.com/jv2w/Impulse/server/player"
 	"github.com/jv2w/Impulse/server/world"
+	"math"
 	"time"
 )
 
@@ -85,7 +86,7 @@ func (p *Provider) toJson(d player.Config, w *world.World) jsonData {
 	dim, _ := world.DimensionID(w.Dimension())
 	mode, _ := world.GameModeID(d.GameMode)
 	offHand, _ := d.OffHand.Item(0)
-	return jsonData{
+	data := jsonData{
 		UUID:     d.UUID.String(),
 		Username: d.Name,
 		// Which input was the problem: every save. The XUID was read back on
@@ -121,6 +122,44 @@ func (p *Provider) toJson(d player.Config, w *world.World) jsonData {
 		EnderChestInventory: encodeItems(d.EnderChestInventory.Slots()),
 		Dimension:           int32(dim),
 	}
+	data.replaceNonFinite(w.Spawn().Vec3Centre())
+	return data
+}
+
+// replaceNonFinite replaces every float that is NaN or infinite with a value
+// that can be stored, using spawn for a position that cannot be kept.
+//
+// Which input was the problem: any one non-finite float, for example a position
+// or velocity a plugin set. encoding/json refuses to marshal those, so Save
+// returned an error and the player's whole record went unwritten: everything
+// they did since the last save was lost when they left.
+func (data *jsonData) replaceNonFinite(spawn mgl64.Vec3) {
+	if !finiteVec3(data.Position) {
+		data.Position = spawn
+	}
+	if !finiteVec3(data.Velocity) {
+		data.Velocity = mgl64.Vec3{}
+	}
+	data.MaxHealth = finiteOr(data.MaxHealth, 20)
+	data.Health = finiteOr(data.Health, data.MaxHealth)
+	data.Yaw, data.Pitch = finiteOr(data.Yaw, 0), finiteOr(data.Pitch, 0)
+	data.ExhaustionLevel = finiteOr(data.ExhaustionLevel, 0)
+	data.SaturationLevel = finiteOr(data.SaturationLevel, 0)
+	data.FallDistance = finiteOr(data.FallDistance, 0)
+}
+
+// finiteOr returns v, or fallback if v is NaN or infinite.
+func finiteOr(v, fallback float64) float64 {
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return fallback
+	}
+	return v
+}
+
+// finiteVec3 reports whether every component of v is finite.
+func finiteVec3(v mgl64.Vec3) bool {
+	return !math.IsNaN(v[0]) && !math.IsNaN(v[1]) && !math.IsNaN(v[2]) &&
+		!math.IsInf(v[0], 0) && !math.IsInf(v[1], 0) && !math.IsInf(v[2], 0)
 }
 
 type jsonData struct {
