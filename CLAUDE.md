@@ -132,12 +132,16 @@ If you touched buffer reuse or global state, run repeatedly with `-count=5` or m
 
 ### 4.2 Tests
 
-Tests are written for the two purposes below only. Never write one to raise coverage.
+A test is the exception, not the default. Neither a bug fix nor a change to a given area requires one by itself. Never write one to raise coverage.
 
-- **Bug fixes** — write the reproduction test first, actually watch it fail, then fix. A test you never saw fail proves nothing.
-- **Code where result integrity is at stake** — serialization, palette storage, inventory, packet handlers. Never modify these without a test.
+Write a test only when both hold:
+
+- The correctness of the change cannot be confirmed by reading the code.
+- A silent regression would lose or corrupt data, or duplicate items — serialization, palette storage, inventory, packet handlers.
 
 When you write one:
+
+- If it reproduces a bug, write it first and actually watch it fail, then fix. A test you never saw fail proves nothing.
 
 - **A test that only checks "it does not panic" is not a safety net.** Assert observable values.
 - Where reading and writing use the same encoding, a round-trip alone is not enough. **Assert keys and field names directly as golden values.** If both sides change together, the round-trip still passes.
