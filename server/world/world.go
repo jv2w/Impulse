@@ -1265,7 +1265,13 @@ func (w *World) saveChunk(_ *Tx, pos ChunkPos, c *Column) {
 		c.Compact()
 		if err := w.conf.Provider.StoreColumn(pos, w.conf.Dim, w.columnTo(c, pos)); err != nil {
 			w.conf.Log.Error("save chunk: "+err.Error(), "X", pos[0], "Z", pos[1])
+			return
 		}
+		// Which input was the problem: a chunk changed once and then left
+		// alone. modified was never reset, so every autosave re-encoded and
+		// rewrote it for as long as it stayed loaded. It is reset only after a
+		// successful store, so a failed write is retried on the next save.
+		c.modified = false
 	}
 }
 
