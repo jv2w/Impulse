@@ -23,10 +23,23 @@ func (absorption) Start(e world.Entity, lvl int) {
 }
 
 // End ...
-func (absorption) End(e world.Entity, _ int) {
+func (absorption) End(e world.Entity, lvl int) {
+	// Which input was the problem: absorption held from another source, such as
+	// a totem or a second effect. Setting it to zero took all of it away, so
+	// one absorption effect ending wiped the rest. Only what this level granted
+	// is taken back, as vanilla does. SetAbsorption clamps at zero.
+	if i, ok := e.(interface {
+		Absorption() float64
+		SetAbsorption(health float64)
+	}); ok {
+		i.SetAbsorption(i.Absorption() - 4*float64(lvl))
+		return
+	}
 	if i, ok := e.(interface {
 		SetAbsorption(health float64)
 	}); ok {
+		// An entity that does not report its absorption cannot have part of it
+		// taken away, so it keeps the behaviour it had.
 		i.SetAbsorption(0)
 	}
 }

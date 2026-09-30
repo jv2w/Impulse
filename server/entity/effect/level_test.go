@@ -279,12 +279,15 @@ func TestHealthBoostEndSubtractsFromWhateverTheMaximumIsNow(t *testing.T) {
 	}
 }
 
-func TestAbsorptionEndClearsRegardlessOfLevel(t *testing.T) {
-	// PINNED BUG: End ignores the level and sets absorption to zero, so removing
-	// one absorption effect wipes the absorption granted by any other source.
+func TestAbsorptionEndTakesBackOnlyItsOwnLevel(t *testing.T) {
+	// End takes back 4 per level, so absorption from another source survives.
 	l := newTestLiving()
 	l.SetAbsorption(12)
 	Absorption.End(l, 1)
+	if l.absorption != 8 {
+		t.Fatalf("absorption = %v, want 8: only the 4 of level 1 is taken back", l.absorption)
+	}
+	Absorption.End(l, 2)
 	if l.absorption != 0 {
 		t.Fatalf("absorption = %v, want 0", l.absorption)
 	}

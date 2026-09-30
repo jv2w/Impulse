@@ -71,6 +71,7 @@ func (l *testLiving) SetMaxHealth(v float64)    { l.maxHealth = v }
 func (l *testLiving) Speed() float64            { return l.speed }
 func (l *testLiving) SetSpeed(v float64)        { l.speed = v }
 func (l *testLiving) SetAbsorption(v float64)   { l.absorption = v }
+func (l *testLiving) Absorption() float64       { return l.absorption }
 func (l *testLiving) SetInvisible()             { l.invisible = true }
 func (l *testLiving) SetVisible()               { l.invisible = false }
 func (l *testLiving) Exhaust(points float64)    { l.exhaustion += points }
