@@ -1,6 +1,8 @@
 package world
 
 import (
+	"fmt"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 
@@ -56,7 +58,7 @@ func newChunkWorkerPool(w *World) *chunkWorkerPool {
 // signal below is what a worker's load would have run.
 func (r *chunkRequest) doImmediate(tx *Tx) *Column {
 	if r.claimed.CompareAndSwap(false, true) {
-		r.col, r.err = tx.World().loadChunk(r.pos)
+		r.col, r.err = tx.World().loadChunkRecovered(r.pos)
 		close(r.done)
 	} else {
 		<-r.done
@@ -71,9 +73,26 @@ func (r *chunkRequest) load(w *World) {
 	if !r.claimed.CompareAndSwap(false, true) {
 		return
 	}
-	r.col, r.err = w.loadChunk(r.pos)
+	r.col, r.err = w.loadChunkRecovered(r.pos)
 	close(r.done)
 	w.Do(r.signal)
+}
+
+// loadChunkRecovered calls loadChunk, turning a panic in it into an error.
+//
+// Which input was the problem: a chunk the Provider or Generator panics on,
+// such as a third-party generator failing on one position or a provider
+// decoding a damaged record. The chunk workers have nothing above them to
+// recover, so the process ended. What is swallowed is that panic; the chunk is
+// then handled as one that failed to load.
+func (w *World) loadChunkRecovered(pos ChunkPos) (col *chunk.Column, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			w.conf.Log.Error("load chunk panicked", "X", pos[0], "Z", pos[1], "panic", r, "stack", string(debug.Stack()))
+			col, err = nil, fmt.Errorf("load chunk %v panicked: %v", pos, r)
+		}
+	}()
+	return w.loadChunk(pos)
 }
 
 // abort cancels a request that will never be carried out because the world is

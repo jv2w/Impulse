@@ -1439,7 +1439,7 @@ func (tx *Tx) chunk(pos ChunkPos) *Column {
 	if ok {
 		return c
 	}
-	col, err := w.loadChunk(pos)
+	col, err := w.loadChunkRecovered(pos)
 	if err != nil {
 		w.conf.Log.Error("load chunk: "+err.Error(), "X", pos[0], "Z", pos[1])
 		return w.addFailedChunk(pos)
@@ -1686,7 +1686,16 @@ func (w *World) columnFrom(c *chunk.Column, _ ChunkPos) *Column {
 	// The registry is read once instead of once per block entity and scheduled block; conf.Blocks is fixed
 	// for the World's lifetime, so the same blocks are decoded.
 	blocks := w.conf.Blocks
+	r := w.Range()
 	for _, be := range c.BlockEntities {
+		// Which input was the problem: a stored block entity whose Y lies outside
+		// the dimension, as in a world converted from another height range.
+		// Chunk.Block indexed its sub chunks with it and panicked, ending the
+		// process when the chunk was loaded inside a transaction.
+		if be.Pos[1] < r[0] || be.Pos[1] > r[1] {
+			w.conf.Log.Error("read column: block entity outside the world height", "pos", be.Pos)
+			continue
+		}
 		rid := c.Chunk.Block(uint8(be.Pos[0]), int16(be.Pos[1]), uint8(be.Pos[2]), 0)
 		b, ok := blocks.BlockByRuntimeID(rid)
 		if !ok {
