@@ -142,8 +142,17 @@ func fillDefaults(conf Config) Config {
 	if conf.MaxAirSupply == 0 {
 		conf.AirSupply, conf.MaxAirSupply = 300, 300
 	}
-	if conf.MaxHealth == 0 {
+	// Which input was the problem: a stored or plugin-supplied MaxHealth of zero
+	// or below. Only zero was defaulted, so a negative one made a player who was
+	// dead the moment they spawned and could not be revived.
+	if conf.MaxHealth <= 0 {
 		conf.MaxHealth, conf.Health = 20, 20
+	}
+	// Which input was the problem: a HeldSlot outside the hotbar, which a custom
+	// Provider may store. The slot was used as given, so the held item was read
+	// from a slot the client cannot show and appeared to vanish.
+	if conf.HeldSlot < 0 || conf.HeldSlot > 8 {
+		conf.HeldSlot = 0
 	}
 	if conf.GameMode == nil {
 		conf.GameMode = world.GameModeSurvival

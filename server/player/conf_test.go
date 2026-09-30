@@ -165,19 +165,18 @@ func TestAirAndHealthAreClobberedWhenOnlyTheMaximumIsMissing(t *testing.T) {
 	}
 }
 
-// PINNED BUG: MaxHealth is only defaulted when it is exactly 0, so a negative
-// maximum survives into entity.NewHealthManager, which clamps the health down
-// to it. The result is a player who is dead on arrival and can never be healed.
-// HealthManager.SetMaxHealth guards the same value (entity/health.go:37); the
-// constructor path does not.
-func TestANegativeMaxHealthProducesAPermanentlyDeadPlayer(t *testing.T) {
+// TestANegativeMaxHealthIsDefaulted pins that a maximum of zero or below is
+// replaced by the default 20. A negative one used to reach
+// entity.NewHealthManager, which clamped health down to it, giving a player who
+// was dead on arrival and could never be healed.
+func TestANegativeMaxHealthIsDefaulted(t *testing.T) {
 	pd := applied(Config{MaxHealth: -5})
 
-	if got := pd.health.Health(); got != -5 {
-		t.Fatalf("health = %v, want -5", got)
+	if got := pd.health.Health(); got != 20 {
+		t.Fatalf("health = %v, want 20", got)
 	}
-	if got := pd.health.MaxHealth(); got != -5 {
-		t.Fatalf("max health = %v, want -5", got)
+	if got := pd.health.MaxHealth(); got != 20 {
+		t.Fatalf("max health = %v, want 20", got)
 	}
 }
 
