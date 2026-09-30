@@ -57,8 +57,20 @@ func (tntType) BBox(world.Entity) cube.BBox {
 
 func (t tntType) DecodeNBT(m map[string]any, data *world.EntityData) {
 	conf := tntConf
-	conf.ExistenceDuration = nbtconv.TickDuration[int16](m, "Fuse")
-	data.Data = conf.New()
+	// Which input was the problem: primed TNT saved partway through its fuse.
+	// Fuse holds the time left, but the fuse length was set to it while Age was
+	// restored as well, and the fuse runs out once Age passes the length: TNT
+	// saved past half its fuse exploded on load, and TNT saved with no time left
+	// got a length of zero, which never expires. The length is the age plus the
+	// time left, and at least one tick.
+	left := max(nbtconv.TickDuration[int16](m, "Fuse"), 0)
+	conf.ExistenceDuration = max(data.Age+left, time.Second/20)
+	b := conf.New()
+	// Until its first tick the behaviour reports the whole length as the time
+	// left. A chunk without viewers does not tick its entities, so it could be
+	// saved like that and the fuse would grow with every load.
+	b.fuse = conf.ExistenceDuration - data.Age
+	data.Data = b
 }
 
 func (tntType) EncodeNBT(data *world.EntityData) map[string]any {
