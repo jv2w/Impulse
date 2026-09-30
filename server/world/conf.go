@@ -178,6 +178,7 @@ func (conf Config) New() *World {
 		w.queueing.Add(1)
 		w.running.Add(2)
 
+		w.saver = newChunkSaver(w)
 		go t.tickLoop(w)
 		go w.autoSave()
 		go w.handleTransactions()

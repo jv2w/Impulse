@@ -67,6 +67,9 @@ type World struct {
 	chunks        map[ChunkPos]*Column
 	chunkRequests map[ChunkPos]*chunkRequest
 	chunkWorkers  *chunkWorkerPool
+	// saver writes chunks to the Provider off the transaction goroutine. It is
+	// nil for a Synchronous World, which writes them where they are saved.
+	saver *chunkSaver
 
 	// entities holds a map of entities currently loaded and the last ChunkPos
 	// that the Entity was in. These are tracked so that a call to RemoveEntity
@@ -1237,6 +1240,11 @@ func (w *World) PortalDestination(dim Dimension) *World {
 // Save saves the World to the provider.
 func (w *World) Save() {
 	<-w.exec(w.save(w.saveChunk))
+	// Save returned once everything was written before the saver existed, so
+	// it still waits for the writes, off the transaction goroutine.
+	if w.saver != nil {
+		w.saver.flush()
+	}
 }
 
 // save saves all loaded chunks to the World's provider.
@@ -1262,14 +1270,40 @@ func (w *World) save(f func(*Tx, ChunkPos, *Column)) execFunc {
 
 // saveChunk saves a chunk and its entities to disk after compacting the chunk.
 func (w *World) saveChunk(_ *Tx, pos ChunkPos, c *Column) {
+	w.storeChunk(pos, c, false)
+}
+
+// storeChunk stores the chunk c at pos if it needs storing. owned is true when
+// c is being unloaded, so that nothing reads or writes its blocks afterwards.
+func (w *World) storeChunk(pos ChunkPos, c *Column, owned bool) {
+	if w.conf.ReadOnly || c.loadFailed {
+		return
+	}
 	// Which input was the problem: a chunk loaded from disk whose only change
 	// was to a block entity's contents, such as items put into a chest, or to
 	// an entity's state. Inventories and entities change without going through
 	// SetBlock, so modified stayed false and the change was dropped on unload.
-	// Any chunk holding either is stored.
-	if !w.conf.ReadOnly && !c.loadFailed && (c.modified || len(c.BlockEntities) > 0 || len(c.Entities) > 0) {
+	// Any chunk holding either is stored, as is one whose last write failed.
+	retry := w.saver != nil && w.saver.retry(pos)
+	if c.modified || retry || len(c.BlockEntities) > 0 || len(c.Entities) > 0 {
 		c.Compact()
-		if err := w.conf.Provider.StoreColumn(pos, w.conf.Dim, w.columnTo(c, pos)); err != nil {
+		col := w.columnTo(c, pos)
+		if w.saver != nil {
+			// Only the snapshot is taken here; encoding and writing it, the
+			// bulk of the cost, happen on the saver's goroutine. Why the result
+			// is identical: the saver writes the same column the direct call
+			// did, in the order the chunks were saved, and a chunk being loaded
+			// waits for its pending writes, so no load reads older data. The
+			// blocks are cloned unless the chunk is being unloaded, because the
+			// World goes on changing them while the saver encodes.
+			if !owned {
+				col.Chunk = col.Chunk.Clone()
+			}
+			w.saver.store(pos, col)
+			c.modified = false
+			return
+		}
+		if err := w.conf.Provider.StoreColumn(pos, w.conf.Dim, col); err != nil {
 			w.conf.Log.Error("save chunk: "+err.Error(), "X", pos[0], "Z", pos[1])
 			return
 		}
@@ -1285,7 +1319,7 @@ func (w *World) saveChunk(_ *Tx, pos ChunkPos, c *Column) {
 // Afterwards, scheduled updates from that chunk are removed and all entities
 // in it are closed.
 func (w *World) closeChunk(tx *Tx, pos ChunkPos, c *Column) {
-	w.saveChunk(tx, pos, c)
+	w.storeChunk(pos, c, true)
 	w.scheduledUpdates.removeChunk(pos)
 	w.redstone.removeChunk(pos)
 	// Note: We close c.Entities here because some entities may remove
@@ -1332,6 +1366,12 @@ func (w *World) close() {
 	close(w.closing)
 	w.running.Wait()
 	w.chunkWorkers.wg.Wait()
+	// Every chunk was handed to the saver by the close transaction above, and
+	// the chunk workers that could wait on it are gone. The writes finish here,
+	// before the Provider may be closed below.
+	if w.saver != nil {
+		w.saver.close()
+	}
 
 	close(w.queueClosing)
 	w.queueing.Wait()
@@ -1473,6 +1513,10 @@ func (w *World) addFailedChunk(pos ChunkPos) *Column {
 // loadChunk loads a chunk from the provider, or generates a chunk if one
 // doesn't currently exist, and calculates the light within it.
 func (w *World) loadChunk(pos ChunkPos) (*chunk.Column, error) {
+	if w.saver != nil {
+		// A chunk unloaded moments ago may still be on its way to the Provider.
+		w.saver.waitPos(pos)
+	}
 	column, err := w.conf.Provider.LoadColumn(pos, w.conf.Dim)
 	if err != nil {
 		if !errors.Is(err, leveldb.ErrNotFound) {
