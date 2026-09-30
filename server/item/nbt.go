@@ -138,10 +138,7 @@ func writeDragonflyData(m map[string]any, s Stack) {
 	}
 	buf := new(bytes.Buffer)
 	if err := gob.NewEncoder(buf).Encode(mapToSlice(v)); err != nil {
-		// A value Stack.WithValue cannot encode is a mistake in whatever stored
-		// it. The tag is dropped so the rest of the stack still saves: a panic
-		// here would kill the goroutine writing the world over that mistake.
-		return
+		panic("error encoding item user data: " + err.Error())
 	}
 	m["dragonflyData"] = buf.Bytes()
 }

@@ -444,16 +444,6 @@ func TestReadDragonflyDataDropsBadInput(t *testing.T) {
 	}
 }
 
-// A value stored through Stack.WithValue that gob cannot encode is a mistake in
-// whatever stored it. The tag is dropped so the rest of the stack still saves;
-// panicking would kill the goroutine writing the world.
-func TestWriteDragonflyDataDropsUnencodableValues(t *testing.T) {
-	got := WriteNBT(NewStack(Stick{}, 1).WithValue("k", make(chan int)), true)
-	if _, ok := got["tag"]; ok {
-		t.Fatalf("WriteNBT wrote a tag for a value gob cannot encode: %#v", got)
-	}
-}
-
 // A name this build cannot resolve costs the entry everything stored beside it.
 // Nothing in the reader can recover that, so the one thing it owes the caller is
 // saying that it happened: an empty Stack alone is indistinguishable from an
