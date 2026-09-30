@@ -72,11 +72,7 @@ func (g goatHornType) Name() string {
 	case 7:
 		return "Dream"
 	}
-	// Which input was the problem: a horn value above 7, which no constructor
-	// produces but a decoder reading a stored meta back could hand in. It
-	// panicked and took the process down; it is now reported as an unknown
-	// horn instead. Values 0..7 return exactly what they did before.
-	return "Unknown"
+	panic("should never happen")
 }
 
 // GoatHorns ...

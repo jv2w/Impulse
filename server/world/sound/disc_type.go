@@ -178,12 +178,7 @@ func (d disc) String() string {
 	case 20:
 		return "lava_chicken"
 	}
-	// Which input was the problem: a disc value of 21 or above, which no
-	// constructor produces but a decoder reading a stored uint8 back could
-	// hand in. It panicked with "unknown record type" and took the process
-	// down; it is now reported as an unknown disc instead. Every value below
-	// 21 returns exactly what it did before.
-	return "unknown"
+	panic("unknown record type")
 }
 
 // DisplayName ...
@@ -217,8 +212,5 @@ func (d disc) Author() string {
 	case 20:
 		return "Hyper Potions"
 	}
-	// The same unknown-disc input as String: reporting it keeps the jukebox
-	// popup path total instead of taking the process down. Values 0..20
-	// return exactly what they did before.
-	return "Unknown"
+	panic("unknown record type")
 }
