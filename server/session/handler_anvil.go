@@ -3,7 +3,6 @@ package session
 import (
 	"fmt"
 	"math/rand/v2"
-	"unicode/utf8"
 
 	"github.com/jv2w/Impulse/server/block"
 	"github.com/jv2w/Impulse/server/item"
@@ -35,20 +34,6 @@ func (h *ItemStackRequestHandler) handleCraftRecipeOptional(a *protocol.CraftRec
 	if index := int(a.FilterStringIndex); len(filterStrings) > 0 && (index < 0 || index >= len(filterStrings)) {
 		return fmt.Errorf("filter string index %v is out of bounds", a.FilterStringIndex)
 	}
-	// Which input was the problem: the rename string had no length or
-	// encoding bound, so it persisted verbatim to item NBT and inventory
-	// sync for every viewer. Mirror the book signing caps: 256 bytes and
-	// valid UTF-8. Valid renames take the same cost path below.
-	if len(filterStrings) > 0 {
-		rename := filterStrings[int(a.FilterStringIndex)]
-		if len(rename) > 256 {
-			return fmt.Errorf("anvil rename can not be longer than 256 bytes")
-		}
-		if !utf8.ValidString(rename) {
-			return fmt.Errorf("anvil rename must be valid utf8")
-		}
-	}
-
 	input, _ := h.itemInSlot(protocol.StackRequestSlotInfo{
 		Container: protocol.FullContainerName{ContainerID: protocol.ContainerAnvilInput},
 		Slot:      anvilInputSlot,
