@@ -76,8 +76,9 @@ func (h *ItemStackRequestHandler) handleEnchant(a *protocol.CraftRecipeStackRequ
 			return fmt.Errorf("not enough lapis lazuli to meet cost")
 		}
 
-		// Deduct the experience and Lapis Lazuli.
-		c.SetExperienceLevel(level - cost)
+		// Deduct the experience and Lapis Lazuli. The levels go only once the
+		// enchantment has succeeded, as the lapis is put back otherwise.
+		h.effect(func() { c.SetExperienceLevel(level - cost) })
 		h.setItemInSlot(protocol.StackRequestSlotInfo{
 			Container: protocol.FullContainerName{ContainerID: protocol.ContainerEnchantingMaterial},
 			Slot:      enchantingLapisSlot,
@@ -85,7 +86,7 @@ func (h *ItemStackRequestHandler) handleEnchant(a *protocol.CraftRecipeStackRequ
 	}
 
 	// Reset the enchantment seed so different enchantments can be selected.
-	c.ResetEnchantmentSeed()
+	h.effect(c.ResetEnchantmentSeed)
 
 	// Clear the existing input item, and apply the new item into the crafting result slot of the UI. The client will
 	// automatically move the item into the input slot.

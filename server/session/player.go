@@ -281,6 +281,26 @@ func (s *Session) sendInv(inv *inventory.Inventory, windowID uint32) {
 	s.writePacket(pk)
 }
 
+// resendInventory sends the full contents of inv to the client under the window
+// it is shown in. An inventory that is not shown in any window, such as a
+// container that was closed since, is not sent.
+func (s *Session) resendInventory(inv *inventory.Inventory) {
+	switch inv {
+	case s.inv:
+		s.sendInv(inv, protocol.WindowIDInventory)
+	case s.ui:
+		s.sendInv(inv, protocol.WindowIDUI)
+	case s.offHand:
+		s.sendInv(inv, protocol.WindowIDOffHand)
+	case s.armour.Inventory():
+		s.sendInv(inv, protocol.WindowIDArmour)
+	default:
+		if s.containerOpened.Load() && inv == s.openedWindow.Load() {
+			s.sendInv(inv, s.openedWindowID.Load())
+		}
+	}
+}
+
 // sendItem sends the item stack passed to the client with the window ID and slot passed.
 func (s *Session) sendItem(item item.Stack, slot int, windowID uint32) {
 	s.writePacket(&packet.InventorySlot{

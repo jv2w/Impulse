@@ -55,7 +55,9 @@ func (h *ItemStackRequestHandler) handleBeaconPayment(a *protocol.BeaconPaymentS
 	if sOk {
 		beacon.Secondary = secondary.(effect.LastingType)
 	}
-	tx.SetBlock(pos, beacon, nil)
+	// The effects are set only once the payment has been taken, so a failing
+	// action later in the request cannot keep them with the payment put back.
+	h.effect(func() { tx.SetBlock(pos, beacon, nil) })
 
 	// The client will send a Destroy action after this action, but we can't rely on that because the client
 	// could just not send it.

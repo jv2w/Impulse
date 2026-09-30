@@ -73,11 +73,16 @@ func (h *ItemStackRequestHandler) handleGrindstoneCraft(s *Session, tx *world.Tx
 		resultStack = resultStack.WithDurability(firstDurability + secondDurability + maxDurability*5/100)
 	}
 
-	if !tx.World().ExperienceOrbsDisabled() {
-		for _, o := range entity.NewExperienceOrbs(entity.EyePosition(c), experienceFromEnchantments(resultStack)) {
-			tx.AddEntity(o)
+	// The orbs are spawned only once the craft has succeeded, so a failing
+	// action later in the request cannot leave them behind with the inputs
+	// put back.
+	h.effect(func() {
+		if !tx.World().ExperienceOrbsDisabled() {
+			for _, o := range entity.NewExperienceOrbs(entity.EyePosition(c), experienceFromEnchantments(resultStack)) {
+				tx.AddEntity(o)
+			}
 		}
-	}
+	})
 
 	h.setItemInSlot(protocol.StackRequestSlotInfo{
 		Container: protocol.FullContainerName{ContainerID: protocol.ContainerGrindstoneInput},

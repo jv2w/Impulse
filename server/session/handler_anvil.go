@@ -148,7 +148,12 @@ func (h *ItemStackRequestHandler) handleCraftRecipeOptional(a *protocol.CraftRec
 	if level < cost && !c {
 		return fmt.Errorf("not enough experience")
 	} else if !c {
-		co.SetExperienceLevel(level - cost)
+		// Which input was the problem: an anvil use followed by a failing
+		// action in the same request. The levels, the sound and the damaged
+		// anvil stayed while the inputs were put back, and an anvil broken by
+		// the use made the revert write into a nil inventory. They happen only
+		// once the use has succeeded.
+		h.effect(func() { co.SetExperienceLevel(level - cost) })
 	}
 
 	// If we had a result item, we need to calculate the new anvil cost and update it on the item.
@@ -167,14 +172,16 @@ func (h *ItemStackRequestHandler) handleCraftRecipeOptional(a *protocol.CraftRec
 	// need to play the related sound and update the block state. Otherwise, we play a regular anvil use sound.
 	if !c && rand.Float64() < 0.12 {
 		damaged := anvil.Break()
-		if _, ok := damaged.(block.Air); ok {
-			tx.PlaySound(pos.Vec3Centre(), sound.AnvilBreak{})
-		} else {
-			tx.PlaySound(pos.Vec3Centre(), sound.AnvilUse{})
-		}
-		defer tx.SetBlock(pos, damaged, nil)
+		h.effect(func() {
+			if _, ok := damaged.(block.Air); ok {
+				tx.PlaySound(pos.Vec3Centre(), sound.AnvilBreak{})
+			} else {
+				tx.PlaySound(pos.Vec3Centre(), sound.AnvilUse{})
+			}
+			tx.SetBlock(pos, damaged, nil)
+		})
 	} else {
-		tx.PlaySound(pos.Vec3Centre(), sound.AnvilUse{})
+		h.effect(func() { tx.PlaySound(pos.Vec3Centre(), sound.AnvilUse{}) })
 	}
 
 	h.setItemInSlot(protocol.StackRequestSlotInfo{

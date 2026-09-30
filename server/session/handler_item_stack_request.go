@@ -13,6 +13,7 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 	"math"
+	"slices"
 	"time"
 )
 
@@ -47,6 +48,32 @@ type ItemStackRequestHandler struct {
 
 	current       time.Time
 	ignoreDestroy bool
+
+	// originals holds the contents each slot had before the first write to it
+	// since the start of the request or its last checkpoint. It is keyed by the
+	// inventory written, not the container ID the client named, because several
+	// IDs name the same inventory and the offhand maps every slot to 0.
+	originals []slotOriginal
+	// committed holds the inventories whose changes were made final by a
+	// checkpoint in the current request. The client reverts them on a reject
+	// all the same, so they are sent to it again.
+	committed []*inventory.Inventory
+	// effects holds the effects outside the inventories that the action being
+	// handled asked for. They run only once the action has succeeded.
+	effects []func()
+	// checkpointed is set by an action whose outcome cannot be undone, such as
+	// an item spawned by a drop, once that outcome has happened.
+	checkpointed bool
+	// writeErr holds the first write in the current action that the inventory
+	// refused, for example an item its slot validator does not accept.
+	writeErr error
+}
+
+// slotOriginal is the contents of slot in inv before the first write to it.
+type slotOriginal struct {
+	inv    *inventory.Inventory
+	slot   int
+	before item.Stack
 }
 
 // responseChange represents a change in a specific item stack response. It holds the timestamp of the
@@ -117,6 +144,9 @@ func validateStackRequest(req protocol.ItemStackRequest) error {
 // handleRequest resolves a single item stack request from the client.
 func (h *ItemStackRequestHandler) handleRequest(req protocol.ItemStackRequest, s *Session, tx *world.Tx, c Controllable) (err error) {
 	h.currentRequest = req.RequestID
+	// The PlayerAuthInput path reaches here without Handle, so the time the
+	// response changes below are stamped with is taken per request.
+	h.current = time.Now()
 	defer func() {
 		if err != nil {
 			h.reject(req.RequestID, s, tx)
@@ -125,6 +155,14 @@ func (h *ItemStackRequestHandler) handleRequest(req protocol.ItemStackRequest, s
 		h.resolve(req.RequestID, s)
 		h.ignoreDestroy = false
 	}()
+
+	// Which input was the problem: requests made only of Craft actions, which
+	// never verify a slot. The cap and the expiry of response changes lived in
+	// verifySlot alone, so those requests grew responseChanges without bound.
+	h.expireResponseChanges()
+	if len(h.responseChanges) > 256 {
+		return fmt.Errorf("too many unacknowledged request slot changes")
+	}
 
 	for _, action := range req.Actions {
 		switch a := action.(type) {
@@ -176,12 +214,56 @@ func (h *ItemStackRequestHandler) handleRequest(req protocol.ItemStackRequest, s
 		default:
 			return fmt.Errorf("unhandled stack request action %#v", action)
 		}
+		if err == nil {
+			err = h.writeErr
+		}
 		if err != nil {
+			clear(h.effects)
+			h.effects = h.effects[:0]
 			err = fmt.Errorf("%T: %w", action, err)
 			return
 		}
+		h.commitAction()
 	}
 	return
+}
+
+// commitAction runs the effects the action just handled asked for and, if it
+// had any or could not be undone, makes the changes so far final.
+//
+// Which input was the problem: a request whose later action fails. Its earlier
+// actions had already spawned items, experience orbs and blocks, and the
+// revert put their inputs back, so a Drop followed by a bad action kept both
+// the dropped items and the stack. Effects now happen only for an action that
+// succeeded, and once they have happened the revert stops at that point.
+func (h *ItemStackRequestHandler) commitAction() {
+	effects := len(h.effects) > 0
+	for i, f := range h.effects {
+		f()
+		h.effects[i] = nil
+	}
+	h.effects = h.effects[:0]
+	if effects || h.checkpointed {
+		h.checkpoint()
+	}
+}
+
+// checkpoint makes every change of the current request so far final: a later
+// reject leaves them in place and sends the inventories they touched again.
+func (h *ItemStackRequestHandler) checkpoint() {
+	for _, o := range h.originals {
+		if !slices.Contains(h.committed, o.inv) {
+			h.committed = append(h.committed, o.inv)
+		}
+	}
+	clear(h.originals)
+	h.originals = h.originals[:0]
+	h.checkpointed = false
+}
+
+// effect queues f to run once the action being handled has succeeded.
+func (h *ItemStackRequestHandler) effect(f func()) {
+	h.effects = append(h.effects, f)
 }
 
 // handleTake handles a Take stack request action.
@@ -263,17 +345,20 @@ func (h *ItemStackRequestHandler) handleSwap(a *protocol.SwapStackRequestAction,
 
 // collectRewards checks if the source inventory has rewards for the player, for example, experience rewards when
 // smelting. If it does, it will drop the rewards at the player's location.
+// The furnace and the orbs are touched only once the action has succeeded.
 func (h *ItemStackRequestHandler) collectRewards(s *Session, inv *inventory.Inventory, slot int, tx *world.Tx, c Controllable) {
 	if inv == s.openedWindow.Load() && s.containerOpened.Load() && slot == inv.Size()-1 {
 		if f, ok := tx.Block(*s.openedPos.Load()).(smelter); ok {
-			// ResetExperience is called either way: the experience the furnace
-			// holds is destroyed rather than kept for when the rule is unset.
-			xp := f.ResetExperience()
-			if !tx.World().ExperienceOrbsDisabled() {
-				for _, o := range entity.NewExperienceOrbs(entity.EyePosition(c), xp) {
-					tx.AddEntity(o)
+			h.effect(func() {
+				// ResetExperience is called either way: the experience the furnace
+				// holds is destroyed rather than kept for when the rule is unset.
+				xp := f.ResetExperience()
+				if !tx.World().ExperienceOrbsDisabled() {
+					for _, o := range entity.NewExperienceOrbs(entity.EyePosition(c), xp) {
+						tx.AddEntity(o)
+					}
 				}
-			}
+			})
 		}
 	}
 }
@@ -314,8 +399,17 @@ func (h *ItemStackRequestHandler) handleDrop(a *protocol.DropStackRequestAction,
 		return err
 	}
 
-	n := c.Drop(i.Grow(int(a.Count) - i.Count()))
-	h.setItemInSlot(a.Source, i.Grow(-n), s, tx)
+	// The slot is written before the drop so that nothing in this action can
+	// fail once the item exists in the world. A cancelled drop puts it back.
+	h.setItemInSlot(a.Source, i.Grow(-int(a.Count)), s, tx)
+	if h.writeErr != nil {
+		return h.writeErr
+	}
+	if n := c.Drop(i.Grow(int(a.Count) - i.Count())); n == 0 {
+		h.setItemInSlot(a.Source, i, s, tx)
+		return nil
+	}
+	h.checkpointed = true
 	return nil
 }
 
@@ -492,7 +586,17 @@ func (h *ItemStackRequestHandler) setItemInSlot(slot protocol.StackRequestSlotIn
 	}
 
 	before, _ := inv.Item(sl)
+	h.recordOriginal(inv, sl, before)
+	// The error is read back below instead: SetItem also returns nil when the
+	// slot validator refused the item and nothing was written.
 	_ = inv.SetItem(sl, i)
+	// Which input was the problem: an item the slot does not accept, such as a
+	// block moved into an armour slot. Nothing was written, yet the response
+	// reported the item there, and a swap had already written the other slot,
+	// so one item ended up in both. The action fails instead.
+	if got, _ := inv.Item(sl); !got.Equal(i) && h.writeErr == nil {
+		h.writeErr = fmt.Errorf("slot %v of container %v refused %v", slot.Slot, slot.Container.ContainerID, i)
+	}
 
 	respSlot := protocol.StackResponseSlotInfo{
 		Slot:                 slot.Slot,
@@ -553,6 +657,7 @@ func (h *ItemStackRequestHandler) resolve(id int32, s *Session) {
 	// reused instead of being allocated again for the next request.
 	clear(h.changes)
 	h.pendingResults = nil
+	h.endRequest()
 }
 
 // reject rejects the item stack request sent by the client so that it is reverted client-side.
@@ -564,23 +669,78 @@ func (h *ItemStackRequestHandler) reject(id int32, s *Session, tx *world.Tx) {
 		}},
 	})
 
-	// Revert changes that we already made for valid actions.
-	for container, slots := range h.changes {
-		// The lookup only depends on the container, and writing a slot back
-		// cannot change which inventory that container maps to, so the result
-		// was the same on every slot. For an opened container the lookup reads
-		// the block at the container position, so it is done once per
-		// container rather than once per slot.
-		inv, _ := s.invByID(int32(container), tx)
-		for slot, info := range slots {
-			_ = inv.SetItem(int(slot), info.before)
-		}
+	// Revert the changes made since the last checkpoint. Which input was the
+	// problem: a request writing the same slot twice before failing, for
+	// example moving A to B and then B to C. The value before the last write
+	// was restored rather than the one before the first, so B kept the stack
+	// A had given it while A got it back. Only the first write of a slot is
+	// recorded, and the revert writes to the inventory recorded rather than
+	// looking the container up again: the container may be gone by now, as an
+	// anvil broken by the request is, and the offhand needs slot 0.
+	for _, o := range h.originals {
+		// The slot was written moments ago in this same inventory, so it is in
+		// range and an error cannot occur.
+		_ = o.inv.SetItem(o.slot, o.before)
 	}
+	// The client reverts the whole request, including the part a checkpoint
+	// made final, so it is told what those inventories really hold.
+	for _, inv := range h.committed {
+		s.resendInventory(inv)
+	}
+	// The client never refers to a request that was rejected.
+	delete(h.responseChanges, id)
 
 	// Same as in resolve: the map is emptied in place rather than replaced, so
 	// the handler is left holding an empty map either way.
 	clear(h.changes)
 	h.pendingResults = nil
+	// Which input was the problem: a beacon payment followed by a failing
+	// action. The flag was only reset on success, so every Destroy in the
+	// requests after it was ignored instead of checked.
+	h.ignoreDestroy = false
+	h.endRequest()
+}
+
+// endRequest drops the state kept for the request that just ended.
+func (h *ItemStackRequestHandler) endRequest() {
+	clear(h.originals)
+	h.originals = h.originals[:0]
+	clear(h.committed)
+	h.committed = h.committed[:0]
+	h.checkpointed = false
+	h.writeErr = nil
+}
+
+// recordOriginal records before as the contents of slot in inv, unless the
+// slot was already written since the start of the request or its last
+// checkpoint.
+func (h *ItemStackRequestHandler) recordOriginal(inv *inventory.Inventory, slot int, before item.Stack) {
+	for _, o := range h.originals {
+		if o.inv == inv && o.slot == slot {
+			return
+		}
+	}
+	h.originals = append(h.originals, slotOriginal{inv: inv, slot: slot, before: before})
+}
+
+// expireResponseChanges removes the response changes older than five seconds,
+// which the client will have received by then.
+func (h *ItemStackRequestHandler) expireResponseChanges() {
+	for requestID, containerChanges := range h.responseChanges {
+		for inv, changes := range containerChanges {
+			for slot, val := range changes {
+				if h.current.Sub(val.timestamp) > time.Second*5 {
+					delete(changes, slot)
+				}
+			}
+			if len(changes) == 0 {
+				delete(containerChanges, inv)
+			}
+		}
+		if len(containerChanges) == 0 {
+			delete(h.responseChanges, requestID)
+		}
+	}
 }
 
 // call uses an event.Context, slot and item.Stack to call the event handler function passed. An error is returned if
