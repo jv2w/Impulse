@@ -127,7 +127,10 @@ func (h *InventoryTransactionHandler) handleNormalTransaction(pk *packet.Invento
 	// logic in the Comparable() method was flawed, users would be able to cheat with item properties.
 	// Only grow or shrink the held item to prevent any such issues.
 	res := actual.Grow(count - actual.Count())
-	if err := call(event.C(inventory.Holder(c)), int(*s.heldSlot), res, s.inv.Handler().HandleDrop); err != nil {
+	// Which input was the problem: a drop from a slot other than the held one.
+	// The handler was told the held slot while the items left slot, so a
+	// plugin guarding particular slots checked the wrong one.
+	if err := call(event.C(inventory.Holder(c)), slot, res, s.inv.Handler().HandleDrop); err != nil {
 		return err
 	}
 
