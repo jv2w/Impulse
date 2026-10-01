@@ -28,8 +28,7 @@ func TestSubChunkRequestRejectsTooManyOffsets(t *testing.T) {
 	offsets := make([]protocol.SubChunkOffset, 2048)
 	var handleErr error
 	if err := w.Do(func(tx *world.Tx) {
-		dim, _ := world.DimensionID(tx.World().Dimension())
-		pk := &packet.SubChunkRequest{Dimension: int32(dim), Position: protocol.SubChunkPos{0, 0, 0}, Offsets: offsets}
+		pk := &packet.SubChunkRequest{Dimension: packet.DimensionOverworld, Position: protocol.SubChunkPos{0, 0, 0}, Offsets: offsets}
 		handleErr = h.Handle(pk, s, tx, nil)
 	}).Wait(context.Background()); err != nil {
 		t.Fatalf("world tx: %v", err)

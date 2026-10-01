@@ -42,7 +42,6 @@ var exported = []struct{ name, fields string }{
 	{"EggSmash", ""},
 	{"EndermanTeleport", ""},
 	{"EntityFlame", ""},
-	{"Evaporate", ""},
 	{"Flame", "Colour color.RGBA"},
 	{"HugeExplosion", ""},
 	{"Lava", ""},
@@ -56,14 +55,14 @@ var exported = []struct{ name, fields string }{
 
 // exportedCount is stated separately from len(exported) so that deleting a row
 // cannot shrink the expectation along with the package.
-const exportedCount = 20
+const exportedCount = 19
 
 // particles holds one zero value of every exported type. The element type makes
 // the world.Particle implementation a compile-time fact; the tests below check
 // the list is neither short nor long.
 var particles = []world.Particle{
 	BlockBreak{}, BlockForceField{}, BoneMeal{}, DragonEggTeleport{}, Dust{}, DustPlume{}, Effect{},
-	EggSmash{}, EndermanTeleport{}, EntityFlame{}, Evaporate{}, Flame{}, HugeExplosion{}, Lava{},
+	EggSmash{}, EndermanTeleport{}, EntityFlame{}, Flame{}, HugeExplosion{}, Lava{},
 	LavaDrip{}, Note{}, PunchBlock{}, SnowballPoof{}, Splash{}, WaterDrip{},
 }
 

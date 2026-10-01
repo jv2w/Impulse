@@ -717,14 +717,13 @@ func TestAddSpecificMetadataDeathPosition(t *testing.T) {
 	s.addSpecificMetadata(stubLiving{
 		uuid:     self.H().UUID(),
 		deathPos: mgl64.Vec3{1, 2, 3},
-		deathDim: world.Nether,
 		died:     true,
 	}, m)
 	if got, want := m[protocol.EntityDataKeyPlayerLastDeathPosition], (mgl32.Vec3{1, 2, 3}); got != want {
 		t.Fatalf("last death position = %v, want %v", got, want)
 	}
-	if got, want := m[protocol.EntityDataKeyPlayerLastDeathDimension], int32(1); got != want {
-		t.Fatalf("last death dimension = %v, want the nether ID %v", got, want)
+	if got, want := m[protocol.EntityDataKeyPlayerLastDeathDimension], int32(0); got != want {
+		t.Fatalf("last death dimension = %v, want the overworld ID %v", got, want)
 	}
 	if got, want := m[protocol.EntityDataKeyPlayerHasDied], uint8(1); got != want {
 		t.Fatalf("has died = %v, want %v", got, want)
@@ -1164,13 +1163,12 @@ func (s stubFirework) Owner() *world.EntityHandle { return s.owner }
 type stubLiving struct {
 	uuid     uuid.UUID
 	deathPos mgl64.Vec3
-	deathDim world.Dimension
 	died     bool
 }
 
 func (s stubLiving) UUID() uuid.UUID { return s.uuid }
-func (s stubLiving) DeathPosition() (mgl64.Vec3, world.Dimension, bool) {
-	return s.deathPos, s.deathDim, s.died
+func (s stubLiving) DeathPosition() (mgl64.Vec3, bool) {
+	return s.deathPos, s.died
 }
 
 type stubNamed struct{ name string }

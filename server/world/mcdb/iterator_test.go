@@ -19,9 +19,9 @@ import (
 
 // markedColumn returns a column whose only non-air block is at (marker, minY, 0). The marker travels with the
 // column data, so a column that comes back paired with the wrong position is detectable.
-func markedColumn(dim world.Dimension, marker uint8) *chunk.Column {
-	col := emptyColumn(dim)
-	col.Chunk.SetBlock(marker, int16(dim.Range()[0]), 0, 0, ridStone)
+func markedColumn(marker uint8) *chunk.Column {
+	col := emptyColumn()
+	col.Chunk.SetBlock(marker, int16(world.Range()[0]), 0, 0, ridStone)
 	return col
 }
 
@@ -48,9 +48,9 @@ func collectColumns(t *testing.T, iter *ColumnIterator) map[dbKey]*chunk.Column 
 	t.Helper()
 	out := make(map[dbKey]*chunk.Column)
 	for iter.Next() {
-		k := dbKey{pos: iter.Position(), dim: iter.Dimension()}
+		k := dbKey{pos: iter.Position()}
 		if _, ok := out[k]; ok {
-			t.Errorf("position %v (%v) was yielded twice", k.pos, k.dim)
+			t.Errorf("position %v was yielded twice", k.pos)
 		}
 		out[k] = iter.Column()
 	}
@@ -62,12 +62,12 @@ func assertPairs(t *testing.T, want []dbKey, got map[dbKey]*chunk.Column) {
 	t.Helper()
 	for _, k := range want {
 		if _, ok := got[k]; !ok {
-			t.Errorf("position %v (%v) was not yielded", k.pos, k.dim)
+			t.Errorf("position %v was not yielded", k.pos)
 		}
 	}
 	for k := range got {
 		if !slices.Contains(want, k) {
-			t.Errorf("position %v (%v) was yielded but was not expected", k.pos, k.dim)
+			t.Errorf("position %v was yielded but was not expected", k.pos)
 		}
 	}
 }
@@ -86,22 +86,18 @@ func aliveIters(t *testing.T, db *DB) int {
 	return n
 }
 
-// TestColumnIteratorFullIteration fixes that a nil range yields every stored column exactly once, in every
-// dimension, and that each column is paired with the position it was stored at.
+// TestColumnIteratorFullIteration fixes that a nil range yields every stored column exactly once, and that
+// each column is paired with the position it was stored at.
 func TestColumnIteratorFullIteration(t *testing.T) {
 	db := newDB(t)
 	stored := []dbKey{
-		{pos: world.ChunkPos{0, 0}, dim: world.Overworld},
-		{pos: world.ChunkPos{-1, 5}, dim: world.Overworld},
-		{pos: world.ChunkPos{12, -7}, dim: world.Overworld},
-		{pos: world.ChunkPos{0, 0}, dim: world.Nether},
-		{pos: world.ChunkPos{-3, -3}, dim: world.Nether},
-		{pos: world.ChunkPos{4, 4}, dim: world.End},
-		{pos: world.ChunkPos{-8, 2}, dim: world.End},
+		{pos: world.ChunkPos{0, 0}},
+		{pos: world.ChunkPos{-1, 5}},
+		{pos: world.ChunkPos{12, -7}},
 	}
 	for i, k := range stored {
-		if err := db.StoreColumn(k.pos, k.dim, markedColumn(k.dim, uint8(i))); err != nil {
-			t.Fatalf("store %v (%v): %v", k.pos, k.dim, err)
+		if err := db.StoreColumn(k.pos, markedColumn(uint8(i))); err != nil {
+			t.Fatalf("store %v: %v", k.pos, err)
 		}
 	}
 
@@ -120,7 +116,7 @@ func TestColumnIteratorFullIteration(t *testing.T) {
 			continue
 		}
 		if m := markerOf(col, len(stored)); m != i {
-			t.Errorf("position %v (%v): marker %v, want %v (column paired with the wrong position)", k.pos, k.dim, m, i)
+			t.Errorf("position %v: marker %v, want %v (column paired with the wrong position)", k.pos, m, i)
 		}
 	}
 }
@@ -130,13 +126,11 @@ func TestColumnIteratorFullIteration(t *testing.T) {
 func TestColumnIteratorNilRange(t *testing.T) {
 	db := newDB(t)
 	stored := []dbKey{
-		{pos: world.ChunkPos{0, 0}, dim: world.Overworld},
-		{pos: world.ChunkPos{-6, 9}, dim: world.Nether},
-		{pos: world.ChunkPos{3, -3}, dim: world.End},
+		{pos: world.ChunkPos{0, 0}},
 	}
 	for i, k := range stored {
-		if err := db.StoreColumn(k.pos, k.dim, markedColumn(k.dim, uint8(i))); err != nil {
-			t.Fatalf("store %v (%v): %v", k.pos, k.dim, err)
+		if err := db.StoreColumn(k.pos, markedColumn(uint8(i))); err != nil {
+			t.Fatalf("store %v: %v", k.pos, err)
 		}
 	}
 
@@ -163,67 +157,50 @@ func TestColumnIteratorNilRange(t *testing.T) {
 
 func TestIteratorRangeWithin(t *testing.T) {
 	var (
-		zero      = IteratorRange{}
-		box       = IteratorRange{Min: world.ChunkPos{-2, -2}, Max: world.ChunkPos{2, 2}}
-		minOnly   = IteratorRange{Min: world.ChunkPos{5, 5}}
-		maxOnly   = IteratorRange{Max: world.ChunkPos{4, 4}}
-		netherAll = IteratorRange{Dimension: world.Nether}
-		boxNether = IteratorRange{Min: world.ChunkPos{-2, -2}, Max: world.ChunkPos{2, 2}, Dimension: world.Nether}
-		noDim     = IteratorRange{Dimension: unknownDim{world.Overworld.Range()}}
+		zero    = IteratorRange{}
+		box     = IteratorRange{Min: world.ChunkPos{-2, -2}, Max: world.ChunkPos{2, 2}}
+		minOnly = IteratorRange{Min: world.ChunkPos{5, 5}}
+		maxOnly = IteratorRange{Max: world.ChunkPos{4, 4}}
 	)
 	cases := []struct {
 		name string
 		r    IteratorRange
 		pos  world.ChunkPos
-		dim  world.Dimension
 		want bool
 	}{
-		{"zero range, origin", zero, world.ChunkPos{0, 0}, world.Overworld, true},
-		{"zero range, far negative", zero, world.ChunkPos{-1 << 20, -1 << 20}, world.Overworld, true},
-		{"zero range, int32 extremes", zero, world.ChunkPos{math.MinInt32, math.MaxInt32}, world.Overworld, true},
-		{"zero range, other dimension", zero, world.ChunkPos{0, 0}, world.End, true},
+		{"zero range, origin", zero, world.ChunkPos{0, 0}, true},
+		{"zero range, far negative", zero, world.ChunkPos{-1 << 20, -1 << 20}, true},
+		{"zero range, int32 extremes", zero, world.ChunkPos{math.MinInt32, math.MaxInt32}, true},
 
-		{"box, min corner is inclusive", box, world.ChunkPos{-2, -2}, world.Overworld, true},
-		{"box, interior", box, world.ChunkPos{1, 1}, world.Overworld, true},
-		{"box, last position on both axes", box, world.ChunkPos{1, 1}, world.Overworld, true},
-		{"box, max corner is exclusive", box, world.ChunkPos{2, 2}, world.Overworld, false},
-		{"box, x at max is exclusive", box, world.ChunkPos{2, -2}, world.Overworld, false},
-		{"box, z at max is exclusive", box, world.ChunkPos{-2, 2}, world.Overworld, false},
-		{"box, x below min", box, world.ChunkPos{-3, 0}, world.Overworld, false},
-		{"box, z below min", box, world.ChunkPos{0, -3}, world.Overworld, false},
+		{"box, min corner is inclusive", box, world.ChunkPos{-2, -2}, true},
+		{"box, interior", box, world.ChunkPos{1, 1}, true},
+		{"box, last position on both axes", box, world.ChunkPos{1, 1}, true},
+		{"box, max corner is exclusive", box, world.ChunkPos{2, 2}, false},
+		{"box, x at max is exclusive", box, world.ChunkPos{2, -2}, false},
+		{"box, z at max is exclusive", box, world.ChunkPos{-2, 2}, false},
+		{"box, x below min", box, world.ChunkPos{-3, 0}, false},
+		{"box, z below min", box, world.ChunkPos{0, -3}, false},
 
 		// PINNED BUG: a range with only Min set matches nothing. The zero-value shortcut needs BOTH Min and
 		// Max to be zero, so with Max left at {0,0} every position fails pos[0] < Max[0]. "Everything from
 		// here on" is not expressible and silently yields an empty iteration instead of an error. Left alone:
 		// fixing it changes what existing callers get back.
-		{"min only, at min", minOnly, world.ChunkPos{5, 5}, world.Overworld, false},
-		{"min only, above min", minOnly, world.ChunkPos{10, 10}, world.Overworld, false},
-		{"min only, below min", minOnly, world.ChunkPos{0, 0}, world.Overworld, false},
+		{"min only, at min", minOnly, world.ChunkPos{5, 5}, false},
+		{"min only, above min", minOnly, world.ChunkPos{10, 10}, false},
+		{"min only, below min", minOnly, world.ChunkPos{0, 0}, false},
 
 		// A range with only Max set behaves as if Min were {0,0}, which is the asymmetric half of the same
 		// shortcut: negative positions are dropped without the caller asking for that.
-		{"max only, origin", maxOnly, world.ChunkPos{0, 0}, world.Overworld, true},
-		{"max only, below max", maxOnly, world.ChunkPos{3, 3}, world.Overworld, true},
-		{"max only, at max", maxOnly, world.ChunkPos{4, 4}, world.Overworld, false},
-		{"max only, negative x", maxOnly, world.ChunkPos{-1, 0}, world.Overworld, false},
-		{"max only, negative z", maxOnly, world.ChunkPos{0, -1}, world.Overworld, false},
-
-		{"dimension filter, match", netherAll, world.ChunkPos{100, -100}, world.Nether, true},
-		{"dimension filter, overworld rejected", netherAll, world.ChunkPos{0, 0}, world.Overworld, false},
-		{"dimension filter, end rejected", netherAll, world.ChunkPos{0, 0}, world.End, false},
-
-		{"box and dimension, both hold", boxNether, world.ChunkPos{1, 1}, world.Nether, true},
-		{"box and dimension, wrong dimension", boxNether, world.ChunkPos{1, 1}, world.Overworld, false},
-		{"box and dimension, outside box", boxNether, world.ChunkPos{9, 9}, world.Nether, false},
-
-		{"unmatched dimension, overworld", noDim, world.ChunkPos{0, 0}, world.Overworld, false},
-		{"unmatched dimension, nether", noDim, world.ChunkPos{0, 0}, world.Nether, false},
-		{"unmatched dimension, end", noDim, world.ChunkPos{0, 0}, world.End, false},
+		{"max only, origin", maxOnly, world.ChunkPos{0, 0}, true},
+		{"max only, below max", maxOnly, world.ChunkPos{3, 3}, true},
+		{"max only, at max", maxOnly, world.ChunkPos{4, 4}, false},
+		{"max only, negative x", maxOnly, world.ChunkPos{-1, 0}, false},
+		{"max only, negative z", maxOnly, world.ChunkPos{0, -1}, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := c.r.within(c.pos, c.dim); got != c.want {
-				t.Errorf("within(%v, %v) with %+v = %v, want %v", c.pos, c.dim, c.r, got, c.want)
+			if got := c.r.within(c.pos); got != c.want {
+				t.Errorf("within(%v) with %+v = %v, want %v", c.pos, c.r, got, c.want)
 			}
 		})
 	}
@@ -234,19 +211,16 @@ func TestIteratorRangeWithin(t *testing.T) {
 func TestColumnIteratorRangeFilter(t *testing.T) {
 	db := newDB(t)
 	stored := []dbKey{
-		{pos: world.ChunkPos{-1, -1}, dim: world.Overworld},
-		{pos: world.ChunkPos{0, 0}, dim: world.Overworld},
-		{pos: world.ChunkPos{1, 1}, dim: world.Overworld},
-		{pos: world.ChunkPos{2, 2}, dim: world.Overworld},
-		{pos: world.ChunkPos{-2, -1}, dim: world.Overworld},
-		{pos: world.ChunkPos{0, 2}, dim: world.Overworld},
-		{pos: world.ChunkPos{0, 0}, dim: world.Nether},
-		{pos: world.ChunkPos{5, 5}, dim: world.Nether},
-		{pos: world.ChunkPos{1, 1}, dim: world.End},
+		{pos: world.ChunkPos{-1, -1}},
+		{pos: world.ChunkPos{0, 0}},
+		{pos: world.ChunkPos{1, 1}},
+		{pos: world.ChunkPos{2, 2}},
+		{pos: world.ChunkPos{-2, -1}},
+		{pos: world.ChunkPos{0, 2}},
 	}
 	for i, k := range stored {
-		if err := db.StoreColumn(k.pos, k.dim, markedColumn(k.dim, uint8(i))); err != nil {
-			t.Fatalf("store %v (%v): %v", k.pos, k.dim, err)
+		if err := db.StoreColumn(k.pos, markedColumn(uint8(i))); err != nil {
+			t.Fatalf("store %v: %v", k.pos, err)
 		}
 	}
 
@@ -256,25 +230,13 @@ func TestColumnIteratorRangeFilter(t *testing.T) {
 		want []dbKey
 	}{
 		{
-			name: "box over all dimensions",
+			name: "box",
 			r:    &IteratorRange{Min: world.ChunkPos{-1, -1}, Max: world.ChunkPos{2, 2}},
 			want: []dbKey{
-				{pos: world.ChunkPos{-1, -1}, dim: world.Overworld},
-				{pos: world.ChunkPos{0, 0}, dim: world.Overworld},
-				{pos: world.ChunkPos{1, 1}, dim: world.Overworld},
-				{pos: world.ChunkPos{0, 0}, dim: world.Nether},
-				{pos: world.ChunkPos{1, 1}, dim: world.End},
+				{pos: world.ChunkPos{-1, -1}},
+				{pos: world.ChunkPos{0, 0}},
+				{pos: world.ChunkPos{1, 1}},
 			},
-		},
-		{
-			name: "box restricted to one dimension",
-			r:    &IteratorRange{Min: world.ChunkPos{-1, -1}, Max: world.ChunkPos{2, 2}, Dimension: world.Nether},
-			want: []dbKey{{pos: world.ChunkPos{0, 0}, dim: world.Nether}},
-		},
-		{
-			name: "dimension only",
-			r:    &IteratorRange{Dimension: world.End},
-			want: []dbKey{{pos: world.ChunkPos{1, 1}, dim: world.End}},
 		},
 		{
 			name: "box matching nothing",
@@ -306,7 +268,7 @@ func TestColumnIteratorColumnNotAliased(t *testing.T) {
 	const n = 3
 	for i := 0; i < n; i++ {
 		pos := world.ChunkPos{int32(i), 0}
-		if err := db.StoreColumn(pos, world.Overworld, markedColumn(world.Overworld, uint8(i))); err != nil {
+		if err := db.StoreColumn(pos, markedColumn(uint8(i))); err != nil {
 			t.Fatalf("store %v: %v", pos, err)
 		}
 	}
@@ -346,8 +308,8 @@ func TestColumnIteratorColumnNotAliased(t *testing.T) {
 // to read. Exhaustion is not an error.
 func TestColumnIteratorExhaustion(t *testing.T) {
 	db := newDB(t)
-	pos, dim := world.ChunkPos{3, -4}, world.Overworld
-	if err := db.StoreColumn(pos, dim, emptyColumn(dim)); err != nil {
+	pos := world.ChunkPos{3, -4}
+	if err := db.StoreColumn(pos, emptyColumn()); err != nil {
 		t.Fatalf("store: %v", err)
 	}
 
@@ -362,9 +324,6 @@ func TestColumnIteratorExhaustion(t *testing.T) {
 	if col := iter.Column(); col != nil {
 		t.Errorf("Column() = %p, want nil", col)
 	}
-	if d := iter.Dimension(); d != nil {
-		t.Errorf("Dimension() = %v, want nil", d)
-	}
 	if err := iter.Error(); err != nil {
 		t.Errorf("Error() = %v, want nil (exhaustion is not an error)", err)
 	}
@@ -372,7 +331,7 @@ func TestColumnIteratorExhaustion(t *testing.T) {
 		t.Error("Next() after exhaustion returned true")
 	}
 
-	// PINNED BUG: Column and Dimension are cleared on exhaustion but Position is not, so Position keeps
+	// PINNED BUG: Column is cleared on exhaustion but Position is not, so Position keeps
 	// returning the last pair's position after Next reported there is no current pair. A caller that reads
 	// Position without checking Next gets a stale coordinate rather than a zero one. Left alone: clearing it
 	// would equally be a guess, and the three accessors need one deliberate contract.
@@ -387,7 +346,7 @@ func TestColumnIteratorRelease(t *testing.T) {
 	db := newDB(t)
 	for i := 0; i < 3; i++ {
 		pos := world.ChunkPos{int32(i), 0}
-		if err := db.StoreColumn(pos, world.Overworld, emptyColumn(world.Overworld)); err != nil {
+		if err := db.StoreColumn(pos, emptyColumn()); err != nil {
 			t.Fatalf("store %v: %v", pos, err)
 		}
 	}
@@ -425,7 +384,7 @@ func TestColumnIteratorRelease(t *testing.T) {
 // under it. There is no Close on exhaustion and no way to observe the leak from ColumnIterator's own API.
 func TestColumnIteratorUnreleasedPinsLevelDBIterator(t *testing.T) {
 	db := newDB(t)
-	if err := db.StoreColumn(world.ChunkPos{0, 0}, world.Overworld, emptyColumn(world.Overworld)); err != nil {
+	if err := db.StoreColumn(world.ChunkPos{0, 0}, emptyColumn()); err != nil {
 		t.Fatalf("store: %v", err)
 	}
 	if got := aliveIters(t, db); got != 0 {
@@ -455,13 +414,13 @@ func TestColumnIteratorLoadError(t *testing.T) {
 	broken := world.ChunkPos{2, 0}
 	after := world.ChunkPos{3, 0}
 	for _, pos := range []world.ChunkPos{good, broken, after} {
-		if err := db.StoreColumn(pos, world.Overworld, emptyColumn(world.Overworld)); err != nil {
+		if err := db.StoreColumn(pos, emptyColumn()); err != nil {
 			t.Fatalf("store %v: %v", pos, err)
 		}
 	}
 	// The version key stays intact, so the iterator still recognises the chunk, but the biome payload is
 	// shorter than the heightmap the loader skips over.
-	putRaw(t, db, dbKey{pos: broken, dim: world.Overworld}.Sum(key3DData), []byte{1, 2, 3})
+	putRaw(t, db, dbKey{pos: broken}.Sum(key3DData), []byte{1, 2, 3})
 
 	iter := db.NewColumnIterator(nil)
 	defer iter.Release()
@@ -497,11 +456,6 @@ func TestColumnIteratorLoadError(t *testing.T) {
 	if got := iter.Column(); got != nil {
 		t.Errorf("Column() after the error = %p, want nil", got)
 	}
-	// PINNED BUG: the error path returns false without clearing dim, unlike the exhaustion path, so
-	// Dimension keeps reporting the dimension of the chunk that failed to load next to a nil Column.
-	if got := iter.Dimension(); got != world.Dimension(world.Overworld) {
-		t.Errorf("Dimension() after the error = %v, want the stale Overworld", got)
-	}
 	// The column handed out before the failure is the caller's own value and survives it.
 	if firstColumn == nil || firstColumn.Chunk == nil {
 		t.Error("the column from the successful iteration was invalidated by the later failure")
@@ -516,44 +470,42 @@ func TestColumnIteratorLoadError(t *testing.T) {
 	}
 }
 
-// TestColumnIteratorUnknownDimensionID fixes the second failure mode of Next: a 13-byte chunk key whose
-// dimension ID is not registered. The whole iteration ends, including chunks that sort after the bad key.
-func TestColumnIteratorUnknownDimensionID(t *testing.T) {
-	const badID = 7
-	if _, ok := world.DimensionByID(badID); ok {
-		t.Fatalf("dimension %v is registered; this test needs an unknown ID", badID)
-	}
-
+// TestColumnIteratorSkipsOtherDimensionChunks fixes that the 13-byte version keys a vanilla world writes for
+// the chunks of its Nether (1) and End (2), or of any other dimension ID, are stepped over without ending the
+// iteration. Each sorts before every key of the overworld chunk at the same position, so the overworld chunks
+// are only yielded if the iteration carries on past them.
+func TestColumnIteratorSkipsOtherDimensionChunks(t *testing.T) {
 	db := newDB(t)
-	valid := world.ChunkPos{1, 0}
-	if err := db.StoreColumn(valid, world.Overworld, emptyColumn(world.Overworld)); err != nil {
-		t.Fatalf("store: %v", err)
+	stored := []dbKey{
+		{pos: world.ChunkPos{0, 0}},
+		{pos: world.ChunkPos{1, 0}},
 	}
-	// Sorts before every key of the chunk at x=1, so the iterator meets it first.
-	key := make([]byte, 0, 13)
-	key = binary.LittleEndian.AppendUint32(key, 0)
-	key = binary.LittleEndian.AppendUint32(key, 0)
-	key = binary.LittleEndian.AppendUint32(key, badID)
-	putRaw(t, db, append(key, keyVersion), []byte{chunkVersion})
+	for i, k := range stored {
+		if err := db.StoreColumn(k.pos, markedColumn(uint8(i))); err != nil {
+			t.Fatalf("store %v: %v", k.pos, err)
+		}
+	}
+	// {-9, 4} holds no overworld chunk at all, so reading one of its keys as an overworld key would show up.
+	for _, id := range []uint32{1, 2, 7} {
+		for _, pos := range []world.ChunkPos{stored[0].pos, stored[1].pos, {-9, 4}} {
+			key := binary.LittleEndian.AppendUint32(index(pos), id)
+			putRaw(t, db, append(key, keyVersion), []byte{chunkVersion})
+		}
+	}
 
 	iter := db.NewColumnIterator(nil)
 	defer iter.Release()
-	if iter.Next() {
-		t.Fatalf("Next returned true at %v", iter.Position())
+	got := collectColumns(t, iter)
+	if err := iter.Error(); err != nil {
+		t.Fatalf("iterate: %v", err)
 	}
-	err := iter.Error()
-	if err == nil {
-		t.Fatal("Error() = nil, want an unknown dimension failure")
-	}
-	// PINNED BUG: as with the load failure, this is a bare fmt.Errorf with no sentinel. A world holding a
-	// custom dimension whose registration is missing from this process is not merely partly unreadable: one
-	// such key aborts the entire iteration, and the caller cannot distinguish that from any other failure
-	// without matching on the message. Left alone: adding a sentinel is an API change.
-	if !strings.Contains(err.Error(), "unknown dimension id 7") {
-		t.Errorf("Error() = %v, want it to name the unknown dimension ID", err)
-	}
-	if col := iter.Column(); col != nil {
-		t.Errorf("Column() = %p, want nil", col)
+	assertPairs(t, stored, got)
+	for i, k := range stored {
+		if col, ok := got[k]; ok {
+			if m := markerOf(col, len(stored)); m != i {
+				t.Errorf("position %v: marker %v, want %v", k.pos, m, i)
+			}
+		}
 	}
 }
 
@@ -561,12 +513,12 @@ func TestColumnIteratorUnknownDimensionID(t *testing.T) {
 // and keyVersionOld is one chunk, and the iterator must not hand it over twice.
 func TestColumnIteratorDuplicateVersionKeys(t *testing.T) {
 	db := newDB(t)
-	pos, dim := world.ChunkPos{2, -6}, world.Overworld
-	if err := db.StoreColumn(pos, dim, markedColumn(dim, 1)); err != nil {
+	pos := world.ChunkPos{2, -6}
+	if err := db.StoreColumn(pos, markedColumn(1)); err != nil {
 		t.Fatalf("store: %v", err)
 	}
 	// keyVersion ',' sorts before keyVersionOld 'v', so the second key is the one the seen map drops.
-	putRaw(t, db, dbKey{pos: pos, dim: dim}.Sum(keyVersionOld), []byte{chunkVersion})
+	putRaw(t, db, dbKey{pos: pos}.Sum(keyVersionOld), []byte{chunkVersion})
 
 	iter := db.NewColumnIterator(nil)
 	defer iter.Release()
@@ -575,9 +527,6 @@ func TestColumnIteratorDuplicateVersionKeys(t *testing.T) {
 		n++
 		if got := iter.Position(); got != pos {
 			t.Errorf("position = %v, want %v", got, pos)
-		}
-		if got := iter.Dimension(); got != world.Dimension(dim) {
-			t.Errorf("dimension = %v, want %v", got, dim)
 		}
 	}
 	if err := iter.Error(); err != nil {
@@ -594,15 +543,14 @@ func TestColumnIteratorDuplicateVersionKeys(t *testing.T) {
 func TestColumnIteratorSkipsNonChunkKeys(t *testing.T) {
 	db := newDB(t)
 	stored := []dbKey{
-		{pos: world.ChunkPos{0, 0}, dim: world.Overworld},
-		{pos: world.ChunkPos{-4, 4}, dim: world.Nether},
+		{pos: world.ChunkPos{0, 0}},
 	}
 	for i, k := range stored {
-		col := markedColumn(k.dim, uint8(i))
+		col := markedColumn(uint8(i))
 		// Writes the digp index and an actorprefix record on top of the sub chunk and finalisation keys.
 		col.Entities = []chunk.Entity{{ID: int64(i + 1), Data: map[string]any{"identifier": "impulse:test"}}}
-		if err := db.StoreColumn(k.pos, k.dim, col); err != nil {
-			t.Fatalf("store %v (%v): %v", k.pos, k.dim, err)
+		if err := db.StoreColumn(k.pos, col); err != nil {
+			t.Fatalf("store %v: %v", k.pos, err)
 		}
 	}
 	for _, k := range [][]byte{
@@ -617,8 +565,8 @@ func TestColumnIteratorSkipsNonChunkKeys(t *testing.T) {
 	} {
 		putRaw(t, db, k, []byte{1})
 	}
-	for _, name := range []string{keyOverworld, keyMobEvents, keyBiomeData, keyLocalPlayer} {
-		if n := len(name); n != 9 && n != 13 {
+	for _, name := range []string{keyOverworld, keyMobEvents, keyBiomeData} {
+		if n := len(name); n != 9 {
 			t.Fatalf("key %q is %v bytes; this test needs keys that collide with a chunk key length", name, n)
 		}
 	}
@@ -633,7 +581,7 @@ func TestColumnIteratorSkipsNonChunkKeys(t *testing.T) {
 	for i, k := range stored {
 		if col, ok := got[k]; ok {
 			if m := markerOf(col, len(stored)); m != i {
-				t.Errorf("position %v (%v): marker %v, want %v", k.pos, k.dim, m, i)
+				t.Errorf("position %v: marker %v, want %v", k.pos, m, i)
 			}
 		}
 	}
@@ -686,15 +634,15 @@ func TestColumnIteratorNextRecursionDepth(t *testing.T) {
 	// Column x sorts before column x+1, so the target is reached last.
 	const skipped = 30
 	for x := int32(0); x < skipped; x++ {
-		if err := db.StoreColumn(world.ChunkPos{x, 0}, world.Overworld, emptyColumn(world.Overworld)); err != nil {
+		if err := db.StoreColumn(world.ChunkPos{x, 0}, emptyColumn()); err != nil {
 			t.Fatalf("store %v: %v", x, err)
 		}
 	}
 	target := world.ChunkPos{skipped, 0}
-	if err := db.StoreColumn(target, world.Overworld, emptyColumn(world.Overworld)); err != nil {
+	if err := db.StoreColumn(target, emptyColumn()); err != nil {
 		t.Fatalf("store target: %v", err)
 	}
-	putRaw(t, db, dbKey{pos: target, dim: world.Overworld}.Sum(keyVersion), []byte{chunkVersion - 1})
+	putRaw(t, db, dbKey{pos: target}.Sum(keyVersion), []byte{chunkVersion - 1})
 
 	iter := db.NewColumnIterator(&IteratorRange{Min: target, Max: world.ChunkPos{target[0] + 1, 1}})
 	defer iter.Release()

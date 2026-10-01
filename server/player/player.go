@@ -91,8 +91,7 @@ type playerData struct {
 	lastDamage  float64
 	immuneUntil time.Time
 
-	deathPos       *mgl64.Vec3
-	deathDimension world.Dimension
+	deathPos *mgl64.Vec3
 
 	enchantSeed int64
 
@@ -925,13 +924,13 @@ func (p *Player) Dead() bool {
 	return p.Health() <= mgl64.Epsilon
 }
 
-// DeathPosition returns the last position the player was at when they died. If the player has never died, the third
+// DeathPosition returns the last position the player was at when they died. If the player has never died, the second
 // return value will be false.
-func (p *Player) DeathPosition() (mgl64.Vec3, world.Dimension, bool) {
+func (p *Player) DeathPosition() (mgl64.Vec3, bool) {
 	if p.deathPos == nil {
-		return mgl64.Vec3{}, nil, false
+		return mgl64.Vec3{}, false
 	}
-	return *p.deathPos, p.deathDimension, true
+	return *p.deathPos, true
 }
 
 // kill kills the player, clearing its inventories and resetting it to its base state.
@@ -955,7 +954,7 @@ func (p *Player) kill(src world.DamageSource) {
 		p.RemoveEffect(e.Type())
 	}
 
-	p.deathPos, p.deathDimension = &pos, p.tx.World().Dimension()
+	p.deathPos = &pos
 
 	// Wait a little before removing the entity. The client displays a death
 	// animation while the player is dying.
@@ -976,7 +975,7 @@ func finishDying(p *Player) {
 		// position server side so that in the future, the client won't respawn
 		// on the death location when disconnecting. The client should not see
 		// the movement itself yet, though.
-		pos, _, _, _ := p.spawnLocation()
+		pos, _, _ := p.spawnLocation()
 
 		p.data.Pos = pos.Vec3()
 	}
@@ -1041,21 +1040,9 @@ func (p *Player) respawn(f func(p *Player)) {
 		return
 	}
 
-	blockPos, w, spawnObstructed, _ := p.spawnLocation()
+	blockPos, w, spawnObstructed := p.spawnLocation()
 	pos := blockPos.Vec3Middle()
 
-	// Which input was the problem: a player with a bed in the overworld dying
-	// in the nether or the end. The bed was looked up in the world of death,
-	// which has no bed there, so the player was sent to world spawn and told
-	// the bed was missing. That world cannot read the overworld's blocks, so
-	// the bed is checked on arrival instead, unless a handler moves the spawn.
-	checkBed := false
-	if dest := p.tx.World().PortalDestination(p.tx.World().Dimension()); dest != p.tx.World() {
-		if bedPos := p.tx.World().PlayerSpawn(p.UUID()); bedPos != dest.Spawn() {
-			blockPos, w, spawnObstructed, checkBed = bedPos, dest, false, true
-			pos = bedPos.Vec3Middle()
-		}
-	}
 	if spawnObstructed {
 		p.Messaget(chat.MessageBedNotValid)
 	}
@@ -1066,9 +1053,7 @@ func (p *Player) respawn(f func(p *Player)) {
 	p.Extinguish()
 	p.ResetFallDistance()
 
-	bedPos, bedWorld := pos, w
 	p.Handler().HandleRespawn(p, &pos, &w)
-	checkBed = checkBed && pos == bedPos && w == bedWorld
 
 	sess := p.session()
 	src := p.tx.World()
@@ -1085,19 +1070,6 @@ func (p *Player) respawn(f func(p *Player)) {
 	}
 	task := w.Do(func(tx *world.Tx) {
 		np := tx.AddEntity(handle).(*Player)
-		if checkBed {
-			if b, ok := tx.Block(blockPos).(block.Bed); ok && b.CanRespawnOn() {
-				if safe, ok := b.SafeSpawn(blockPos, tx); ok {
-					pos = safe.Vec3Middle()
-				} else {
-					pos = tx.World().Spawn().Vec3Middle()
-					np.Messaget(chat.MessageBedNotValid)
-				}
-			} else {
-				pos = tx.World().Spawn().Vec3Middle()
-				np.Messaget(chat.MessageBedNotValid)
-			}
-		}
 		np.Teleport(pos)
 		np.session().SendRespawn(pos, p)
 		np.SetVisible()
@@ -1134,23 +1106,19 @@ func (p *Player) respawn(f func(p *Player)) {
 }
 
 // spawnLocation designates a players safe spawn location.
-func (p *Player) spawnLocation() (playerSpawn cube.Pos, w *world.World, spawnBlockBroken bool, previousDimension world.Dimension) {
+func (p *Player) spawnLocation() (playerSpawn cube.Pos, w *world.World, spawnBlockBroken bool) {
 	tx := p.tx
 	w = tx.World()
-	previousDimension = w.Dimension()
 	playerSpawn = w.PlayerSpawn(p.UUID())
 	if b, ok := tx.Block(playerSpawn).(block.Bed); ok && b.CanRespawnOn() {
 		pos, ok := b.SafeSpawn(playerSpawn, tx)
 		if ok {
-			return pos, w, false, previousDimension
+			return pos, w, false
 		}
 	}
 
-	// We can use the principle here that returning through a portal of a specific dimension inside that dimension will
-	// always bring us back to the overworld.
-	w = w.PortalDestination(w.Dimension())
 	worldSpawn := w.Spawn()
-	return worldSpawn, w, playerSpawn != worldSpawn, previousDimension
+	return worldSpawn, w, playerSpawn != worldSpawn
 }
 
 // StartSprinting makes a player start sprinting, increasing the speed of the player by 30% and making
@@ -2842,12 +2810,12 @@ func (p *Player) Tick(tx *world.Tx, current int64) {
 	}
 
 	// A Tx holds one world for its whole life and only closes once the callback
-	// that owns it returns, so the four reads below all answer the same.
+	// that owns it returns, so the three reads below all answer the same.
 	w := tx.World()
 	// The session is set when the player is created and never replaced, so one
 	// lookup answers all three uses below.
 	s := p.session()
-	s.SendDebugShapes(w.Dimension())
+	s.SendDebugShapes()
 	s.SendHudUpdates()
 
 	if p.prevWorld != w && p.prevWorld != nil {

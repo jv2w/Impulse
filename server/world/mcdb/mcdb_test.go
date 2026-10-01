@@ -7,7 +7,6 @@ import (
 	"maps"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/df-mc/goleveldb/leveldb"
 	"github.com/jv2w/Impulse/server/block/cube"
@@ -174,22 +173,22 @@ func deleteRaw(t *testing.T, db *DB, key []byte) {
 	}
 }
 
-// storeLoad stores col at pos/dim and reads it back.
-func storeLoad(t *testing.T, db *DB, pos world.ChunkPos, dim world.Dimension, col *chunk.Column) *chunk.Column {
+// storeLoad stores col at pos and reads it back.
+func storeLoad(t *testing.T, db *DB, pos world.ChunkPos, col *chunk.Column) *chunk.Column {
 	t.Helper()
-	if err := db.StoreColumn(pos, dim, col); err != nil {
-		t.Fatalf("store column %v (%v): %v", pos, dim, err)
+	if err := db.StoreColumn(pos, col); err != nil {
+		t.Fatalf("store column %v: %v", pos, err)
 	}
-	got, err := db.LoadColumn(pos, dim)
+	got, err := db.LoadColumn(pos)
 	if err != nil {
-		t.Fatalf("load column %v (%v): %v", pos, dim, err)
+		t.Fatalf("load column %v: %v", pos, err)
 	}
 	return got
 }
 
-// emptyColumn returns a Column holding an all-air chunk for dim and nothing else.
-func emptyColumn(dim world.Dimension) *chunk.Column {
-	return &chunk.Column{Chunk: chunk.New(newTestRegistry(), dim.Range())}
+// emptyColumn returns a Column holding an all-air chunk and nothing else.
+func emptyColumn() *chunk.Column {
+	return &chunk.Column{Chunk: chunk.New(newTestRegistry(), world.Range())}
 }
 
 // assertColumnEq compares got against want field by field.
@@ -275,14 +274,3 @@ func assertScheduledEq(t *testing.T, want, got []chunk.ScheduledBlockUpdate) {
 		}
 	}
 }
-
-// unknownDim is a world.Dimension that was never passed to world.RegisterDimension. It stays comparable so
-// that world.DimensionID can look it up (and fail to find it).
-type unknownDim struct{ r cube.Range }
-
-func (d unknownDim) Range() cube.Range               { return d.r }
-func (unknownDim) WaterEvaporates() bool             { return false }
-func (unknownDim) LavaSpreadDuration() time.Duration { return time.Second }
-func (unknownDim) WeatherCycle() bool                { return false }
-func (unknownDim) TimeCycle() bool                   { return false }
-func (unknownDim) String() string                    { return "Unknown" }

@@ -103,12 +103,6 @@ func (s StrawBed) Activate(pos cube.Pos, _ cube.Face, tx *world.Tx, u item.User,
 	}
 
 	w := tx.World()
-	if w.Dimension() != world.Overworld {
-		// A straw bed does not explode outside the Overworld: it breaks as if its sleeper had woken up.
-		s.StopSleeping(pos, tx)
-		return true
-	}
-
 	_, sidePos, ok := s.side(pos, tx)
 	if !ok {
 		return false

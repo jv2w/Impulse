@@ -259,9 +259,9 @@ func (f Fire) HasLiquidDrops() bool {
 	return false
 }
 
-// PortalInterior returns true if fire may occupy the inside of a portal frame before activation for the target dimension.
-func (f Fire) PortalInterior(target world.Dimension) bool {
-	return target == world.Nether && f.Type == NormalFire()
+// PortalInterior returns true if fire may occupy the inside of a nether portal frame before activation.
+func (f Fire) PortalInterior() bool {
+	return f.Type == NormalFire()
 }
 
 // LightEmissionLevel ...

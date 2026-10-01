@@ -88,10 +88,10 @@ func TestFirstServerRegistersVanillaContentGlobally(t *testing.T) {
 	if gAfterFirst != want {
 		t.Fatalf("globals after the first Config.New() = %+v, want %+v", gAfterFirst, want)
 	}
-	// Custom items, custom dimensions and commands are registered by callers,
-	// never by Config.New itself.
-	if gAfterFirst.customItems != 0 || gAfterFirst.customDimensions != 0 || gAfterFirst.commands != 0 {
-		t.Fatalf("Config.New registered custom items/dimensions/commands: %+v", gAfterFirst)
+	// Custom items and commands are registered by callers, never by Config.New
+	// itself.
+	if gAfterFirst.customItems != 0 || gAfterFirst.commands != 0 {
+		t.Fatalf("Config.New registered custom items/commands: %+v", gAfterFirst)
 	}
 }
 

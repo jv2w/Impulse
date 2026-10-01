@@ -997,7 +997,7 @@ func TestEntBehaviourPanicsWhenDataIsNotABehaviour(t *testing.T) {
 	t.Run("Ent.Explode panics through Behaviour", func(t *testing.T) {
 		e := &Ent{data: &world.EntityData{}}
 		entAssertTypeAssertionPanic(t, entRecover(func() {
-			e.Explode(world.BlockExplosionSource{Pos: cube.Pos{}}, 1)
+			e.Explode(entExplosionSource{0.5, 0.5, 0.5}, 1)
 		}))
 	})
 }
@@ -1013,6 +1013,12 @@ func entAssertTypeAssertionPanic(t *testing.T, recovered any) {
 		t.Fatalf("recovered error = %v (%T), want *runtime.TypeAssertionError", err, err)
 	}
 }
+
+// entExplosionSource is a world.ExplosionSource at a fixed position.
+type entExplosionSource mgl64.Vec3
+
+func (s entExplosionSource) Position() mgl64.Vec3 { return mgl64.Vec3(s) }
+func (entExplosionSource) Size() float64          { return 4 }
 
 func TestEntExplodeForwardsOnlyToBehavioursThatImplementIt(t *testing.T) {
 	// Explode is forwarded through an anonymous interface assertion. A behaviour
@@ -1034,7 +1040,7 @@ func TestEntExplodeForwardsOnlyToBehavioursThatImplementIt(t *testing.T) {
 				e := tx.AddEntity(handle).(*Ent)
 				// The source sits half a block directly below the entity, so the
 				// normalised direction is exactly +Y and the impact is the speed.
-				src := world.BlockExplosionSource{Pos: cube.Pos{0, 99, 0}}
+				src := entExplosionSource{0.5, 99.5, 0.5}
 				if recovered := entRecover(func() { e.Explode(src, 2) }); recovered != nil {
 					t.Fatalf("Explode() panicked with %v, want it to complete", recovered)
 				}

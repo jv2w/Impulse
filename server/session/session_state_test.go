@@ -392,6 +392,7 @@ func TestRegisterHandlersShape(t *testing.T) {
 		packet.IDMovePlayer,
 		packet.IDSetPlayerFurnaceOptions,
 		packet.IDSetPlayerInventoryOptions,
+		packet.IDServerBoundLoadingScreen,
 	}
 	for _, id := range explicitlyUnhandled {
 		h, ok := s.handlers[id]
@@ -426,7 +427,6 @@ func TestRegisterHandlersShape(t *testing.T) {
 		packet.IDRespawn,
 		packet.IDSubChunkRequest,
 		packet.IDText,
-		packet.IDServerBoundLoadingScreen,
 		packet.IDServerBoundDiagnostics,
 	}
 	for _, id := range handled {
@@ -440,25 +440,18 @@ func TestRegisterHandlersShape(t *testing.T) {
 	}
 }
 
-// TestChunkRadiusAndChangingDimensionAreFieldReads pins the two accessors the
-// world package polls, including that they answer on a session that has never
-// been through Config.New.
-func TestChunkRadiusAndChangingDimension(t *testing.T) {
+// TestChunkRadiusIsAFieldRead pins the accessor the world package polls,
+// including that it answers on a session that has never been through
+// Config.New.
+func TestChunkRadiusIsAFieldRead(t *testing.T) {
 	s := newStubSession(t, nil)
 	if got := s.ChunkRadius(); got != 0 {
 		t.Fatalf("chunk radius = %d, want 0", got)
 	}
-	if s.ChangingDimension() {
-		t.Fatal("a fresh session reports it is changing dimension")
-	}
 
 	s.chunkRadius = 12
-	s.changingDimension.Store(true)
 	if got := s.ChunkRadius(); got != 12 {
 		t.Fatalf("chunk radius = %d, want 12", got)
-	}
-	if !s.ChangingDimension() {
-		t.Fatal("ChangingDimension = false after it was set")
 	}
 }
 

@@ -77,9 +77,6 @@ type DragonEggTeleport struct {
 	Diff cube.Pos
 }
 
-// Evaporate is a particle that shows up when a water block evaporates
-type Evaporate struct{ particle }
-
 // WaterDrip is a particle that shows up when there is water above a block and it looks like a dripping effect.
 type WaterDrip struct{ particle }
 

@@ -10,7 +10,7 @@ import (
 // the cost a real Provider pays before it writes.
 type encodingProvider struct{ NopProvider }
 
-func (encodingProvider) StoreColumn(_ ChunkPos, _ Dimension, col *chunk.Column) error {
+func (encodingProvider) StoreColumn(_ ChunkPos, col *chunk.Column) error {
 	_ = chunk.Encode(col.Chunk, chunk.DiskEncoding)
 	return nil
 }

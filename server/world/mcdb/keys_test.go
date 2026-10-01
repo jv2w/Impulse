@@ -78,92 +78,50 @@ func TestKeyConstants(t *testing.T) {
 	})
 }
 
-// TestIndexGoldenBytes fixes the chunk index: X then Z as little-endian int32s, followed by the dimension ID
-// as a little-endian int32 for every dimension but the Overworld, which is left at 8 bytes. The Overworld's
-// missing dimension field is not an optimisation, it is what vanilla writes.
+// TestIndexGoldenBytes fixes the chunk index: X then Z as little-endian int32s, 8 bytes with no dimension
+// field after them, which is what vanilla writes for the Overworld.
 func TestIndexGoldenBytes(t *testing.T) {
 	cases := []struct {
 		name string
 		pos  world.ChunkPos
-		dim  world.Dimension
 		want []byte
 	}{
 		{
 			name: "overworld origin",
-			pos:  world.ChunkPos{0, 0}, dim: world.Overworld,
+			pos:  world.ChunkPos{0, 0},
 			want: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 		},
 		{
 			name: "overworld positive",
-			pos:  world.ChunkPos{1, 2}, dim: world.Overworld,
+			pos:  world.ChunkPos{1, 2},
 			want: []byte{0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00},
 		},
 		{
 			name: "overworld negative",
-			pos:  world.ChunkPos{-1, -2}, dim: world.Overworld,
+			pos:  world.ChunkPos{-1, -2},
 			want: []byte{0xff, 0xff, 0xff, 0xff, 0xfe, 0xff, 0xff, 0xff},
 		},
 		{
 			name: "overworld mixed sign",
-			pos:  world.ChunkPos{-3, 4}, dim: world.Overworld,
+			pos:  world.ChunkPos{-3, 4},
 			want: []byte{0xfd, 0xff, 0xff, 0xff, 0x04, 0x00, 0x00, 0x00},
 		},
 		{
 			name: "overworld extremes",
-			pos:  world.ChunkPos{math.MinInt32, math.MaxInt32}, dim: world.Overworld,
+			pos:  world.ChunkPos{math.MinInt32, math.MaxInt32},
 			want: []byte{0x00, 0x00, 0x00, 0x80, 0xff, 0xff, 0xff, 0x7f},
 		},
 		{
 			name: "overworld extremes swapped",
-			pos:  world.ChunkPos{math.MaxInt32, math.MinInt32}, dim: world.Overworld,
+			pos:  world.ChunkPos{math.MaxInt32, math.MinInt32},
 			want: []byte{0xff, 0xff, 0xff, 0x7f, 0x00, 0x00, 0x00, 0x80},
-		},
-		{
-			name: "nether origin",
-			pos:  world.ChunkPos{0, 0}, dim: world.Nether,
-			want: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00},
-		},
-		{
-			name: "nether positive",
-			pos:  world.ChunkPos{1, 2}, dim: world.Nether,
-			want: []byte{0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00},
-		},
-		{
-			name: "nether negative",
-			pos:  world.ChunkPos{-1, -2}, dim: world.Nether,
-			want: []byte{0xff, 0xff, 0xff, 0xff, 0xfe, 0xff, 0xff, 0xff, 0x01, 0x00, 0x00, 0x00},
-		},
-		{
-			name: "nether extremes",
-			pos:  world.ChunkPos{math.MinInt32, math.MaxInt32}, dim: world.Nether,
-			want: []byte{0x00, 0x00, 0x00, 0x80, 0xff, 0xff, 0xff, 0x7f, 0x01, 0x00, 0x00, 0x00},
-		},
-		{
-			name: "end origin",
-			pos:  world.ChunkPos{0, 0}, dim: world.End,
-			want: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00},
-		},
-		{
-			name: "end positive",
-			pos:  world.ChunkPos{1, 2}, dim: world.End,
-			want: []byte{0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00},
-		},
-		{
-			name: "end negative",
-			pos:  world.ChunkPos{-1, -2}, dim: world.End,
-			want: []byte{0xff, 0xff, 0xff, 0xff, 0xfe, 0xff, 0xff, 0xff, 0x02, 0x00, 0x00, 0x00},
-		},
-		{
-			name: "end extremes",
-			pos:  world.ChunkPos{math.MaxInt32, math.MinInt32}, dim: world.End,
-			want: []byte{0xff, 0xff, 0xff, 0x7f, 0x00, 0x00, 0x00, 0x80, 0x02, 0x00, 0x00, 0x00},
 		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := index(c.pos, c.dim)
+			got := index(c.pos)
 			if !bytes.Equal(got, c.want) {
-				t.Fatalf("index(%v, %v) = % x (%v bytes), want % x (%v bytes)", c.pos, c.dim, got, len(got), c.want, len(c.want))
+				t.Fatalf("index(%v) = % x (%v bytes), want % x (%v bytes)", c.pos, got, len(got), c.want, len(c.want))
 			}
 		})
 	}
@@ -175,54 +133,33 @@ func TestSumAppendsSuffix(t *testing.T) {
 	cases := []struct {
 		name   string
 		pos    world.ChunkPos
-		dim    world.Dimension
 		suffix []byte
 		want   []byte
 	}{
 		{
 			name: "overworld no suffix",
-			pos:  world.ChunkPos{1, 2}, dim: world.Overworld, suffix: nil,
+			pos:  world.ChunkPos{1, 2}, suffix: nil,
 			want: []byte{0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00},
 		},
 		{
 			name: "overworld one byte",
-			pos:  world.ChunkPos{1, 2}, dim: world.Overworld, suffix: []byte{keyVersion},
+			pos:  world.ChunkPos{1, 2}, suffix: []byte{keyVersion},
 			want: []byte{0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x2c},
 		},
 		{
 			name: "overworld two bytes",
-			pos:  world.ChunkPos{1, 2}, dim: world.Overworld, suffix: []byte{keySubChunkData, 0xfc},
+			pos:  world.ChunkPos{1, 2}, suffix: []byte{keySubChunkData, 0xfc},
 			want: []byte{0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x2f, 0xfc},
 		},
 		{
 			name: "overworld negative two bytes",
-			pos:  world.ChunkPos{-1, -2}, dim: world.Overworld, suffix: []byte{keySubChunkData, 0xfc},
+			pos:  world.ChunkPos{-1, -2}, suffix: []byte{keySubChunkData, 0xfc},
 			want: []byte{0xff, 0xff, 0xff, 0xff, 0xfe, 0xff, 0xff, 0xff, 0x2f, 0xfc},
-		},
-		{
-			name: "nether no suffix",
-			pos:  world.ChunkPos{1, 2}, dim: world.Nether, suffix: nil,
-			want: []byte{0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00},
-		},
-		{
-			name: "nether one byte",
-			pos:  world.ChunkPos{1, 2}, dim: world.Nether, suffix: []byte{keyFinalisation},
-			want: []byte{0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x36},
-		},
-		{
-			name: "nether two bytes",
-			pos:  world.ChunkPos{1, 2}, dim: world.Nether, suffix: []byte{keySubChunkData, 0x00},
-			want: []byte{0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x2f, 0x00},
-		},
-		{
-			name: "end two bytes",
-			pos:  world.ChunkPos{-1, -2}, dim: world.End, suffix: []byte{keySubChunkData, 0x0f},
-			want: []byte{0xff, 0xff, 0xff, 0xff, 0xfe, 0xff, 0xff, 0xff, 0x02, 0x00, 0x00, 0x00, 0x2f, 0x0f},
 		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := dbKey{pos: c.pos, dim: c.dim}.Sum(c.suffix...)
+			got := dbKey{pos: c.pos}.Sum(c.suffix...)
 			if !bytes.Equal(got, c.want) {
 				t.Fatalf("Sum(% x) = % x, want % x", c.suffix, got, c.want)
 			}
@@ -234,57 +171,36 @@ func TestSumAppendsSuffix(t *testing.T) {
 // written to at the same time. leveldb.Batch keeps the key slices it is handed until Write, so a Sum that
 // reused a buffer would corrupt every key already queued in the batch.
 func TestSumIndependentPerCall(t *testing.T) {
-	for _, d := range []struct {
-		name string
-		dim  world.Dimension
-	}{{"overworld", world.Overworld}, {"nether", world.Nether}, {"end", world.End}} {
-		t.Run(d.name, func(t *testing.T) {
-			k := dbKey{pos: world.ChunkPos{1, 2}, dim: d.dim}
-			a, b := k.Sum(keyVersion), k.Sum(keyFinalisation)
-			if &a[0] == &b[0] {
-				t.Fatal("two Sum calls returned slices over the same array")
-			}
-			a[0], a[len(a)-1] = 0xff, 0xff
-			if b[0] != 0x01 {
-				t.Errorf("b[0] = %#02x after writing to a, want 0x01", b[0])
-			}
-			if want := byte(keyFinalisation); b[len(b)-1] != want {
-				t.Errorf("b suffix = %#02x after writing to a, want %#02x", b[len(b)-1], want)
-			}
-			if c := k.Sum(keyVersion); c[0] != 0x01 || c[len(c)-1] != byte(keyVersion) {
-				t.Errorf("Sum after mutating an earlier result = % x", c)
-			}
-		})
+	k := dbKey{pos: world.ChunkPos{1, 2}}
+	a, b := k.Sum(keyVersion), k.Sum(keyFinalisation)
+	if &a[0] == &b[0] {
+		t.Fatal("two Sum calls returned slices over the same array")
+	}
+	a[0], a[len(a)-1] = 0xff, 0xff
+	if b[0] != 0x01 {
+		t.Errorf("b[0] = %#02x after writing to a, want 0x01", b[0])
+	}
+	if want := byte(keyFinalisation); b[len(b)-1] != want {
+		t.Errorf("b suffix = %#02x after writing to a, want %#02x", b[len(b)-1], want)
+	}
+	if c := k.Sum(keyVersion); c[0] != 0x01 || c[len(c)-1] != byte(keyVersion) {
+		t.Errorf("Sum after mutating an earlier result = % x", c)
 	}
 }
 
-// TestSumSpareCapacityAliasesOnAppend pins the capacity of a Sum result.
-//
-// PINNED BUG: index allocates 12 bytes and returns b[:8] for the Overworld, so an Overworld key carries up to
-// 4 bytes of spare capacity while a Nether or End key has none. Appending to one Sum result twice therefore
-// silently aliases in the Overworld and does not elsewhere, which makes the safety of `append(k.Sum(), ...)`
-// depend on the dimension. No caller in db.go does this today, so the behaviour is pinned rather than fixed;
-// a fix would be to have Sum allocate len(index)+len(p) exactly.
-func TestSumSpareCapacityAliasesOnAppend(t *testing.T) {
-	over := dbKey{pos: world.ChunkPos{1, 2}, dim: world.Overworld}.Sum()
-	if len(over) != 8 || cap(over) != 12 {
-		t.Fatalf("overworld Sum(): len %v cap %v, want len 8 cap 12", len(over), cap(over))
+// TestSumHasNoSpareCapacity fixes that a Sum result is allocated to exactly its length, so appending to one
+// result twice never makes the two appends share an array.
+func TestSumHasNoSpareCapacity(t *testing.T) {
+	for _, suffix := range [][]byte{nil, {keyVersion}, {keySubChunkData, 0xfc}} {
+		k := dbKey{pos: world.ChunkPos{1, 2}}.Sum(suffix...)
+		if want := 8 + len(suffix); len(k) != want || cap(k) != want {
+			t.Fatalf("Sum(% x): len %v cap %v, want len %v cap %v", suffix, len(k), cap(k), want, want)
+		}
 	}
+	over := dbKey{pos: world.ChunkPos{1, 2}}.Sum()
 	a, b := append(over, keyVersion), append(over, keyFinalisation)
-	if &a[0] != &b[0] {
-		t.Fatal("appending to one overworld Sum result twice no longer aliases")
-	}
-	if a[8] != byte(keyFinalisation) {
-		t.Fatalf("a[8] = %#02x, want %#02x: the second append no longer overwrites the first", a[8], byte(keyFinalisation))
-	}
-
-	neth := dbKey{pos: world.ChunkPos{1, 2}, dim: world.Nether}.Sum()
-	if len(neth) != 12 || cap(neth) != 12 {
-		t.Fatalf("nether Sum(): len %v cap %v, want len 12 cap 12", len(neth), cap(neth))
-	}
-	na, nb := append(neth, keyVersion), append(neth, keyFinalisation)
-	if na[12] != byte(keyVersion) || nb[12] != byte(keyFinalisation) {
-		t.Errorf("nether appends aliased: na[12] = %#02x, nb[12] = %#02x", na[12], nb[12])
+	if a[8] != byte(keyVersion) || b[8] != byte(keyFinalisation) {
+		t.Errorf("appends aliased: a[8] = %#02x, b[8] = %#02x", a[8], b[8])
 	}
 }
 

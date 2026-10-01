@@ -14,6 +14,7 @@ import (
 	"github.com/jv2w/Impulse/server/item/potion"
 	"github.com/jv2w/Impulse/server/world"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
+	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 )
 
 // parseEntityMetadata returns an entity metadata object with default values. It is equivalent to setting
@@ -150,11 +151,10 @@ func (s *Session) addSpecificMetadata(e any, m protocol.EntityMetadata) {
 	}
 
 	if l, ok := e.(living); ok && s.ent != nil && s.ent.UUID() == l.UUID() {
-		deathPos, deathDimension, died := l.DeathPosition()
+		deathPos, died := l.DeathPosition()
 		if died {
-			dim, _ := world.DimensionID(deathDimension)
 			m[protocol.EntityDataKeyPlayerLastDeathPosition] = vec64To32(deathPos)
-			m[protocol.EntityDataKeyPlayerLastDeathDimension] = int32(dim)
+			m[protocol.EntityDataKeyPlayerLastDeathDimension] = int32(packet.DimensionOverworld)
 		}
 		m[protocol.EntityDataKeyPlayerHasDied] = boolByte(died)
 	}
@@ -339,7 +339,7 @@ type tnt interface {
 
 type living interface {
 	UUID() uuid.UUID
-	DeathPosition() (mgl64.Vec3, world.Dimension, bool)
+	DeathPosition() (mgl64.Vec3, bool)
 }
 
 type variable interface {

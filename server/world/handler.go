@@ -50,9 +50,10 @@ type Handler interface {
 	// ctx.Cancel() may be called to prevent leaves from decaying.
 	HandleLeavesDecay(ctx *Context, pos cube.Pos)
 	// HandlePortalActivate handles a portal frame being filled with portal
-	// blocks. portalType is Nether or End. ctx.Cancel() may be called to prevent
-	// the portal from being activated.
-	HandlePortalActivate(ctx *Context, portalType Dimension, positions []cube.Pos)
+	// blocks. portal is the block every position will be set to: a block.Portal
+	// for a Nether portal or a block.EndPortal for an End portal.
+	// ctx.Cancel() may be called to prevent the portal from being activated.
+	HandlePortalActivate(ctx *Context, portal Block, positions []cube.Pos)
 	// HandleEntitySpawn handles an Entity being spawned into a World through a
 	// call to Tx.AddEntity or Tx.AddEntityAt.
 	HandleEntitySpawn(tx *Tx, e Entity)
@@ -90,7 +91,7 @@ func (NopHandler) HandleFireSpread(*Context, cube.Pos, cube.Pos)                
 func (NopHandler) HandleBlockBurn(*Context, cube.Pos)                           {}
 func (NopHandler) HandleCropTrample(*Context, cube.Pos)                         {}
 func (NopHandler) HandleLeavesDecay(*Context, cube.Pos)                         {}
-func (NopHandler) HandlePortalActivate(*Context, Dimension, []cube.Pos)         {}
+func (NopHandler) HandlePortalActivate(*Context, Block, []cube.Pos)             {}
 func (NopHandler) HandleEntitySpawn(*Tx, Entity)                                {}
 func (NopHandler) HandleEntityDespawn(*Tx, Entity)                              {}
 func (NopHandler) HandleExplosion(*Context, ExplosionSource, *[]Entity, *[]cube.Pos, *float64, *bool) {

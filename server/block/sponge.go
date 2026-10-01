@@ -49,26 +49,13 @@ func (s Sponge) EncodeBlock() (string, map[string]any) {
 // UseOnBlock places the sponge, absorbs nearby water if it's still dry and flags it as wet if any water has been
 // absorbed.
 func (s Sponge) UseOnBlock(pos cube.Pos, face cube.Face, _ mgl64.Vec3, tx *world.Tx, user item.User, ctx *item.UseContext) (used bool) {
-	var particles = false
 	pos, _, used = firstReplaceable(tx, pos, face, s)
 	if !used {
 		return
 	}
 
-	// Check if the Sponge is placed in the Nether and if so, turn it into a normal Sponge instantly.
-	if tx.World().Dimension().WaterEvaporates() && s.Wet {
-		s.Wet = false
-		particles = true
-	}
-
 	place(tx, pos, s, user, ctx)
-	// placed only reads ctx.CountSub, which AddParticle does not touch, so the one read below
-	// answers both the particle check and the return.
-	ok := placed(ctx)
-	if particles && ok {
-		tx.AddParticle(pos.Side(cube.FaceUp).Vec3(), particle.Evaporate{})
-	}
-	return ok
+	return placed(ctx)
 }
 
 // NeighbourUpdateTick checks for nearby water flow. If water could be found and the sponge is dry, it will absorb the

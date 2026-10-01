@@ -49,7 +49,7 @@ func (t ticker) tick(tx *Tx) {
 	viewers, loaders := w.allViewers()
 
 	w.set.Lock()
-	if s := w.set.Spawn; s[1] > tx.Range()[1] && w.Dimension() == Overworld {
+	if s := w.set.Spawn; s[1] > tx.Range()[1] {
 		// Vanilla will set the spawn position's Y value to max to indicate that
 		// the player should spawn at the highest position in the world.
 		w.set.Spawn[1] = tx.highestObstructingBlock(s[0], s[2]) + 1
@@ -85,17 +85,11 @@ func (t ticker) tick(tx *Tx) {
 	}
 
 	if tick%20 == 0 && len(viewers) != 0 {
-		// The dimension and its two cycle flags are the same for every viewer, so they are read once instead
-		// of twice per viewer. The added length check only skips a loop body that never ran.
-		dim := w.Dimension()
-		viewTime, viewWeather := dim.TimeCycle() && cycle, dim.WeatherCycle()
 		for _, viewer := range viewers {
-			if viewTime {
+			if cycle {
 				viewer.ViewTime(tim)
 			}
-			if viewWeather {
-				viewer.ViewWeather(rain, thunder)
-			}
+			viewer.ViewWeather(rain, thunder)
 		}
 	}
 	if thunder {

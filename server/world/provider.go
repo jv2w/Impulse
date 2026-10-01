@@ -21,16 +21,15 @@ type Provider interface {
 
 	// LoadPlayerSpawnPosition loads the player spawn point if found, otherwise an error will be returned.
 	LoadPlayerSpawnPosition(uuid uuid.UUID) (pos cube.Pos, exists bool, err error)
-	// SavePlayerSpawnPosition saves the player spawn point. In vanilla, this can be done with beds in the overworld
-	// or respawn anchors in the nether.
+	// SavePlayerSpawnPosition saves the player spawn point. In vanilla, this can be done with beds.
 	SavePlayerSpawnPosition(uuid uuid.UUID, pos cube.Pos) error
-	// LoadColumn reads a world.Column from the DB at a position and dimension
-	// in the DB. If no column at that position exists, errors.Is(err,
-	// leveldb.ErrNotFound) equals true.
-	LoadColumn(pos ChunkPos, dim Dimension) (*chunk.Column, error)
-	// StoreColumn stores a world.Column at a position and dimension in the DB.
-	// An error is returned if storing was unsuccessful.
-	StoreColumn(pos ChunkPos, dim Dimension, col *chunk.Column) error
+	// LoadColumn reads a world.Column from the DB at a position in the DB. If
+	// no column at that position exists, errors.Is(err, leveldb.ErrNotFound)
+	// equals true.
+	LoadColumn(pos ChunkPos) (*chunk.Column, error)
+	// StoreColumn stores a world.Column at a position in the DB. An error is
+	// returned if storing was unsuccessful.
+	StoreColumn(pos ChunkPos, col *chunk.Column) error
 }
 
 // Compile time check to make sure NopProvider implements Provider.
@@ -51,10 +50,10 @@ func (n NopProvider) Settings() *Settings {
 	return n.Set
 }
 func (NopProvider) SaveSettings(*Settings) {}
-func (NopProvider) LoadColumn(ChunkPos, Dimension) (*chunk.Column, error) {
+func (NopProvider) LoadColumn(ChunkPos) (*chunk.Column, error) {
 	return nil, leveldb.ErrNotFound
 }
-func (NopProvider) StoreColumn(ChunkPos, Dimension, *chunk.Column) error { return nil }
+func (NopProvider) StoreColumn(ChunkPos, *chunk.Column) error { return nil }
 func (NopProvider) LoadPlayerSpawnPosition(uuid.UUID) (cube.Pos, bool, error) {
 	return cube.Pos{}, false, nil
 }
@@ -92,16 +91,16 @@ func (l *lockedProvider) SavePlayerSpawnPosition(id uuid.UUID, pos cube.Pos) err
 	return l.p.SavePlayerSpawnPosition(id, pos)
 }
 
-func (l *lockedProvider) LoadColumn(pos ChunkPos, dim Dimension) (*chunk.Column, error) {
+func (l *lockedProvider) LoadColumn(pos ChunkPos) (*chunk.Column, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.p.LoadColumn(pos, dim)
+	return l.p.LoadColumn(pos)
 }
 
-func (l *lockedProvider) StoreColumn(pos ChunkPos, dim Dimension, col *chunk.Column) error {
+func (l *lockedProvider) StoreColumn(pos ChunkPos, col *chunk.Column) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.p.StoreColumn(pos, dim, col)
+	return l.p.StoreColumn(pos, col)
 }
 
 func (l *lockedProvider) Close() error {

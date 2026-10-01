@@ -92,17 +92,15 @@ type Config struct {
 	// WorldProvider is the world.Provider used for storing and loading world
 	// data. If left as nil, world data will be newly created every time and
 	// chunks will always be newly generated when loaded. The world provider
-	// will be used for storing/loading the default overworld, nether and end.
+	// will be used for storing/loading the default world.
 	WorldProvider world.Provider
 	// ReadOnlyWorld specifies if the standard worlds should be read only. If
 	// set to true, the WorldProvider won't be saved to at all.
 	ReadOnlyWorld bool
 	// Generator should return a function that specifies the world.Generator to
-	// use for every world.Dimension (world.Overworld, world.Nether and
-	// world.End). If left empty, Generator will be set to a flat world for each
-	// of the dimensions (with netherrack and end stone for nether/end
-	// respectively).
-	Generator func(dim world.Dimension) world.Generator
+	// use for the default world. If left empty, Generator will be set to a flat
+	// world.
+	Generator func() world.Generator
 	// RandomTickSpeed specifies the rate at which blocks should be ticked in
 	// the default worlds. Setting this value to -1 or lower will stop random
 	// ticking altogether, while setting it higher results in faster ticking. If
@@ -130,7 +128,7 @@ type Config struct {
 	Entities world.EntityRegistry
 	// Tuning holds toggles for world behaviour that may be turned off to save
 	// the work they cost. The zero value leaves the worlds behaving as vanilla
-	// does. The toggles are applied to the three default worlds as they are
+	// does. The toggles are applied to the default world as it is
 	// created and may be changed later using World.SetTuning.
 	Tuning world.Tuning
 	// VanillaRecipesDisabled specifies if the vanilla crafting, furnace,
@@ -207,7 +205,7 @@ func (conf Config) New() *Server {
 		incoming: make(chan incoming),
 		p:        make(map[uuid.UUID]*onlinePlayer),
 		reserved: make(map[uuid.UUID]struct{}),
-		world:    &world.World{}, nether: &world.World{}, end: &world.World{},
+		world:    &world.World{},
 	}
 	srv.joinCtx, srv.cancelJoins = context.WithCancel(context.Background())
 	// Presized to the listener count so append never grows the slice; the loop
@@ -235,9 +233,7 @@ func (conf Config) New() *Server {
 		vanillaRecipesOnce.Do(recipe_registerVanilla)
 	}
 
-	srv.world = srv.createWorld(world.Overworld, &srv.nether, &srv.end)
-	srv.nether = srv.createWorld(world.Nether, &srv.world, &srv.end)
-	srv.end = srv.createWorld(world.End, &srv.nether, &srv.world)
+	srv.world = srv.createWorld()
 
 	return srv
 }
@@ -428,19 +424,10 @@ func loadResources(dir string) ([]*resource.Pack, error) {
 	return packs, nil
 }
 
-// loadGenerator loads a standard world.Generator for a world.Dimension. The
-// generators returned are flat generators with grass/dirt, netherrack or end
-// stone depending on the dimension passed.
-func loadGenerator(dim world.Dimension) world.Generator {
-	switch dim {
-	case world.Overworld:
-		return generator.NewFlat(biome.Plains{}, []world.Block{block.Grass{}, block.Dirt{}, block.Dirt{}, block.Bedrock{}})
-	case world.Nether:
-		return generator.NewFlat(biome.NetherWastes{}, []world.Block{block.Netherrack{}, block.Netherrack{}, block.Netherrack{}, block.Bedrock{}})
-	case world.End:
-		return generator.NewFlat(biome.End{}, []world.Block{block.EndStone{}, block.EndStone{}, block.EndStone{}, block.Bedrock{}})
-	}
-	panic("should never happen")
+// loadGenerator loads a standard world.Generator: a flat generator with
+// grass/dirt.
+func loadGenerator() world.Generator {
+	return generator.NewFlat(biome.Plains{}, []world.Block{block.Grass{}, block.Dirt{}, block.Dirt{}, block.Bedrock{}})
 }
 
 // DefaultConfig returns a configuration with the default values filled out.

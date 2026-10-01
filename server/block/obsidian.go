@@ -2,7 +2,6 @@ package block
 
 import (
 	"github.com/jv2w/Impulse/server/item"
-	"github.com/jv2w/Impulse/server/world"
 )
 
 // Obsidian is a dark purple block known for its high blast resistance and strength, most commonly found when
@@ -38,10 +37,10 @@ func (o Obsidian) EncodeBlock() (string, map[string]any) {
 	return "minecraft:obsidian", nil
 }
 
-// Frame returns true if the block can form part of a nether portal frame in the dimension passed. Crying obsidian
-// cannot be used as a frame block.
-func (o Obsidian) Frame(dimension world.Dimension) bool {
-	return dimension == world.Nether && !o.Crying
+// Frame returns true if the block can form part of a nether portal frame. Crying obsidian cannot be used as a frame
+// block.
+func (o Obsidian) Frame() bool {
+	return !o.Crying
 }
 
 // SupportsEndCrystal returns whether an End crystal may be placed on the obsidian.

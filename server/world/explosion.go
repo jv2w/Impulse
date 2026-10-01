@@ -2,7 +2,6 @@ package world
 
 import (
 	"github.com/go-gl/mathgl/mgl64"
-	"github.com/jv2w/Impulse/server/block/cube"
 )
 
 // defaultExplosionSize is the size used if a source does not specify one.
@@ -36,27 +35,4 @@ func (e EntityExplosionSource) Size() float64 {
 		return defaultExplosionSize
 	}
 	return e.ExplosionSize
-}
-
-// BlockExplosionSource is used for an explosion caused by a block.
-type BlockExplosionSource struct {
-	// Block is the block that caused the explosion.
-	Block Block
-	// Pos is the position of the block that caused the explosion.
-	Pos cube.Pos
-	// ExplosionSize is the size of the explosion. Defaults to 4 if 0.
-	ExplosionSize float64
-}
-
-// Position ...
-func (b BlockExplosionSource) Position() mgl64.Vec3 {
-	return b.Pos.Vec3Centre()
-}
-
-// Size ...
-func (b BlockExplosionSource) Size() float64 {
-	if b.ExplosionSize == 0 {
-		return defaultExplosionSize
-	}
-	return b.ExplosionSize
 }

@@ -374,7 +374,7 @@ type closeSeqProvider struct {
 	log *closeSeqLog
 }
 
-func (p *closeSeqProvider) StoreColumn(pos ChunkPos, _ Dimension, _ *chunk.Column) error {
+func (p *closeSeqProvider) StoreColumn(pos ChunkPos, _ *chunk.Column) error {
 	p.log.mu.Lock()
 	p.log.seq = append(p.log.seq, "storeColumn")
 	p.log.cols = append(p.log.cols, pos)

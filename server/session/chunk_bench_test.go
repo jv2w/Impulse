@@ -15,7 +15,7 @@ import (
 // mostly with the first shape.
 func BenchmarkSubChunkEntry(b *testing.B) {
 	br := sharedRegistry()
-	c := chunk.New(br, world.Overworld.Range())
+	c := chunk.New(br, world.Range())
 	c.SetBlock(0, 0, 0, 0, br.BlockRuntimeID(block.Stone{}))
 	ind := c.SubIndex(0)
 

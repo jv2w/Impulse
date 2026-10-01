@@ -26,7 +26,7 @@ func (g blockingGenerator) GenerateChunk(pos ChunkPos, _ *chunk.Chunk) {
 	}
 }
 
-func (blockingGenerator) DefaultSpawn(Dimension) cube.Pos { return cube.Pos{} }
+func (blockingGenerator) DefaultSpawn() cube.Pos { return cube.Pos{} }
 
 // TestTxChunkLoadsQueuedChunkItself queues a chunk load behind two stalled
 // loads that occupy both workers, then reads a block in the queued chunk from a

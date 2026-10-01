@@ -1,7 +1,5 @@
 package block
 
-import "github.com/jv2w/Impulse/server/world"
-
 // Air is the block present in otherwise empty space.
 type Air struct {
 	empty
@@ -14,9 +12,9 @@ func (Air) HasLiquidDrops() bool {
 	return false
 }
 
-// PortalInterior returns true if air may occupy the inside of a portal frame before activation for the target dimension.
-func (Air) PortalInterior(target world.Dimension) bool {
-	return target == world.Nether
+// PortalInterior returns true if air may occupy the inside of a nether portal frame before activation.
+func (Air) PortalInterior() bool {
+	return true
 }
 
 // EncodeItem ...

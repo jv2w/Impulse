@@ -1016,7 +1016,7 @@ func (s *Session) RemoveAllDebugShapes() {
 
 // SendDebugShapes sends any pending additions/removals of debug shapes to the player. Shapes should be sent
 // every tick to allow for batching and time-efficient updates.
-func (s *Session) SendDebugShapes(dim world.Dimension) {
+func (s *Session) SendDebugShapes() {
 	s.debugShapesMu.Lock()
 	updates := s.debugShapeUpdates
 	if len(updates) == 0 {
@@ -1030,13 +1030,13 @@ func (s *Session) SendDebugShapes(dim world.Dimension) {
 			delete(s.debugShapes, update.id)
 			shapes = append(shapes, protocol.PrimitiveShape{
 				NetworkID:      uint64(update.id),
-				DimensionID:    protocol.Option(s.dimensionID(dim)),
+				DimensionID:    protocol.Option(int32(packet.DimensionOverworld)),
 				ExtraShapeData: &protocol.LastShape{},
 			})
 			continue
 		}
 		s.debugShapes[update.id] = update.shape
-		shapes = append(shapes, debugShapeToProtocol(update.shape, dim, s.shapeAttachedEntityRuntimeID(update.shape)))
+		shapes = append(shapes, debugShapeToProtocol(update.shape, s.shapeAttachedEntityRuntimeID(update.shape)))
 	}
 	s.debugShapeUpdates = s.debugShapeUpdates[:0]
 	s.debugShapesMu.Unlock()
@@ -1418,11 +1418,10 @@ func (s *Session) shapeAttachedEntityRuntimeID(shape debug.Shape) uint64 {
 
 // debugShapeToProtocol converts a debug shape to its protocol representation. It also provides defaults
 // for some fields such as colour, scale and other per-shape properties.
-func debugShapeToProtocol(shape debug.Shape, dim world.Dimension, attachedEntityID uint64) protocol.PrimitiveShape {
-	dimID, _ := world.DimensionID(dim)
+func debugShapeToProtocol(shape debug.Shape, attachedEntityID uint64) protocol.PrimitiveShape {
 	ps := protocol.PrimitiveShape{
 		NetworkID:   uint64(shape.ShapeID()),
-		DimensionID: protocol.Option(int32(dimID)),
+		DimensionID: protocol.Option(int32(packet.DimensionOverworld)),
 	}
 	if attachedEntityID > 0 {
 		ps.AttachedToEntityID = protocol.Option(int64(attachedEntityID))

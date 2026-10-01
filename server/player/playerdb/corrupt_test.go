@@ -5,7 +5,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jv2w/Impulse/server/item"
-	"github.com/jv2w/Impulse/server/world"
 
 	"encoding/json"
 )
@@ -37,8 +36,6 @@ func putRaw(t *testing.T, p *Provider, id uuid.UUID, d jsonData) {
 	}
 }
 
-func nilWorld(world.Dimension) *world.World { return nil }
-
 // TestLoadCorruptUUIDFallsBackToKey pins that a record whose embedded UUID
 // string no longer parses still loads: the LevelDB key is the authoritative
 // identity. Before the fix uuid.MustParse panicked, bricking login for that
@@ -48,7 +45,7 @@ func TestLoadCorruptUUIDFallsBackToKey(t *testing.T) {
 	id := uuid.New()
 	putRaw(t, p, id, jsonData{UUID: "not-a-uuid", Username: "Steve"})
 
-	conf, _, err := p.Load(id, nilWorld)
+	conf, err := p.Load(id)
 	if err != nil {
 		t.Fatalf("Load with corrupt UUID: %v", err)
 	}
@@ -68,7 +65,7 @@ func TestLoadValidUUIDKeepsEmbeddedValue(t *testing.T) {
 	other := uuid.New()
 	putRaw(t, p, id, jsonData{UUID: other.String(), Username: "Alex"})
 
-	conf, _, err := p.Load(id, nilWorld)
+	conf, err := p.Load(id)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -97,7 +94,7 @@ func TestLoadCorruptSlotsDropped(t *testing.T) {
 		EnderChestInventory: []jsonSlot{{Slot: 40, Item: good}},
 	})
 
-	conf, _, err := p.Load(id, nilWorld)
+	conf, err := p.Load(id)
 	if err != nil {
 		t.Fatalf("Load with corrupt slots: %v", err)
 	}
@@ -129,7 +126,7 @@ func TestLoadMainHandSlotBounds(t *testing.T) {
 		UUID:      corruptID.String(),
 		Inventory: jsonInventoryData{MainHandSlot: 1<<32 - 1},
 	})
-	conf, _, err := p.Load(corruptID, nilWorld)
+	conf, err := p.Load(corruptID)
 	if err != nil {
 		t.Fatalf("Load with corrupt MainHandSlot: %v", err)
 	}
@@ -142,7 +139,7 @@ func TestLoadMainHandSlotBounds(t *testing.T) {
 		UUID:      validID.String(),
 		Inventory: jsonInventoryData{MainHandSlot: 5},
 	})
-	conf, _, err = p.Load(validID, nilWorld)
+	conf, err = p.Load(validID)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}

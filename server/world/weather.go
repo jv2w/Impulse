@@ -26,7 +26,7 @@ func (w weather) StartWeatherCycle() {
 // low, if it is raining and if it's above the top-most obstructing block.
 func (tx *Tx) snowingAt(pos cube.Pos) bool {
 	w := tx.World()
-	if w == nil || !w.Dimension().WeatherCycle() {
+	if w == nil {
 		return false
 	}
 	if b := tx.biome(pos); b.Rainfall() == 0 || tx.temperature(pos) > 0.15 {
@@ -44,7 +44,7 @@ func (tx *Tx) snowingAt(pos cube.Pos) bool {
 // block.
 func (tx *Tx) rainingAt(pos cube.Pos) bool {
 	w := tx.World()
-	if w == nil || !w.Dimension().WeatherCycle() {
+	if w == nil {
 		return false
 	}
 	if b := tx.biome(pos); b.Rainfall() == 0 || tx.temperature(pos) <= 0.15 {
@@ -73,7 +73,7 @@ func (tx *Tx) thunderingAt(pos cube.Pos) bool {
 
 // raining checks if it is raining anywhere in the World.
 func (w weather) raining() bool {
-	if w.w == nil || !w.w.Dimension().WeatherCycle() {
+	if w.w == nil {
 		return false
 	}
 	w.w.set.Lock()
@@ -83,7 +83,7 @@ func (w weather) raining() bool {
 
 // thundering checks if it is thundering anywhere in the World.
 func (w weather) thundering() bool {
-	if w.w == nil || !w.w.Dimension().WeatherCycle() {
+	if w.w == nil {
 		return false
 	}
 	w.w.set.Lock()

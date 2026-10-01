@@ -24,10 +24,6 @@ const (
 
 // NetherPortalFromPos returns Nether portal information from a given position in the frame.
 func NetherPortalFromPos(tx *world.Tx, pos cube.Pos) (Nether, bool) {
-	if tx.World().Dimension() == world.End {
-		return Nether{}, false
-	}
-
 	axis, positions, width, height, completed, ok := multiAxisScan(pos, tx, matchesNetherPortalInterior)
 	if !ok {
 		axis, positions, width, height, completed, ok = multiAxisScan(pos, tx, matchesNetherPortal)
@@ -52,7 +48,7 @@ func ActivateNetherPortal(tx *world.Tx, pos cube.Pos) bool {
 	}
 	ctx := tx.Event()
 	positions := append([]cube.Pos(nil), p.Positions()...)
-	if tx.World().Handler().HandlePortalActivate(ctx, world.Nether, positions); ctx.Cancelled() {
+	if tx.World().Handler().HandlePortalActivate(ctx, portal(p.axis), positions); ctx.Cancelled() {
 		return false
 	}
 	p.Activate()
@@ -71,8 +67,8 @@ func DeactivateNetherPortal(tx *world.Tx, pos cube.Pos) bool {
 
 // frameBlock represents a block that can be used as a frame for a Nether portal.
 type frameBlock interface {
-	// Frame returns true if the block is used as a frame for the given dimension.
-	Frame(dimension world.Dimension) bool
+	// Frame returns true if the block is used as a frame for a Nether portal.
+	Frame() bool
 }
 
 // Activate ...

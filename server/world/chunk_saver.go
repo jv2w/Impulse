@@ -112,7 +112,7 @@ func (s *chunkSaver) run() {
 		s.writing = true
 		s.mu.Unlock()
 
-		err := s.w.conf.Provider.StoreColumn(job.pos, s.w.conf.Dim, job.col)
+		err := s.w.conf.Provider.StoreColumn(job.pos, job.col)
 		if err != nil {
 			s.w.conf.Log.Error("save chunk: "+err.Error(), "X", job.pos[0], "Z", job.pos[1])
 		}

@@ -11,8 +11,7 @@ import (
 	"time"
 )
 
-func (p *Provider) fromJson(d jsonData, lookupWorld func(world.Dimension) *world.World, id uuid.UUID) (player.Config, *world.World) {
-	dim, _ := world.DimensionByID(int(d.Dimension))
+func (p *Provider) fromJson(d jsonData, id uuid.UUID) player.Config {
 	mode, _ := world.GameModeByID(int(d.GameMode))
 	// Which input was the problem: d.UUID is a string from the player's save
 	// file, so one corrupt byte made uuid.MustParse panic and bricked login
@@ -78,11 +77,10 @@ func (p *Provider) fromJson(d jsonData, lookupWorld func(world.Dimension) *world
 		// SetItem returns.
 		_ = conf.EnderChestInventory.SetItem(slot, stack)
 	}
-	return conf, lookupWorld(dim)
+	return conf
 }
 
-func (p *Provider) toJson(d player.Config, w *world.World) jsonData {
-	dim, _ := world.DimensionID(w.Dimension())
+func (p *Provider) toJson(d player.Config) jsonData {
 	mode, _ := world.GameModeID(d.GameMode)
 	offHand, _ := d.OffHand.Item(0)
 	return jsonData{
@@ -119,7 +117,6 @@ func (p *Provider) toJson(d player.Config, w *world.World) jsonData {
 			MainHandSlot: uint32(d.HeldSlot),
 		}),
 		EnderChestInventory: encodeItems(d.EnderChestInventory.Slots()),
-		Dimension:           int32(dim),
 	}
 }
 
@@ -142,7 +139,6 @@ type jsonData struct {
 	Effects                          []jsonEffect
 	FireTicks                        int64
 	FallDistance                     float64
-	Dimension                        int32
 }
 
 type jsonInventoryData struct {

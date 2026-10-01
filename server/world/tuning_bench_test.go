@@ -81,7 +81,7 @@ func (g benchLightGenerator) GenerateChunk(_ ChunkPos, c *chunk.Chunk) {
 	}
 }
 
-func (benchLightGenerator) DefaultSpawn(Dimension) cube.Pos { return cube.Pos{} }
+func (benchLightGenerator) DefaultSpawn() cube.Pos { return cube.Pos{} }
 
 // benchAir is a transparent air implementation, so light actually spreads.
 type benchAir struct{}

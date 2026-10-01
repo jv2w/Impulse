@@ -40,12 +40,12 @@ func (s *Session) appendChunkTransactionLocked(m map[uint64]struct{}) {
 }
 
 // ViewChunk ...
-func (s *Session) ViewChunk(pos world.ChunkPos, dim world.Dimension, blockEntities map[cube.Pos]world.Block, c *chunk.Chunk) {
+func (s *Session) ViewChunk(pos world.ChunkPos, blockEntities map[cube.Pos]world.Block, c *chunk.Chunk) {
 	if !s.conn.ClientCacheEnabled() {
-		s.sendNetworkChunk(pos, dim, c, blockEntities)
+		s.sendNetworkChunk(pos, c, blockEntities)
 		return
 	}
-	s.sendBlobHashes(pos, dim, c, blockEntities)
+	s.sendBlobHashes(pos, c, blockEntities)
 }
 
 // ViewSubChunks ...
@@ -79,9 +79,8 @@ func (s *Session) ViewSubChunks(centre world.SubChunkPos, offsets []protocol.Sub
 		s.appendChunkTransactionLocked(transaction)
 		s.blobMu.Unlock()
 	}
-	dim, _ := world.DimensionID(tx.World().Dimension())
 	s.writePacket(&packet.SubChunk{
-		Dimension:       int32(dim),
+		Dimension:       packet.DimensionOverworld,
 		Position:        protocol.SubChunkPos(centre),
 		CacheEnabled:    cacheEnabled,
 		SubChunkEntries: entries,
@@ -177,20 +176,14 @@ func (s *Session) subChunkEntry(offset protocol.SubChunkOffset, ind int16, col *
 	return entry
 }
 
-// dimensionID returns the dimension ID of the world that the session is in.
-func (s *Session) dimensionID(dim world.Dimension) int32 {
-	d, _ := world.DimensionID(dim)
-	return int32(d)
-}
-
 // sendBlobHashes sends chunk blob hashes of the data of the chunk and stores the data in a map of blobs. Only
 // data that the client doesn't yet have will be sent over the network.
-func (s *Session) sendBlobHashes(pos world.ChunkPos, dim world.Dimension, c *chunk.Chunk, blockEntities map[cube.Pos]world.Block) {
+func (s *Session) sendBlobHashes(pos world.ChunkPos, c *chunk.Chunk, blockEntities map[cube.Pos]world.Block) {
 	if subChunkRequests {
 		biomes := chunk.EncodeBiomes(c, chunk.NetworkEncoding)
 		if hash := xxhash.Sum64(biomes); s.trackBlob(hash, biomes) {
 			s.writePacket(&packet.LevelChunk{
-				Dimension:     s.dimensionID(dim),
+				Dimension:     packet.DimensionOverworld,
 				SubChunkCount: 0,
 				Position:      protocol.ChunkPos(pos),
 				SubChunkLimit: protocol.Option(int32(c.HighestFilledSubChunk())),
@@ -228,7 +221,7 @@ func (s *Session) sendBlobHashes(pos world.ChunkPos, dim world.Dimension, c *chu
 	if l := len(s.blobs); l >= 4096 {
 		s.blobMu.Unlock()
 		s.conf.Log.Error("too many blobs pending", "n", l)
-		s.sendNetworkChunk(pos, dim, c, blockEntities)
+		s.sendNetworkChunk(pos, c, blockEntities)
 		return
 	}
 	s.appendChunkTransactionLocked(m)
@@ -255,7 +248,7 @@ func (s *Session) sendBlobHashes(pos world.ChunkPos, dim world.Dimension, c *chu
 	}
 
 	s.writePacket(&packet.LevelChunk{
-		Dimension:     s.dimensionID(dim),
+		Dimension:     packet.DimensionOverworld,
 		Position:      protocol.ChunkPos{pos.X(), pos.Z()},
 		SubChunkCount: count,
 		CacheEnabled:  true,
@@ -265,10 +258,10 @@ func (s *Session) sendBlobHashes(pos world.ChunkPos, dim world.Dimension, c *chu
 }
 
 // sendNetworkChunk sends a network encoded chunk to the client.
-func (s *Session) sendNetworkChunk(pos world.ChunkPos, dim world.Dimension, c *chunk.Chunk, blockEntities map[cube.Pos]world.Block) {
+func (s *Session) sendNetworkChunk(pos world.ChunkPos, c *chunk.Chunk, blockEntities map[cube.Pos]world.Block) {
 	if subChunkRequests {
 		s.writePacket(&packet.LevelChunk{
-			Dimension:     s.dimensionID(dim),
+			Dimension:     packet.DimensionOverworld,
 			SubChunkCount: 0,
 			Position:      protocol.ChunkPos(pos),
 			SubChunkLimit: protocol.Option(int32(c.HighestFilledSubChunk())),
@@ -297,7 +290,7 @@ func (s *Session) sendNetworkChunk(pos world.ChunkPos, dim world.Dimension, c *c
 	}
 
 	s.writePacket(&packet.LevelChunk{
-		Dimension:     s.dimensionID(dim),
+		Dimension:     packet.DimensionOverworld,
 		Position:      protocol.ChunkPos{pos.X(), pos.Z()},
 		SubChunkCount: uint32(len(data.SubChunks)),
 		RawPayload:    append([]byte(nil), chunkBuf.Bytes()...),

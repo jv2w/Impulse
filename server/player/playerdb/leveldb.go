@@ -7,7 +7,6 @@ import (
 	"github.com/df-mc/goleveldb/leveldb/opt"
 	"github.com/google/uuid"
 	"github.com/jv2w/Impulse/server/player"
-	"github.com/jv2w/Impulse/server/world"
 	"os"
 )
 
@@ -32,8 +31,8 @@ func NewProvider(path string) (*Provider, error) {
 }
 
 // Save ...
-func (p *Provider) Save(id uuid.UUID, d player.Config, w *world.World) error {
-	b, err := json.Marshal(p.toJson(d, w))
+func (p *Provider) Save(id uuid.UUID, d player.Config) error {
+	b, err := json.Marshal(p.toJson(d))
 	if err != nil {
 		return err
 	}
@@ -41,22 +40,20 @@ func (p *Provider) Save(id uuid.UUID, d player.Config, w *world.World) error {
 }
 
 // Load ...
-func (p *Provider) Load(id uuid.UUID, world func(world.Dimension) *world.World) (player.Config, *world.World, error) {
+func (p *Provider) Load(id uuid.UUID) (player.Config, error) {
 	b, err := p.db.Get(id[:], nil)
 	if errors.Is(err, leveldb.ErrNotFound) {
-		return player.Config{}, nil, player.ErrNoData
+		return player.Config{}, player.ErrNoData
 	}
 	if err != nil {
-		return player.Config{}, nil, err
+		return player.Config{}, err
 	}
 	var d jsonData
 	err = json.Unmarshal(b, &d)
 	if err != nil {
-		return player.Config{}, nil, err
+		return player.Config{}, err
 	}
-	conf, w := p.fromJson(d, world, id)
-
-	return conf, w, nil
+	return p.fromJson(d, id), nil
 }
 
 // Close ...

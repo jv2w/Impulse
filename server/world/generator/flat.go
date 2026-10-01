@@ -61,6 +61,6 @@ func (f Flat) GenerateChunk(pos world.ChunkPos, chunk *chunk.Chunk) {
 }
 
 // DefaultSpawn ...
-func (f Flat) DefaultSpawn(dim world.Dimension) cube.Pos {
-	return cube.Pos{0, dim.Range().Min() + len(f.layers) + 1, 0}
+func (f Flat) DefaultSpawn() cube.Pos {
+	return cube.Pos{0, world.Range().Min() + len(f.layers) + 1, 0}
 }

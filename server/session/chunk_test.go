@@ -3,7 +3,6 @@ package session
 import (
 	"bytes"
 	"testing"
-	"time"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/jv2w/Impulse/server/block"
@@ -32,48 +31,6 @@ func TestSubChunkRequestsIsEnabled(t *testing.T) {
 		t.Fatal("subChunkRequests = false; the pinned behaviour below assumes it is true")
 	}
 }
-
-// TestDimensionID pins the dimension IDs the client is told, and the fallback
-// for a dimension that is not registered.
-func TestDimensionID(t *testing.T) {
-	s := newStubSession(t, nil)
-
-	tests := []struct {
-		name string
-		dim  world.Dimension
-		want int32
-	}{
-		{name: "overworld", dim: world.Overworld, want: 0},
-		{name: "nether", dim: world.Nether, want: 1},
-		{name: "end", dim: world.End, want: 2},
-		{
-			// PINNED BUG: the lookup's ok result is discarded, so an
-			// unregistered dimension is reported as the overworld rather than
-			// refused.
-			name: "an unregistered dimension falls back to the overworld",
-			dim:  unregisteredDimension{},
-			want: 0,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			if got := s.dimensionID(test.dim); got != test.want {
-				t.Fatalf("dimensionID(%v) = %d, want %d", test.name, got, test.want)
-			}
-		})
-	}
-}
-
-// unregisteredDimension is a world.Dimension that was never registered, which
-// is the only way to reach the lookup's failure branch.
-type unregisteredDimension struct{}
-
-func (unregisteredDimension) Range() cube.Range                 { return cube.Range{0, 15} }
-func (unregisteredDimension) WaterEvaporates() bool             { return false }
-func (unregisteredDimension) LavaSpreadDuration() time.Duration { return 0 }
-func (unregisteredDimension) WeatherCycle() bool                { return false }
-func (unregisteredDimension) TimeCycle() bool                   { return false }
-func (unregisteredDimension) String() string                    { return "Unregistered" }
 
 // TestTrackBlob pins the blob store: a tracked blob is kept under its hash and
 // reported as accepted.
@@ -125,7 +82,7 @@ func TestTrackBlobLimit(t *testing.T) {
 // freshly generated column looks like before anything is placed in it.
 func emptyChunk(t *testing.T) *chunk.Chunk {
 	t.Helper()
-	return chunk.New(testRegistry(t), world.Overworld.Range())
+	return chunk.New(testRegistry(t), world.Range())
 }
 
 // TestViewChunkWithoutClientCache pins the packet a client with no blob cache
@@ -135,11 +92,11 @@ func TestViewChunkWithoutClientCache(t *testing.T) {
 	s := newStubSession(t, &stubConn{cacheEnabled: false})
 	c := emptyChunk(t)
 
-	s.ViewChunk(world.ChunkPos{3, -4}, world.Nether, nil, c)
+	s.ViewChunk(world.ChunkPos{3, -4}, nil, c)
 
 	got := onlyPacket(t, s).(*packet.LevelChunk)
-	if got.Dimension != 1 {
-		t.Fatalf("dimension = %d, want the nether 1", got.Dimension)
+	if got.Dimension != 0 {
+		t.Fatalf("dimension = %d, want the overworld 0", got.Dimension)
 	}
 	if got.Position != (protocol.ChunkPos{3, -4}) {
 		t.Fatalf("position = %v, want {3 -4}", got.Position)
@@ -173,14 +130,14 @@ func TestViewChunkWithClientCache(t *testing.T) {
 	s := newStubSession(t, &stubConn{cacheEnabled: true})
 	c := emptyChunk(t)
 
-	s.ViewChunk(world.ChunkPos{0, 0}, world.End, nil, c)
+	s.ViewChunk(world.ChunkPos{0, 0}, nil, c)
 
 	got := onlyPacket(t, s).(*packet.LevelChunk)
 	if !got.CacheEnabled {
 		t.Fatal("cache enabled was not set for a caching client")
 	}
-	if got.Dimension != 2 {
-		t.Fatalf("dimension = %d, want the end 2", got.Dimension)
+	if got.Dimension != 0 {
+		t.Fatalf("dimension = %d, want the overworld 0", got.Dimension)
 	}
 	biomes := chunk.EncodeBiomes(c, chunk.NetworkEncoding)
 	hash := xxhash.Sum64(biomes)
@@ -209,7 +166,7 @@ func TestViewChunkWithClientCacheAtTheBlobLimit(t *testing.T) {
 		s.blobs[i] = []byte{byte(i)}
 	}
 
-	s.ViewChunk(world.ChunkPos{0, 0}, world.Overworld, nil, emptyChunk(t))
+	s.ViewChunk(world.ChunkPos{0, 0}, nil, emptyChunk(t))
 
 	got := onlyPacket(t, s).(*packet.LevelChunk)
 	if got.CacheEnabled {
@@ -231,7 +188,7 @@ func TestViewChunkWithClientCacheAtTheBlobLimit(t *testing.T) {
 func TestViewChunkPositionAxes(t *testing.T) {
 	for _, pos := range []world.ChunkPos{{0, 0}, {1, 2}, {-1, -2}, {2147483647, -2147483648}} {
 		s := newStubSession(t, &stubConn{})
-		s.ViewChunk(pos, world.Overworld, nil, emptyChunk(t))
+		s.ViewChunk(pos, nil, emptyChunk(t))
 
 		got := onlyPacket(t, s).(*packet.LevelChunk)
 		if got.Position != (protocol.ChunkPos{pos.X(), pos.Z()}) {
@@ -250,9 +207,9 @@ func TestSendNetworkChunkIgnoresBlockEntities(t *testing.T) {
 	c := emptyChunk(t)
 
 	withEntities := newStubSession(t, &stubConn{})
-	withEntities.sendNetworkChunk(world.ChunkPos{0, 0}, world.Overworld, c,
+	withEntities.sendNetworkChunk(world.ChunkPos{0, 0}, c,
 		map[cube.Pos]world.Block{{1, 2, 3}: nil})
-	s.sendNetworkChunk(world.ChunkPos{0, 0}, world.Overworld, c, nil)
+	s.sendNetworkChunk(world.ChunkPos{0, 0}, c, nil)
 
 	a := onlyPacket(t, s).(*packet.LevelChunk)
 	b := onlyPacket(t, withEntities).(*packet.LevelChunk)

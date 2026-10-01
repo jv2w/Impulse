@@ -164,7 +164,7 @@ func (l *Loader) viewChunk(tx *Tx, pos ChunkPos, c *Column) {
 	if !l.withinLoadRadius(pos) {
 		return
 	}
-	l.viewer.ViewChunk(pos, l.w.Dimension(), c.BlockEntities, c.Chunk)
+	l.viewer.ViewChunk(pos, c.BlockEntities, c.Chunk)
 	l.w.addViewer(tx, c, l)
 
 	l.loaded[pos] = c

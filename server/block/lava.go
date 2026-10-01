@@ -108,7 +108,7 @@ func (Lava) LightEmissionLevel() uint8 {
 // NeighbourUpdateTick ...
 func (l Lava) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
 	if !l.Harden(pos, tx, nil) {
-		tx.ScheduleBlockUpdate(pos, l, tx.World().Dimension().LavaSpreadDuration())
+		tx.ScheduleBlockUpdate(pos, l, time.Second*3/2)
 	}
 }
 

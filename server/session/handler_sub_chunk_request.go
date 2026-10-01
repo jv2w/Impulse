@@ -26,8 +26,8 @@ func (*SubChunkRequestHandler) Handle(p packet.Packet, s *Session, tx *world.Tx,
 	if len(pk.Offsets) > maxSubChunkOffsets {
 		return fmt.Errorf("too many sub-chunk offsets: %d", len(pk.Offsets))
 	}
-	if dimID, _ := world.DimensionID(tx.World().Dimension()); pk.Dimension != int32(dimID) {
-		// Outdated sub chunk request from a previous dimension.
+	if pk.Dimension != packet.DimensionOverworld {
+		// A request for a dimension other than the Overworld, which is the only one the client is ever in.
 		s.writePacket(&packet.SubChunk{
 			Dimension:       pk.Dimension,
 			Position:        pk.Position,

@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jv2w/Impulse/server/session"
-	"github.com/jv2w/Impulse/server/world"
 )
 
 // blockingListener is a Listener whose Accept parks until Close is called, the
@@ -337,26 +336,6 @@ func TestPlayersSkipsEntriesItCannotResolve(t *testing.T) {
 	}
 	if _, ok := srv.PlayerByName("Alex"); ok {
 		t.Fatal("PlayerByName found a name that was never added")
-	}
-}
-
-// dimension maps a Dimension onto one of the Server's three worlds, and its
-// default branch means an unknown or nil dimension lands in the overworld
-// rather than failing.
-func TestDimensionLookupFallsBackToTheOverworld(t *testing.T) {
-	srv := firstServer
-	for _, c := range []struct {
-		dim  world.Dimension
-		want *world.World
-	}{
-		{world.Overworld, srv.world},
-		{world.Nether, srv.nether},
-		{world.End, srv.end},
-		{nil, srv.world},
-	} {
-		if got := srv.dimension(c.dim); got != c.want {
-			t.Fatalf("dimension(%v) = %v, want %v", c.dim, got.Dimension(), c.want.Dimension())
-		}
 	}
 }
 

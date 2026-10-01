@@ -25,8 +25,8 @@ var explOrigin = mgl64.Vec3{0.5, 65.5, 0.5}
 // explOriginBlock is cube.PosFromVec3(explOrigin).
 var explOriginBlock = cube.Pos{0, 65, 0}
 
-// explSource is the world.ExplosionSource fake. world.BlockExplosionSource and
-// world.EntityExplosionSource cannot express a fractional position and a size
+// explSource is the world.ExplosionSource fake. world.EntityExplosionSource
+// cannot express a fractional position and a size
 // independently, which the ray-march goldens below need.
 type explSource struct {
 	pos  mgl64.Vec3
@@ -409,7 +409,7 @@ func TestExplosionItemDropChanceDefaulting(t *testing.T) {
 }
 
 // TestExplosionSourceDefaultSize pins world's defaultExplosionSize of 4, which
-// both built-in sources fall back to when ExplosionSize is left at 0, and pins
+// the built-in source falls back to when ExplosionSize is left at 0, and pins
 // that a set size is returned unchanged.
 func TestExplosionSourceDefaultSize(t *testing.T) {
 	tests := []struct {
@@ -417,8 +417,6 @@ func TestExplosionSourceDefaultSize(t *testing.T) {
 		src  world.ExplosionSource
 		want float64
 	}{
-		{name: "block source defaults to 4", src: world.BlockExplosionSource{}, want: 4},
-		{name: "block source keeps its size", src: world.BlockExplosionSource{ExplosionSize: 1.5}, want: 1.5},
 		{name: "entity source defaults to 4", src: world.EntityExplosionSource{}, want: 4},
 		{name: "entity source keeps its size", src: world.EntityExplosionSource{ExplosionSize: 6}, want: 6},
 	}

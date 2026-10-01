@@ -103,18 +103,6 @@ func (b Bed) Activate(pos cube.Pos, _ cube.Face, tx *world.Tx, u item.User, _ *i
 	}
 
 	w := tx.World()
-	if w.Dimension() != world.Overworld {
-		tx.SetBlock(pos, nil, nil)
-		ExplosionConfig{
-			SpawnFire: true,
-		}.Explode(tx, world.BlockExplosionSource{
-			Block:         b,
-			Pos:           pos,
-			ExplosionSize: 5,
-		})
-		return true
-	}
-
 	other, sidePos, ok := b.side(pos, tx)
 	if !ok {
 		return false

@@ -246,14 +246,14 @@ func TestSetBlockRegistryNilInstallsTheGlobal(t *testing.T) {
 // spaces.
 func TestSetBlockRegistryDoesNotReachLoadedChunks(t *testing.T) {
 	db := newDB(t)
-	pos, dim := world.ChunkPos{0, 0}, world.Overworld
+	pos := world.ChunkPos{0, 0}
 
-	col := emptyColumn(dim)
+	col := emptyColumn()
 	col.Chunk.SetBlock(0, 0, 0, 0, ridStone)
-	if err := db.StoreColumn(pos, dim, col); err != nil {
+	if err := db.StoreColumn(pos, col); err != nil {
 		t.Fatalf("store: %v", err)
 	}
-	loaded, err := db.LoadColumn(pos, dim)
+	loaded, err := db.LoadColumn(pos)
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
@@ -262,10 +262,10 @@ func TestSetBlockRegistryDoesNotReachLoadedChunks(t *testing.T) {
 	shifted := &testRegistry{blocks: append([]testBlock{{name: "impulse:filler"}}, testBlocks...)}
 	db.SetBlockRegistry(shifted)
 
-	if err := db.StoreColumn(pos, dim, loaded); err != nil {
+	if err := db.StoreColumn(pos, loaded); err != nil {
 		t.Fatalf("store after swap: %v", err)
 	}
-	again, err := db.LoadColumn(pos, dim)
+	again, err := db.LoadColumn(pos)
 	if err != nil {
 		t.Fatalf("load after swap: %v", err)
 	}
@@ -290,18 +290,18 @@ func TestCloseTwice(t *testing.T) {
 // pretending to succeed.
 func TestMethodsAfterClose(t *testing.T) {
 	db := newDB(t)
-	pos, dim := world.ChunkPos{0, 0}, world.Overworld
-	if err := db.StoreColumn(pos, dim, emptyColumn(dim)); err != nil {
+	pos := world.ChunkPos{0, 0}
+	if err := db.StoreColumn(pos, emptyColumn()); err != nil {
 		t.Fatalf("store: %v", err)
 	}
 	if err := db.Close(); err != nil {
 		t.Fatalf("close: %v", err)
 	}
 
-	if _, err := db.LoadColumn(pos, dim); !errors.Is(err, leveldb.ErrClosed) {
+	if _, err := db.LoadColumn(pos); !errors.Is(err, leveldb.ErrClosed) {
 		t.Errorf("LoadColumn: err = %v, want leveldb.ErrClosed", err)
 	}
-	if err := db.StoreColumn(pos, dim, emptyColumn(dim)); !errors.Is(err, leveldb.ErrClosed) {
+	if err := db.StoreColumn(pos, emptyColumn()); !errors.Is(err, leveldb.ErrClosed) {
 		t.Errorf("StoreColumn: err = %v, want leveldb.ErrClosed", err)
 	}
 	iter := db.NewColumnIterator(nil)
@@ -320,23 +320,23 @@ func TestMethodsAfterClose(t *testing.T) {
 // by a single leveldb.Batch, so a failing write leaves no partial chunk behind.
 func TestStoreColumnOnClosedDBWritesNothing(t *testing.T) {
 	dir := t.TempDir()
-	pos, dim := world.ChunkPos{6, 6}, world.Overworld
+	pos := world.ChunkPos{6, 6}
 
 	db := newDBAt(t, dir)
 	if err := db.Close(); err != nil {
 		t.Fatalf("close: %v", err)
 	}
-	col := emptyColumn(dim)
+	col := emptyColumn()
 	col.Chunk.SetBlock(0, 0, 0, 0, ridStone)
-	if err := db.StoreColumn(pos, dim, col); !errors.Is(err, leveldb.ErrClosed) {
+	if err := db.StoreColumn(pos, col); !errors.Is(err, leveldb.ErrClosed) {
 		t.Fatalf("store: err = %v, want leveldb.ErrClosed", err)
 	}
 
 	reopened := newDBAt(t, dir)
-	if _, err := reopened.LoadColumn(pos, dim); !errors.Is(err, leveldb.ErrNotFound) {
+	if _, err := reopened.LoadColumn(pos); !errors.Is(err, leveldb.ErrNotFound) {
 		t.Fatalf("load after failed store: err = %v, want leveldb.ErrNotFound", err)
 	}
-	k := dbKey{pos: pos, dim: dim}
+	k := dbKey{pos: pos}
 	for _, key := range [][]byte{k.Sum(keyVersion), k.Sum(key3DData), k.Sum(keyFinalisation), k.Sum(keySubChunkData, 0xfc)} {
 		if _, ok := getRaw(t, reopened, key); ok {
 			t.Errorf("key %x was written by a store that failed", key)
@@ -362,13 +362,13 @@ func TestConcurrentColumnAccess(t *testing.T) {
 			for i := 0; i < perGoroutine; i++ {
 				pos := world.ChunkPos{int32(g), int32(i)}
 				rid := 1 + uint32(g+i)%5
-				col := emptyColumn(world.Overworld)
+				col := emptyColumn()
 				col.Chunk.SetBlock(0, 0, 0, 0, rid)
-				if err := db.StoreColumn(pos, world.Overworld, col); err != nil {
+				if err := db.StoreColumn(pos, col); err != nil {
 					errs <- err
 					return
 				}
-				got, err := db.LoadColumn(pos, world.Overworld)
+				got, err := db.LoadColumn(pos)
 				if err != nil {
 					errs <- err
 					return

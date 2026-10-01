@@ -39,7 +39,7 @@ type Viewer interface {
 	ViewBrewingUpdate(prevBrewTime, brewTime time.Duration, prevFuelAmount, fuelAmount, prevFuelTotal, fuelTotal int32)
 	// ViewChunk views the chunk passed at a particular position. It is called for every chunk loaded using
 	// the world.Loader.
-	ViewChunk(pos ChunkPos, dim Dimension, blockEntities map[cube.Pos]Block, c *chunk.Chunk)
+	ViewChunk(pos ChunkPos, blockEntities map[cube.Pos]Block, c *chunk.Chunk)
 	// ViewTime views the time of the world. It is called every time the time is changed or otherwise every
 	// second.
 	ViewTime(t int)
@@ -94,7 +94,7 @@ func (NopViewer) ViewEntityMovement(Entity, mgl64.Vec3, cube.Rotation, bool)    
 func (NopViewer) ViewEntityDisplacement(Entity, mgl64.Vec3, cube.Rotation, bool)             {}
 func (NopViewer) ViewEntityVelocity(Entity, mgl64.Vec3)                                      {}
 func (NopViewer) ViewEntityTeleport(Entity, mgl64.Vec3)                                      {}
-func (NopViewer) ViewChunk(ChunkPos, Dimension, map[cube.Pos]Block, *chunk.Chunk)            {}
+func (NopViewer) ViewChunk(ChunkPos, map[cube.Pos]Block, *chunk.Chunk)                       {}
 func (NopViewer) ViewTime(int)                                                               {}
 func (NopViewer) ViewTimeCycle(bool)                                                         {}
 func (NopViewer) ViewEntityItems(Entity)                                                     {}

@@ -239,7 +239,7 @@ func (g tuningLampGenerator) GenerateChunk(pos ChunkPos, c *chunk.Chunk) {
 	c.SetBlock(0, tuningLampY, 0, 0, g.lamp)
 }
 
-func (tuningLampGenerator) DefaultSpawn(Dimension) cube.Pos { return tuningLampPos }
+func (tuningLampGenerator) DefaultSpawn() cube.Pos { return tuningLampPos }
 
 // tuningLamp emits light, which is what gives the fill something to
 // propagate. It does not implement lightDiffuser, so the registry gives it the

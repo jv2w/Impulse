@@ -120,17 +120,16 @@ func (w *World) Name() string {
 	return w.set.Name
 }
 
-// Dimension returns the Dimension assigned to the World in world.New. The sky
-// colour and behaviour of a variety of world features differ based on the
-// Dimension.
-func (w *World) Dimension() Dimension {
-	return w.conf.Dim
-}
-
 // Range returns the range in blocks of the World (min and max). It is
-// equivalent to calling World.Dimension().Range().
+// equivalent to calling Range().
 func (w *World) Range() cube.Range {
 	return w.ra
+}
+
+// Range returns the lowest and highest valid Y coordinates of a block in a
+// World: [-64, 320), the building range of the vanilla Overworld.
+func Range() cube.Range {
+	return cube.Range{-64, 319}
 }
 
 // BlockRegistry returns the BlockRegistry used by the World.
@@ -587,7 +586,7 @@ func (tx *Tx) buildStructure(pos cube.Pos, s Structure) {
 			// After setting all blocks of the structure within a single chunk,
 			// we show the new chunk to all viewers once.
 			for _, viewer := range c.viewers {
-				viewer.ViewChunk(chunkPos, w.Dimension(), c.BlockEntities, c.Chunk)
+				viewer.ViewChunk(chunkPos, c.BlockEntities, c.Chunk)
 			}
 		}
 	}
@@ -1018,14 +1017,6 @@ func (w *World) Spawn() cube.Pos {
 		return cube.Pos{}
 	}
 
-	// The dimension is read once instead of twice; it is fixed for the World's lifetime.
-	dim := w.Dimension()
-	if dim == End {
-		return cube.Pos{100, 50}
-	} else if dim == Nether {
-		return cube.Pos{}
-	}
-
 	w.set.Lock()
 	defer w.set.Unlock()
 	return w.set.Spawn
@@ -1035,13 +1026,6 @@ func (w *World) Spawn() cube.Pos {
 // will be spawned in the centre of this position when newly joining.
 func (w *World) SetSpawn(pos cube.Pos) {
 	if w == nil {
-		return
-	}
-
-	// nether has no spawn point and end spawn point is always 100 50 0.
-	// The dimension is read once instead of twice; it is fixed for the World's lifetime.
-	dim := w.Dimension()
-	if dim == Nether || dim == End {
 		return
 	}
 
@@ -1222,21 +1206,6 @@ func (w *World) viewersOf(pos mgl64.Vec3) []Viewer {
 	return c.viewers
 }
 
-// PortalDestination returns the destination World for a portal of a specific
-// Dimension. If no destination World could be found, the current World is
-// returned. Calling PortalDestination(Nether) on an Overworld World returns
-// Nether, while calling PortalDestination(Nether) on a Nether World will
-// return the Overworld, for instance.
-func (w *World) PortalDestination(dim Dimension) *World {
-	if w.conf.PortalDestination == nil {
-		return w
-	}
-	if res := w.conf.PortalDestination(dim); res != nil {
-		return res
-	}
-	return w
-}
-
 // Save saves the World to the provider.
 func (w *World) Save() {
 	<-w.exec(w.save(w.saveChunk))
@@ -1258,8 +1227,8 @@ func (w *World) save(f func(*Tx, ChunkPos, *Column)) execFunc {
 			f(tx, pos, c)
 		}
 		w.conf.Log.Debug("Updating level.dat values...")
-		// Which input was the problem: the Settings the dimensions share. The
-		// ticks of the other dimensions write it under its lock while this save
+		// Which input was the problem: the Settings the worlds share. The
+		// ticks of the other worlds write it under its lock while this save
 		// read it without one, a data race on every autosave. Held for the save
 		// only, which reads the values and does not take the lock itself.
 		w.set.Lock()
@@ -1303,7 +1272,7 @@ func (w *World) storeChunk(pos ChunkPos, c *Column, owned bool) {
 			c.modified = false
 			return
 		}
-		if err := w.conf.Provider.StoreColumn(pos, w.conf.Dim, col); err != nil {
+		if err := w.conf.Provider.StoreColumn(pos, col); err != nil {
 			w.conf.Log.Error("save chunk: "+err.Error(), "X", pos[0], "Z", pos[1])
 			return
 		}
@@ -1517,7 +1486,7 @@ func (w *World) loadChunk(pos ChunkPos) (*chunk.Column, error) {
 		// A chunk unloaded moments ago may still be on its way to the Provider.
 		w.saver.waitPos(pos)
 	}
-	column, err := w.conf.Provider.LoadColumn(pos, w.conf.Dim)
+	column, err := w.conf.Provider.LoadColumn(pos)
 	if err != nil {
 		if !errors.Is(err, leveldb.ErrNotFound) {
 			return nil, err

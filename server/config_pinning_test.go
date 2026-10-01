@@ -12,7 +12,6 @@ import (
 	"github.com/jv2w/Impulse/server/player"
 	"github.com/jv2w/Impulse/server/player/chat"
 	"github.com/jv2w/Impulse/server/world"
-	"github.com/jv2w/Impulse/server/world/generator"
 	"github.com/sandertv/gophertunnel/minecraft/resource"
 )
 
@@ -100,94 +99,32 @@ func TestConfigDoesNotValidateNumbers(t *testing.T) {
 	}
 }
 
-// PINNED CONSTRAINT: the three worlds are always created in the order
-// overworld, nether, end, and each is logged twice. The wiring below depends on
-// it only through the pointers taken in conf.go:206-208, but the log is the one
-// place the order is observable, so it is asserted here.
-func TestWorldsAreCreatedInDimensionOrder(t *testing.T) {
+// The world is created once and logged twice.
+func TestWorldCreationIsLogged(t *testing.T) {
 	want := []string{
 		"config: no listeners set, no connections will be accepted",
-		"Loading dimension... dimension=overworld",
-		"Opened dimension. dimension=overworld name=World",
-		"Loading dimension... dimension=nether",
-		"Opened dimension. dimension=nether name=World",
-		"Loading dimension... dimension=end",
-		"Opened dimension. dimension=end name=World",
+		"Loading world...",
+		"Opened world. name=World",
 	}
 	if got := firstNewLog.Lines(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("Config.New logged\n%q\nwant\n%q", got, want)
 	}
 }
 
-// All three worlds carry the same name and only the end starts players away
-// from the origin.
+// The world is named World and starts players at the origin.
 func TestWorldDefaults(t *testing.T) {
-	srv := firstServer
-	for _, c := range []struct {
-		w     *world.World
-		dim   world.Dimension
-		spawn [3]int
-	}{
-		{srv.World(), world.Overworld, [3]int{0, 0, 0}},
-		{srv.Nether(), world.Nether, [3]int{0, 0, 0}},
-		{srv.End(), world.End, [3]int{100, 50, 0}},
-	} {
-		if c.w.Dimension() != c.dim {
-			t.Fatalf("dimension = %v, want %v", c.w.Dimension(), c.dim)
-		}
-		if c.w.Name() != "World" {
-			t.Fatalf("%v name = %q, want %q", c.dim, c.w.Name(), "World")
-		}
-		if got := c.w.Spawn(); [3]int{got.X(), got.Y(), got.Z()} != c.spawn {
-			t.Fatalf("%v spawn = %v, want %v", c.dim, got, c.spawn)
-		}
-		if got, want := c.w.DefaultGameMode(), world.GameModeSurvival; got != want {
-			t.Fatalf("%v default game mode = %T, want %T", c.dim, got, want)
-		}
-		if c.w.BlockRegistry() != world.DefaultBlockRegistry {
-			t.Fatalf("%v does not use the default block registry", c.dim)
-		}
+	w := firstServer.World()
+	if w.Name() != "World" {
+		t.Fatalf("name = %q, want %q", w.Name(), "World")
 	}
-}
-
-// Portals point at the other two worlds of the same Server. A portal leading
-// back to the dimension a world already is returns that same world, because
-// world.PortalDestination falls back to the receiver when the configured
-// function yields nil.
-func TestPortalDestinationsAreCrossWired(t *testing.T) {
-	srv := firstServer
-	for _, c := range []struct {
-		name string
-		from *world.World
-		dim  world.Dimension
-		want *world.World
-	}{
-		{"overworld to nether", srv.World(), world.Nether, srv.Nether()},
-		{"overworld to end", srv.World(), world.End, srv.End()},
-		{"overworld to overworld", srv.World(), world.Overworld, srv.World()},
-		{"nether to nether", srv.Nether(), world.Nether, srv.World()},
-		{"nether to end", srv.Nether(), world.End, srv.End()},
-		{"end to end", srv.End(), world.End, srv.World()},
-		{"end to nether", srv.End(), world.Nether, srv.Nether()},
-	} {
-		if got := c.from.PortalDestination(c.dim); got != c.want {
-			t.Fatalf("%v: got %v, want %v", c.name, got.Dimension(), c.want.Dimension())
-		}
+	if got := w.Spawn(); [3]int{got.X(), got.Y(), got.Z()} != [3]int{0, 0, 0} {
+		t.Fatalf("spawn = %v, want %v", got, [3]int{0, 0, 0})
 	}
-}
-
-// PINNED BUG: loadGenerator panics on any dimension that is not one of the
-// three built-in ones, rather than returning an error. It is reachable
-// from Config.New for any caller that registers a custom dimension and leaves
-// Config.Generator nil.
-func TestLoadGeneratorPanicsOnUnknownDimensions(t *testing.T) {
-	for _, dim := range []world.Dimension{world.Overworld, world.Nether, world.End} {
-		if _, ok := loadGenerator(dim).(generator.Flat); !ok {
-			t.Fatalf("%v generator = %T, want generator.Flat", dim, loadGenerator(dim))
-		}
+	if got, want := w.DefaultGameMode(), world.GameModeSurvival; got != want {
+		t.Fatalf("default game mode = %T, want %T", got, want)
 	}
-	if got := caught(func() { loadGenerator(nil) }); got != "should never happen" {
-		t.Fatalf("loadGenerator(nil) panicked with %v, want %q", got, "should never happen")
+	if w.BlockRegistry() != world.DefaultBlockRegistry {
+		t.Fatal("the world does not use the default block registry")
 	}
 }
 

@@ -65,7 +65,7 @@ func TestNewRefOnANilHandle(t *testing.T) {
 func TestNopProviderLoadReportsNoData(t *testing.T) {
 	var p NopProvider
 
-	cfg, w, err := p.Load(stubUUID, func(world.Dimension) *world.World { return nil })
+	cfg, err := p.Load(stubUUID)
 
 	if !errors.Is(err, ErrNoData) {
 		t.Fatalf("Load error = %v, want ErrNoData", err)
@@ -73,14 +73,11 @@ func TestNopProviderLoadReportsNoData(t *testing.T) {
 	if err.Error() != "no player data stored" {
 		t.Fatalf("Load error message = %q, want %q", err.Error(), "no player data stored")
 	}
-	if w != nil {
-		t.Fatalf("Load world = %v, want nil", w)
-	}
 	if cfg.Inventory != nil || cfg.GameMode != nil {
 		t.Fatalf("Load config = %+v, want the zero Config", cfg)
 	}
 
-	if err := p.Save(stubUUID, cfg, nil); err != nil {
+	if err := p.Save(stubUUID, cfg); err != nil {
 		t.Fatalf("Save = %v, want nil", err)
 	}
 	if err := p.Close(); err != nil {

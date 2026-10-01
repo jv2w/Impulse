@@ -29,7 +29,6 @@ type ColumnIterator struct {
 
 	current *chunk.Column
 	pos     world.ChunkPos
-	dim     world.Dimension
 	seen    map[dbKey]struct{}
 }
 
@@ -47,37 +46,30 @@ func newColumnIterator(db *DB, r *IteratorRange) *ColumnIterator {
 func (iter *ColumnIterator) Next() bool {
 	if iter.err != nil || !iter.dbIter.Next() {
 		iter.current = nil
-		iter.dim = nil
 		return false
 	}
 	k := iter.dbIter.Key()
-	kLen := len(k)
-	if (kLen != 9 && kLen != 13) || (k[kLen-1] != keyVersion && k[kLen-1] != keyVersionOld) {
+	// A chunk version key is the 8 byte chunk position followed by the key
+	// type. The 13 byte version keys of a vanilla world carry a dimension ID
+	// before the key type and hold the chunks of the Nether and the End, which
+	// are skipped and left untouched.
+	if len(k) != 9 || (k[8] != keyVersion && k[8] != keyVersionOld) {
 		return iter.Next()
-	}
-	iter.dim = world.Dimension(world.Overworld)
-	if kLen > 9 {
-		var ok bool
-		id := int(binary.LittleEndian.Uint32(k[8:12]))
-		if iter.dim, ok = world.DimensionByID(id); !ok {
-			iter.err = fmt.Errorf("unknown dimension id %v", id)
-			return false
-		}
 	}
 	iter.pos = world.ChunkPos{
 		int32(binary.LittleEndian.Uint32(k[:4])),
 		int32(binary.LittleEndian.Uint32(k[4:8])),
 	}
-	if !iter.r.within(iter.pos, iter.dim) {
+	if !iter.r.within(iter.pos) {
 		return iter.Next()
 	}
-	key := dbKey{dim: iter.dim, pos: iter.pos}
+	key := dbKey{pos: iter.pos}
 	if _, ok := iter.seen[key]; ok {
 		// Already encountered this chunk. This might happen if there are
 		// multiple version keys.
 		return iter.Next()
 	}
-	iter.current, iter.err = iter.db.LoadColumn(iter.pos, iter.dim)
+	iter.current, iter.err = iter.db.LoadColumn(iter.pos)
 	if iter.err != nil {
 		iter.err = fmt.Errorf("load chunk %v: %w", iter.pos, iter.err)
 		return false
@@ -94,12 +86,6 @@ func (iter *ColumnIterator) Column() *chunk.Column {
 // Position returns the position of the current position/column pair.
 func (iter *ColumnIterator) Position() world.ChunkPos {
 	return iter.pos
-}
-
-// Dimension returns the dimension of the current position/column pair, or nil
-// if none.
-func (iter *ColumnIterator) Dimension() world.Dimension {
-	return iter.dim
 }
 
 // Release releases associated resources. Release should always success
@@ -121,18 +107,10 @@ type IteratorRange struct {
 	// A zero value for both Min and Max causes all positions to be within the
 	// range.
 	Min, Max world.ChunkPos
-	// Dimension specifies what world.Dimension chunks should be accumulated
-	// from. If nil, all dimensions will be read from.
-	Dimension world.Dimension
 }
 
-// within checks if a position and dimension is within the IteratorRange.
-func (r *IteratorRange) within(pos world.ChunkPos, dim world.Dimension) bool {
-	// Both operands of the && are side effect free, so testing the nil check first gives the same result and
-	// skips the interface comparison whenever no dimension was set.
-	if r.Dimension != nil && dim != r.Dimension {
-		return false
-	}
+// within checks if a position is within the IteratorRange.
+func (r *IteratorRange) within(pos world.ChunkPos) bool {
 	return ((r.Min == world.ChunkPos{}) && (r.Max == world.ChunkPos{})) ||
 		pos[0] >= r.Min[0] && pos[0] < r.Max[0] && pos[1] >= r.Min[1] && pos[1] < r.Max[1]
 }

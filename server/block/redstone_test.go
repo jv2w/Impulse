@@ -116,7 +116,7 @@ func TestRedstoneWireGlowstoneLadderDoesNotOscillateAfterNeighbourBlockUpdate(t 
 		{name: "break diagonal top dust", updatePos: cube.Pos{1, 67, -1}, breaking: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			w := world.Config{Dim: world.End, Synchronous: true}.New()
+			w := world.Config{Synchronous: true}.New()
 			defer w.Close()
 
 			viewer := &redstoneWireTestBlockUpdateViewer{}
@@ -1003,7 +1003,7 @@ func (e redstoneTNTTestEntity) Rotation() cube.Rotation {
 	return e.data.Rot
 }
 func TestRedstoneTorchLoopBurnsOutThroughWorldScheduler(t *testing.T) {
-	w := world.Config{Dim: world.End, Synchronous: true}.New()
+	w := world.Config{Synchronous: true}.New()
 	defer w.Close()
 
 	loader := world.NewLoader(2, w, world.NopViewer{})
@@ -1057,7 +1057,7 @@ func TestRedstoneTorchLoopBurnsOutThroughWorldScheduler(t *testing.T) {
 }
 
 func TestBurnedOutRedstoneTorchRelightsWhenLoopWireBreaks(t *testing.T) {
-	w := world.Config{Dim: world.End, Synchronous: true}.New()
+	w := world.Config{Synchronous: true}.New()
 	defer w.Close()
 
 	loader := world.NewLoader(2, w, world.NopViewer{})
@@ -1228,7 +1228,7 @@ func TestBurnedOutRedstoneTorchRecoveryUpdates(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			w := world.Config{Dim: world.End, Synchronous: true}.New()
+			w := world.Config{Synchronous: true}.New()
 			defer w.Close()
 
 			loader := world.NewLoader(2, w, world.NopViewer{})

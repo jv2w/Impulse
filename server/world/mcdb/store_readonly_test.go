@@ -14,13 +14,13 @@ import (
 // untouched.
 func TestStoreColumnLeavesCallerDataAlone(t *testing.T) {
 	db := newDB(t)
-	col := emptyColumn(world.Overworld)
+	col := emptyColumn()
 	entityData := map[string]any{"identifier": "minecraft:pig"}
 	blockEntityData := map[string]any{"id": "Chest"}
 	col.Entities = []chunk.Entity{{ID: 42, Data: entityData}}
 	col.BlockEntities = []chunk.BlockEntity{{Pos: cube.Pos{1, 2, 3}, Data: blockEntityData}}
 
-	if err := db.StoreColumn(world.ChunkPos{0, 0}, world.Overworld, col); err != nil {
+	if err := db.StoreColumn(world.ChunkPos{0, 0}, col); err != nil {
 		t.Fatalf("store: %v", err)
 	}
 	if _, ok := entityData["UniqueID"]; ok {
@@ -33,7 +33,7 @@ func TestStoreColumnLeavesCallerDataAlone(t *testing.T) {
 	}
 
 	// The stored bytes still carry the keys: golden values on the round trip.
-	got, err := db.LoadColumn(world.ChunkPos{0, 0}, world.Overworld)
+	got, err := db.LoadColumn(world.ChunkPos{0, 0})
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}

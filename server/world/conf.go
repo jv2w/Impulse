@@ -18,15 +18,6 @@ type Config struct {
 	// Log is the Logger that will be used to log errors and debug messages to.
 	// If set to nil, slog.Default() is set.
 	Log *slog.Logger
-	// Dim is the Dimension of the World. If set to nil, the World will use
-	// Overworld as its dimension. The dimension set here influences, among
-	// others, the sky colour, weather/time and liquid behaviour in that World.
-	Dim Dimension
-	// PortalDestination is a function that returns the destination World for a
-	// portal of a specific Dimension type. If set to nil, no portals will
-	// function. If the function returns a nil world for a Dimension, only
-	// portals of that specific Dimension type will not function.
-	PortalDestination func(dim Dimension) *World
 	// Provider is the Provider implementation used to read and write World
 	// data. If set to nil, the Provider used will be NopProvider, which does
 	// not store any data to disk.
@@ -101,9 +92,6 @@ func (conf Config) New() *World {
 	if conf.Log == nil {
 		conf.Log = slog.Default()
 	}
-	if conf.Dim == nil {
-		conf.Dim = Overworld
-	}
 	if conf.SaveInterval == 0 {
 		conf.SaveInterval = time.Minute * 10
 	}
@@ -119,7 +107,7 @@ func (conf Config) New() *World {
 	if conf.Provider == nil {
 		// If no provider is set, use the default settings and the default spawn position from the generator.
 		s := defaultSettings()
-		s.Spawn = conf.Generator.DefaultSpawn(conf.Dim)
+		s.Spawn = conf.Generator.DefaultSpawn()
 		conf.Provider = NopProvider{Set: s}
 	}
 	if conf.RandomTickSpeed == 0 {
@@ -164,7 +152,7 @@ func (conf Config) New() *World {
 		r:                rand.New(conf.RandSource),
 		advance:          s.ref.Add(1) == 1,
 		conf:             conf,
-		ra:               conf.Dim.Range(),
+		ra:               Range(),
 		set:              s,
 	}
 	w.tuning.store(conf.Tuning)

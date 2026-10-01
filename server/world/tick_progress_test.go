@@ -92,7 +92,7 @@ func TestTickProgressTimeCycle(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			w := tickProgressWorld(t, Overworld)
+			w := tickProgressWorld(t)
 			if !test.cycle {
 				w.StopTime()
 			}
@@ -125,7 +125,7 @@ func TestTickProgressWeatherCycle(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			w := tickProgressWorld(t, Overworld)
+			w := tickProgressWorld(t)
 			if !test.cycle {
 				w.StopWeatherCycle()
 			}
@@ -150,7 +150,7 @@ func TestTickProgressWeatherCycle(t *testing.T) {
 // flips the state it guards and is reset to a positive value drawn from the
 // World's random source.
 func TestTickProgressWeatherTogglesAtZero(t *testing.T) {
-	w := tickProgressWorld(t, Overworld)
+	w := tickProgressWorld(t)
 	w.set.Lock()
 	w.set.RainTime, w.set.Raining = 1, false
 	w.set.ThunderTime = 100000
@@ -169,12 +169,11 @@ func TestTickProgressWeatherTogglesAtZero(t *testing.T) {
 	}
 }
 
-// TestTickProgressSpawnHeightCorrection pins the Overworld-only spawn clamp: a
-// spawn Y above the build limit is rewritten to one above the highest
-// obstructing block, and other dimensions are left alone.
+// TestTickProgressSpawnHeightCorrection pins the spawn clamp: a spawn Y above
+// the build limit is rewritten to one above the highest obstructing block.
 func TestTickProgressSpawnHeightCorrection(t *testing.T) {
-	t.Run("overworld with an obstructing block", func(t *testing.T) {
-		w := tickProgressWorld(t, Overworld)
+	t.Run("an obstructing block", func(t *testing.T) {
+		w := tickProgressWorld(t)
 		runWorld(w, func(tx *Tx) { tx.SetBlock(cube.Pos{0, 70, 0}, tickProgressSolid{}, nil) })
 		w.SetSpawn(cube.Pos{0, 1000, 0})
 
@@ -183,8 +182,8 @@ func TestTickProgressSpawnHeightCorrection(t *testing.T) {
 			t.Fatalf("corrected spawn = %v, want one above the obstructing block at y 70", got)
 		}
 	})
-	t.Run("overworld with an empty column", func(t *testing.T) {
-		w := tickProgressWorld(t, Overworld)
+	t.Run("an empty column", func(t *testing.T) {
+		w := tickProgressWorld(t)
 		w.SetSpawn(cube.Pos{0, 1000, 0})
 
 		w.AdvanceTick()
@@ -192,28 +191,12 @@ func TestTickProgressSpawnHeightCorrection(t *testing.T) {
 			t.Fatalf("corrected spawn in a void column = %v, want the world floor plus one", got)
 		}
 	})
-	t.Run("nether is left alone", func(t *testing.T) {
-		w := tickProgressWorld(t, Nether)
-		// SetSpawn is a no-op for the Nether, so the out-of-range spawn has to be
-		// written to the Settings directly.
-		w.set.Lock()
-		w.set.Spawn = cube.Pos{0, 1000, 0}
-		w.set.Unlock()
-
-		w.AdvanceTick()
-		w.set.Lock()
-		got := w.set.Spawn
-		w.set.Unlock()
-		if got != (cube.Pos{0, 1000, 0}) {
-			t.Fatalf("Nether spawn = %v, want the clamp to be skipped outside the Overworld", got)
-		}
-	})
 }
 
 // TestTickProgressRequiredSleepTicksCountdown pins that the sleep countdown
 // drops by exactly one per tick and stops at zero rather than going negative.
 func TestTickProgressRequiredSleepTicksCountdown(t *testing.T) {
-	w := tickProgressWorld(t, Overworld)
+	w := tickProgressWorld(t)
 	w.SetRequiredSleepDuration(time.Millisecond * 150)
 
 	var got []int64
@@ -236,7 +219,7 @@ func TestTickProgressRequiredSleepTicksCountdown(t *testing.T) {
 // World whose sleepers all left before the countdown expired advances the day
 // unconditionally, at any time of day.
 func TestTickProgressSleepCountdownAdvancesDayWithoutSleepers(t *testing.T) {
-	w := tickProgressWorld(t, Overworld)
+	w := tickProgressWorld(t)
 	w.SetTime(500)
 	w.SetRequiredSleepDuration(time.Millisecond * 50)
 
@@ -252,7 +235,7 @@ func TestTickProgressSleepCountdownAdvancesDayWithoutSleepers(t *testing.T) {
 // TestTickProgressViewerUpdatesEveryTwentyTicks pins that time and weather are
 // pushed to viewers only on ticks that are a multiple of 20.
 func TestTickProgressViewerUpdatesEveryTwentyTicks(t *testing.T) {
-	w := tickProgressWorld(t, Overworld)
+	w := tickProgressWorld(t)
 	viewer := &tickProgressViewer{}
 	w.addWorldViewer(&Loader{viewer: viewer})
 
@@ -273,29 +256,16 @@ func TestTickProgressViewerUpdatesEveryTwentyTicks(t *testing.T) {
 		t.Fatalf("ViewTime called on ticks %v, want %v", updatedOn, wantUpdatedOn)
 	}
 	if viewer.weathers != viewer.times {
-		t.Fatalf("ViewWeather calls = %d, ViewTime calls = %d; want both on every twentieth tick in the Overworld", viewer.weathers, viewer.times)
+		t.Fatalf("ViewWeather calls = %d, ViewTime calls = %d; want both on every twentieth tick", viewer.weathers, viewer.times)
 	}
 }
 
-// TestTickProgressViewerUpdatesFollowDimension pins the two extra guards on the
-// twenty-tick broadcast: time is only sent when the dimension and the World both
-// cycle it, and weather only when the dimension has weather.
-func TestTickProgressViewerUpdatesFollowDimension(t *testing.T) {
-	t.Run("nether sends neither", func(t *testing.T) {
-		w := tickProgressWorld(t, Nether)
-		viewer := &tickProgressViewer{}
-		w.addWorldViewer(&Loader{viewer: viewer})
-
-		viewer.reset()
-		for range 40 {
-			w.AdvanceTick()
-		}
-		if viewer.times != 0 || viewer.weathers != 0 {
-			t.Fatalf("Nether viewer updates = %d time, %d weather; want none", viewer.times, viewer.weathers)
-		}
-	})
+// TestTickProgressViewerUpdatesFollowTimeCycle pins the extra guard on the
+// twenty-tick broadcast: time is only sent when the World cycles it, while
+// weather is always sent.
+func TestTickProgressViewerUpdatesFollowTimeCycle(t *testing.T) {
 	t.Run("stopped time cycle drops time but keeps weather", func(t *testing.T) {
-		w := tickProgressWorld(t, Overworld)
+		w := tickProgressWorld(t)
 		viewer := &tickProgressViewer{}
 		w.addWorldViewer(&Loader{viewer: viewer})
 		w.StopTime()
@@ -313,9 +283,9 @@ func TestTickProgressViewerUpdatesFollowDimension(t *testing.T) {
 	})
 }
 
-// tickProgressWorld returns a Synchronous World in the dimension passed, with a
-// fixed random source and a registry holding the solid marker block.
-func tickProgressWorld(t *testing.T, dim Dimension) *World {
+// tickProgressWorld returns a Synchronous World with a fixed random source and
+// a registry holding the solid marker block.
+func tickProgressWorld(t *testing.T) *World {
 	t.Helper()
 
 	registry := NewBlockRegistry()
@@ -324,7 +294,6 @@ func tickProgressWorld(t *testing.T, dim Dimension) *World {
 
 	w := Config{
 		Synchronous: true,
-		Dim:         dim,
 		Blocks:      registry,
 		RandSource:  rand.NewPCG(0x50524f47, 0x52455353),
 		Log:         tickProgressDiscardLog(),

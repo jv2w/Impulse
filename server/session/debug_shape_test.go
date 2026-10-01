@@ -8,7 +8,6 @@ import (
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/go-gl/mathgl/mgl64"
 	"github.com/jv2w/Impulse/server/player/debug"
-	"github.com/jv2w/Impulse/server/world"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 )
 
@@ -74,7 +73,7 @@ func TestDebugShapeToProtocolTypes(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ps := debugShapeToProtocol(test.shape, world.Overworld, 0)
+			ps := debugShapeToProtocol(test.shape, 0)
 
 			got, ok := ps.Type.Value()
 			if !ok {
@@ -103,17 +102,17 @@ func TestDebugShapeToProtocolTypes(t *testing.T) {
 // TestDebugShapeToProtocolDimensionAndAttachment pins the two fields that come
 // from outside the shape.
 func TestDebugShapeToProtocolDimensionAndAttachment(t *testing.T) {
-	ps := debugShapeToProtocol(&debug.Box{}, world.End, 42)
+	ps := debugShapeToProtocol(&debug.Box{}, 42)
 
-	if dim, ok := ps.DimensionID.Value(); !ok || dim != 2 {
-		t.Fatalf("dimension = %v (set: %v), want the end 2", dim, ok)
+	if dim, ok := ps.DimensionID.Value(); !ok || dim != 0 {
+		t.Fatalf("dimension = %v (set: %v), want the overworld 0", dim, ok)
 	}
 	if id, ok := ps.AttachedToEntityID.Value(); !ok || id != 42 {
 		t.Fatalf("attached entity = %v (set: %v), want 42", id, ok)
 	}
 
 	// A runtime ID of zero means unattached, so it is left out entirely.
-	ps = debugShapeToProtocol(&debug.Box{}, world.Overworld, 0)
+	ps = debugShapeToProtocol(&debug.Box{}, 0)
 	if _, ok := ps.AttachedToEntityID.Value(); ok {
 		t.Fatal("runtime ID 0 was sent as an attachment")
 	}
@@ -122,7 +121,7 @@ func TestDebugShapeToProtocolDimensionAndAttachment(t *testing.T) {
 // TestDebugShapeToProtocolArrowDefaults pins the arrow's four defaults, which
 // are the values the client draws when the caller left the field zero.
 func TestDebugShapeToProtocolArrowDefaults(t *testing.T) {
-	ps := debugShapeToProtocol(&debug.Arrow{}, world.Overworld, 0)
+	ps := debugShapeToProtocol(&debug.Arrow{}, 0)
 
 	arrow, ok := ps.ExtraShapeData.(*protocol.ArrowShape)
 	if !ok {
@@ -145,7 +144,7 @@ func TestDebugShapeToProtocolArrowDefaults(t *testing.T) {
 		HeadRadius:   3,
 		HeadSegments: 8,
 		Colour:       color.RGBA{R: 1, G: 2, B: 3, A: 4},
-	}, world.Overworld, 0)
+	}, 0)
 
 	if loc, _ := explicit.Location.Value(); loc != (mgl32.Vec3{1, 2, 3}) {
 		t.Fatalf("location = %v, want {1 2 3}", loc)
@@ -219,7 +218,7 @@ func TestDebugShapeToProtocolShapeDefaults(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ps := debugShapeToProtocol(test.shape, world.Overworld, 0)
+			ps := debugShapeToProtocol(test.shape, 0)
 			if !reflect.DeepEqual(ps.ExtraShapeData, test.want) {
 				t.Fatalf("extra shape data = %#v, want %#v", ps.ExtraShapeData, test.want)
 			}
@@ -239,7 +238,7 @@ func TestDebugShapeToProtocolShapeDefaults(t *testing.T) {
 // cylinder with no top radius is straight rather than collapsing to a cone, and
 // that the two radii are packed one axis per Vec2.
 func TestDebugShapeToProtocolCylinderTopRadiusDefaultsToTheBase(t *testing.T) {
-	ps := debugShapeToProtocol(&debug.Cylinder{BaseRadius: mgl64.Vec2{2, 3}}, world.Overworld, 0)
+	ps := debugShapeToProtocol(&debug.Cylinder{BaseRadius: mgl64.Vec2{2, 3}}, 0)
 
 	want := &protocol.CylinderShape{
 		// RadiusX holds the base and top radius on X; RadiusZ the same on Z.
@@ -255,7 +254,7 @@ func TestDebugShapeToProtocolCylinderTopRadiusDefaultsToTheBase(t *testing.T) {
 	tapered := debugShapeToProtocol(&debug.Cylinder{
 		BaseRadius: mgl64.Vec2{2, 3},
 		TopRadius:  mgl64.Vec2{1, 1},
-	}, world.Overworld, 0)
+	}, 0)
 	wantTapered := &protocol.CylinderShape{
 		RadiusX:     mgl32.Vec2{2, 1},
 		RadiusZ:     mgl32.Vec2{3, 1},
@@ -271,13 +270,13 @@ func TestDebugShapeToProtocolCylinderTopRadiusDefaultsToTheBase(t *testing.T) {
 // one field that is left unset rather than defaulted so the client can fall
 // back to the width.
 func TestDebugShapeToProtocolPyramidDepth(t *testing.T) {
-	ps := debugShapeToProtocol(&debug.Pyramid{Width: 4}, world.Overworld, 0)
+	ps := debugShapeToProtocol(&debug.Pyramid{Width: 4}, 0)
 	pyramid := ps.ExtraShapeData.(*protocol.PyramidShape)
 	if _, ok := pyramid.Depth.Value(); ok {
 		t.Fatal("an unset depth was sent, want it left out so the client uses the width")
 	}
 
-	ps = debugShapeToProtocol(&debug.Pyramid{Width: 4, Depth: 5}, world.Overworld, 0)
+	ps = debugShapeToProtocol(&debug.Pyramid{Width: 4, Depth: 5}, 0)
 	pyramid = ps.ExtraShapeData.(*protocol.PyramidShape)
 	if depth, ok := pyramid.Depth.Value(); !ok || depth != 5 {
 		t.Fatalf("depth = %v (set: %v), want 5", depth, ok)
@@ -287,7 +286,7 @@ func TestDebugShapeToProtocolPyramidDepth(t *testing.T) {
 // TestDebugShapeToProtocolText pins the text shape, whose flags are all
 // inverted on the way out and whose background has three states.
 func TestDebugShapeToProtocolText(t *testing.T) {
-	ps := debugShapeToProtocol(&debug.Text{Text: "hello"}, world.Overworld, 0)
+	ps := debugShapeToProtocol(&debug.Text{Text: "hello"}, 0)
 	text := ps.ExtraShapeData.(*protocol.TextShape)
 
 	if text.Text != "hello" {
@@ -315,7 +314,7 @@ func TestDebugShapeToProtocolText(t *testing.T) {
 		HideBackfaceText: true,
 		LockRotation:     true,
 		Rotation:         mgl64.Vec3{0, 90, 0},
-	}, world.Overworld, 0)
+	}, 0)
 	text = hidden.ExtraShapeData.(*protocol.TextShape)
 
 	// HideBackground takes precedence over an explicit background colour.
@@ -334,7 +333,7 @@ func TestDebugShapeToProtocolText(t *testing.T) {
 
 	coloured := debugShapeToProtocol(&debug.Text{
 		BackgroundColour: color.RGBA{R: 1, G: 2, B: 3, A: 4},
-	}, world.Overworld, 0)
+	}, 0)
 	text = coloured.ExtraShapeData.(*protocol.TextShape)
 	if c, ok := text.BackgroundColour.Value(); !ok || c != (color.RGBA{R: 1, G: 2, B: 3, A: 4}) {
 		t.Fatalf("background = %v (set: %v), want the explicit colour", c, ok)
@@ -352,7 +351,7 @@ func TestDebugShapeToProtocolUnknownShapePanics(t *testing.T) {
 			t.Fatal("an unknown shape did not panic")
 		}
 	}()
-	debugShapeToProtocol(foreignShape{}, world.Overworld, 0)
+	debugShapeToProtocol(foreignShape{}, 0)
 }
 
 // foreignShape is a debug.Shape the conversion's type switch does not name.

@@ -144,8 +144,8 @@ func TestPackageLevelNew(t *testing.T) {
 	if srv.conf.Name != "Impulse Server" || srv.conf.MaxChunkRadius != 12 {
 		t.Fatalf("New() = %+v, want the Config{}.New() defaults", srv.conf)
 	}
-	if srv.World() == nil || srv.Nether() == nil || srv.End() == nil {
-		t.Fatal("New() did not create all three worlds")
+	if srv.World() == nil {
+		t.Fatal("New() did not create the world")
 	}
 }
 
@@ -153,7 +153,7 @@ func TestPackageLevelNew(t *testing.T) {
 // empty when nothing custom is registered. Rebuilding them is idempotent.
 func TestCustomEntryListsAreBuiltAtStartup(t *testing.T) {
 	srv := newServer(t, Config{})
-	if srv.customBlocks != nil || srv.customItems != nil || srv.customDimensions != nil {
+	if srv.customBlocks != nil || srv.customItems != nil {
 		t.Fatal("Config.New built the custom entry lists; startListening used to")
 	}
 	srv.Listen()
@@ -167,7 +167,6 @@ func TestCustomEntryListsAreBuiltAtStartup(t *testing.T) {
 		n    int
 	}{
 		{"items", len(srv.customItems)},
-		{"dimensions", len(srv.customDimensions)},
 	} {
 		if c.n != 0 {
 			t.Fatalf("custom %v = %v, want 0 with nothing registered", c.name, c.n)

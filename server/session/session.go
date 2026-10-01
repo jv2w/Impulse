@@ -83,7 +83,6 @@ type Session struct {
 	openedPos                      atomic.Pointer[cube.Pos]
 	swingingArm                    atomic.Bool
 	changingSlot                   atomic.Bool
-	changingDimension              atomic.Bool
 	moving                         bool
 
 	lastChunkPos world.ChunkPos
@@ -594,48 +593,9 @@ func (s *Session) handleWorldSwitch(w *world.World, tx *world.Tx, c Controllable
 		s.openChunkTransactions = nil
 		s.blobMu.Unlock()
 	}
-
-	// The world's dimension is read once instead of twice; nothing between the two reads changes it. The
-	// dimension ID is only needed by the branch that changes dimension, so it is resolved there instead of
-	// on every world switch.
-	wDim := w.Dimension()
-	same := wDim == s.chunkLoader.World().Dimension()
-	if !same {
-		dim, _ := world.DimensionID(wDim)
-		s.changeDimension(int32(dim), false, c)
-	}
 	s.ViewEntityTeleport(c, c.Position())
 	s.closeContainerInOldWorld(s.chunkLoader.World())
 	s.chunkLoader.ChangeWorld(tx, w)
-}
-
-// changeDimension changes the dimension of the client. If silent is set to true, the portal noise will be stopped
-// immediately.
-func (s *Session) changeDimension(dim int32, silent bool, c Controllable) {
-	s.changingDimension.Store(true)
-	h := s.handlers[packet.IDServerBoundLoadingScreen].(*ServerBoundLoadingScreenHandler)
-	id := h.currentID.Add(1)
-	h.expectedID.Store(id)
-
-	s.writePacket(&packet.ChangeDimension{
-		Dimension:       dim,
-		Position:        vec64To32(c.Position().Add(entityOffset(c))),
-		LoadingScreenID: protocol.Option(id),
-	})
-	s.writePacket(&packet.StopSound{StopAll: silent})
-	s.writePacket(&packet.PlayStatus{Status: packet.PlayStatusPlayerSpawn})
-
-	// As of v1.19.50, the dimension ack that is meant to be sent by the client is now sent by the server. The client
-	// still sends the ack, but after the server has sent it. Thanks to Mojang for another groundbreaking change.
-	s.writePacket(&packet.PlayerAction{
-		EntityRuntimeID: selfEntityRuntimeID,
-		ActionType:      protocol.PlayerActionDimensionChangeDone,
-	})
-}
-
-// ChangingDimension returns whether the session is currently changing dimension or not.
-func (s *Session) ChangingDimension() bool {
-	return s.changingDimension.Load()
 }
 
 // ChunkRadius returns the chunk radius of the session.
@@ -696,7 +656,7 @@ func (s *Session) registerHandlers() {
 		packet.IDSetPlayerInventoryOptions: nil,
 		packet.IDSubChunkRequest:           &SubChunkRequestHandler{},
 		packet.IDText:                      &TextHandler{},
-		packet.IDServerBoundLoadingScreen:  &ServerBoundLoadingScreenHandler{},
+		packet.IDServerBoundLoadingScreen:  nil,
 		packet.IDServerBoundDiagnostics:    &ServerBoundDiagnosticsHandler{},
 	}
 }

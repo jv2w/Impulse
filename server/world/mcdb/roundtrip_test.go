@@ -23,35 +23,20 @@ const (
 	ridWater
 )
 
-// dims is every dimension a column can be stored under. index() encodes each one differently, so every
-// round-trip case runs against all three.
-var dims = []struct {
-	name string
-	dim  world.Dimension
-}{
-	{"overworld", world.Overworld},
-	{"nether", world.Nether},
-	{"end", world.End},
-}
-
 func TestRoundTripEmptyColumn(t *testing.T) {
-	for _, d := range dims {
-		t.Run(d.name, func(t *testing.T) {
-			db := newDB(t)
-			want := emptyColumn(d.dim)
-			got := storeLoad(t, db, world.ChunkPos{0, 0}, d.dim, want)
+	db := newDB(t)
+	want := emptyColumn()
+	got := storeLoad(t, db, world.ChunkPos{0, 0}, want)
 
-			assertColumnEq(t, want, got, d.dim.Range())
-			if got.Entities != nil {
-				t.Errorf("entities: want nil, got %+v", got.Entities)
-			}
-			if got.BlockEntities != nil {
-				t.Errorf("block entities: want nil, got %+v", got.BlockEntities)
-			}
-			if got.ScheduledBlocks != nil {
-				t.Errorf("scheduled blocks: want nil, got %+v", got.ScheduledBlocks)
-			}
-		})
+	assertColumnEq(t, want, got, world.Range())
+	if got.Entities != nil {
+		t.Errorf("entities: want nil, got %+v", got.Entities)
+	}
+	if got.BlockEntities != nil {
+		t.Errorf("block entities: want nil, got %+v", got.BlockEntities)
+	}
+	if got.ScheduledBlocks != nil {
+		t.Errorf("scheduled blocks: want nil, got %+v", got.ScheduledBlocks)
 	}
 }
 
@@ -64,19 +49,16 @@ func TestRoundTripBlocks(t *testing.T) {
 	}
 	cases := []struct {
 		name       string
-		dim        world.Dimension
 		placements []placement
 	}{
 		{
 			name: "single block",
-			dim:  world.Overworld,
 			placements: []placement{
 				{x: 3, y: 10, z: 7, rid: ridStone},
 			},
 		},
 		{
 			name: "several sub chunks",
-			dim:  world.Overworld,
 			placements: []placement{
 				{x: 0, y: -60, z: 0, rid: ridStone},
 				{x: 5, y: 5, z: 5, rid: ridGlass},
@@ -87,31 +69,13 @@ func TestRoundTripBlocks(t *testing.T) {
 		},
 		{
 			name: "world height boundaries",
-			dim:  world.Overworld,
 			placements: []placement{
 				{x: 0, y: -64, z: 0, rid: ridStone},
 				{x: 15, y: 319, z: 15, rid: ridGlass},
 			},
 		},
 		{
-			name: "nether boundaries",
-			dim:  world.Nether,
-			placements: []placement{
-				{x: 0, y: 0, z: 0, rid: ridStone},
-				{x: 15, y: 127, z: 15, rid: ridGlass},
-			},
-		},
-		{
-			name: "end boundaries",
-			dim:  world.End,
-			placements: []placement{
-				{x: 0, y: 0, z: 0, rid: ridStone},
-				{x: 15, y: 255, z: 15, rid: ridGlass},
-			},
-		},
-		{
 			name: "second layer",
-			dim:  world.Overworld,
 			placements: []placement{
 				{x: 4, y: 40, z: 4, layer: 0, rid: ridWater},
 				{x: 4, y: 40, z: 4, layer: 1, rid: ridGlass},
@@ -119,7 +83,6 @@ func TestRoundTripBlocks(t *testing.T) {
 		},
 		{
 			name: "full sub chunk of distinct blocks",
-			dim:  world.Overworld,
 			placements: func() []placement {
 				var p []placement
 				for x := uint8(0); x < 16; x++ {
@@ -134,12 +97,12 @@ func TestRoundTripBlocks(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			db := newDB(t)
-			want := emptyColumn(c.dim)
+			want := emptyColumn()
 			for _, p := range c.placements {
 				want.Chunk.SetBlock(p.x, p.y, p.z, p.layer, p.rid)
 			}
-			got := storeLoad(t, db, world.ChunkPos{2, -3}, c.dim, want)
-			assertColumnEq(t, want, got, c.dim.Range())
+			got := storeLoad(t, db, world.ChunkPos{2, -3}, want)
+			assertColumnEq(t, want, got, world.Range())
 
 			// Guard against a comparison that would pass on two all-air chunks.
 			for _, p := range c.placements {
@@ -203,10 +166,10 @@ func TestRoundTripBiomes(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			db := newDB(t)
-			want := emptyColumn(world.Overworld)
+			want := emptyColumn()
 			c.setup(want.Chunk)
-			got := storeLoad(t, db, world.ChunkPos{0, 0}, world.Overworld, want)
-			assertColumnEq(t, want, got, world.Overworld.Range())
+			got := storeLoad(t, db, world.ChunkPos{0, 0}, want)
+			assertColumnEq(t, want, got, world.Range())
 		})
 	}
 }
@@ -215,8 +178,8 @@ func TestRoundTripBiomes(t *testing.T) {
 // discards, then the biome storages. Vanilla reads those 512 bytes, so their presence is part of the format.
 func TestStoreBiomesPrefixesEmptyHeightmap(t *testing.T) {
 	db := newDB(t)
-	k := dbKey{pos: world.ChunkPos{0, 0}, dim: world.Overworld}
-	if err := db.StoreColumn(k.pos, k.dim, emptyColumn(k.dim)); err != nil {
+	k := dbKey{pos: world.ChunkPos{0, 0}}
+	if err := db.StoreColumn(k.pos, emptyColumn()); err != nil {
 		t.Fatalf("store column: %v", err)
 	}
 	data, ok := getRaw(t, db, k.Sum(key3DData))
@@ -236,13 +199,13 @@ func TestStoreBiomesPrefixesEmptyHeightmap(t *testing.T) {
 // value is crafted by hand.
 func TestLoadBiomesSharedStorage(t *testing.T) {
 	db := newDB(t)
-	pos, dim := world.ChunkPos{0, 0}, world.Overworld
-	if err := db.StoreColumn(pos, dim, emptyColumn(dim)); err != nil {
+	pos := world.ChunkPos{0, 0}
+	if err := db.StoreColumn(pos, emptyColumn()); err != nil {
 		t.Fatalf("store column: %v", err)
 	}
 
-	k := dbKey{pos: pos, dim: dim}
-	subChunks := (dim.Range().Height() >> 4) + 1
+	k := dbKey{pos: pos}
+	subChunks := (world.Range().Height() >> 4) + 1
 
 	// One paletted storage with 0 bits per index (a single palette entry, no indices), followed by a
 	// "same as previous" marker for every remaining sub chunk.
@@ -252,11 +215,11 @@ func TestLoadBiomesSharedStorage(t *testing.T) {
 	biomes = append(biomes, bytes.Repeat([]byte{0x7f << 1}, subChunks-1)...)
 	putRaw(t, db, k.Sum(key3DData), biomes)
 
-	col, err := db.LoadColumn(pos, dim)
+	col, err := db.LoadColumn(pos)
 	if err != nil {
 		t.Fatalf("load column: %v", err)
 	}
-	r := dim.Range()
+	r := world.Range()
 	for y := int16(r[0]); int(y) <= r[1]; y += 16 {
 		if got := col.Chunk.Biome(0, y, 0); got != 7 {
 			t.Fatalf("biome at y=%v: want 7, got %v", y, got)
@@ -301,10 +264,10 @@ func TestRoundTripBlockEntities(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			db := newDB(t)
-			want := emptyColumn(world.Overworld)
+			want := emptyColumn()
 			want.BlockEntities = c.be
-			got := storeLoad(t, db, world.ChunkPos{1, 1}, world.Overworld, want)
-			assertColumnEq(t, want, got, world.Overworld.Range())
+			got := storeLoad(t, db, world.ChunkPos{1, 1}, want)
+			assertColumnEq(t, want, got, world.Range())
 		})
 	}
 }
@@ -313,11 +276,11 @@ func TestRoundTripBlockEntities(t *testing.T) {
 // keys in Data are overwritten from Pos, and Pos is read back from those keys on load.
 func TestBlockEntityPosOverwritesNBTCoordinates(t *testing.T) {
 	db := newDB(t)
-	col := emptyColumn(world.Overworld)
+	col := emptyColumn()
 	col.BlockEntities = []chunk.BlockEntity{
 		{Pos: cube.Pos{4, 5, 6}, Data: map[string]any{"id": "Chest", "x": int32(99), "y": int32(99), "z": int32(99)}},
 	}
-	got := storeLoad(t, db, world.ChunkPos{0, 0}, world.Overworld, col)
+	got := storeLoad(t, db, world.ChunkPos{0, 0}, col)
 
 	if len(got.BlockEntities) != 1 {
 		t.Fatalf("block entities: want 1, got %v", len(got.BlockEntities))
@@ -358,10 +321,10 @@ func TestRoundTripEntities(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			db := newDB(t)
-			want := emptyColumn(world.Overworld)
+			want := emptyColumn()
 			want.Entities = c.entities
-			got := storeLoad(t, db, world.ChunkPos{-4, 8}, world.Overworld, want)
-			assertColumnEq(t, want, got, world.Overworld.Range())
+			got := storeLoad(t, db, world.ChunkPos{-4, 8}, want)
+			assertColumnEq(t, want, got, world.Range())
 		})
 	}
 }
@@ -370,17 +333,17 @@ func TestRoundTripEntities(t *testing.T) {
 // key per entity holding its NBT, plus one index key holding the little-endian IDs back to back.
 func TestStoreEntitiesWritesNewFormat(t *testing.T) {
 	db := newDB(t)
-	pos, dim := world.ChunkPos{3, 4}, world.Overworld
-	col := emptyColumn(dim)
+	pos := world.ChunkPos{3, 4}
+	col := emptyColumn()
 	col.Entities = []chunk.Entity{
 		{ID: 7, Data: map[string]any{"identifier": "minecraft:pig"}},
 		{ID: -9, Data: map[string]any{"identifier": "minecraft:cow"}},
 	}
-	if err := db.StoreColumn(pos, dim, col); err != nil {
+	if err := db.StoreColumn(pos, col); err != nil {
 		t.Fatalf("store column: %v", err)
 	}
 
-	ids, ok := getRaw(t, db, append([]byte(keyEntityIdentifiers), index(pos, dim)...))
+	ids, ok := getRaw(t, db, append([]byte(keyEntityIdentifiers), index(pos)...))
 	if !ok {
 		t.Fatal("digp key not written")
 	}
@@ -397,7 +360,7 @@ func TestStoreEntitiesWritesNewFormat(t *testing.T) {
 		}
 	}
 	// The old-format key must be cleared so a load never falls back to it.
-	if _, ok := getRaw(t, db, dbKey{pos: pos, dim: dim}.Sum(keyEntitiesOld)); ok {
+	if _, ok := getRaw(t, db, dbKey{pos: pos}.Sum(keyEntitiesOld)); ok {
 		t.Error("keyEntitiesOld still present after storing new-format entities")
 	}
 }
@@ -407,9 +370,9 @@ func TestStoreEntitiesWritesNewFormat(t *testing.T) {
 func TestLoadEntitiesOldFormat(t *testing.T) {
 	t.Run("with UniqueID", func(t *testing.T) {
 		db := newDB(t)
-		pos, dim := world.ChunkPos{0, 0}, world.Overworld
-		k := dbKey{pos: pos, dim: dim}
-		if err := db.StoreColumn(pos, dim, emptyColumn(dim)); err != nil {
+		pos := world.ChunkPos{0, 0}
+		k := dbKey{pos: pos}
+		if err := db.StoreColumn(pos, emptyColumn()); err != nil {
 			t.Fatalf("store column: %v", err)
 		}
 		putRaw(t, db, k.Sum(keyEntitiesOld), appendNBT(t,
@@ -417,7 +380,7 @@ func TestLoadEntitiesOldFormat(t *testing.T) {
 			map[string]any{"identifier": "minecraft:cow", "UniqueID": int64(-22)},
 		))
 
-		col, err := db.LoadColumn(pos, dim)
+		col, err := db.LoadColumn(pos)
 		if err != nil {
 			t.Fatalf("load column: %v", err)
 		}
@@ -430,16 +393,16 @@ func TestLoadEntitiesOldFormat(t *testing.T) {
 
 	t.Run("missing UniqueID gets a random ID", func(t *testing.T) {
 		db := newDB(t)
-		pos, dim := world.ChunkPos{0, 0}, world.Overworld
-		k := dbKey{pos: pos, dim: dim}
-		if err := db.StoreColumn(pos, dim, emptyColumn(dim)); err != nil {
+		pos := world.ChunkPos{0, 0}
+		k := dbKey{pos: pos}
+		if err := db.StoreColumn(pos, emptyColumn()); err != nil {
 			t.Fatalf("store column: %v", err)
 		}
 		putRaw(t, db, k.Sum(keyEntitiesOld), appendNBT(t,
 			map[string]any{"identifier": "minecraft:pig"},
 		))
 
-		col, err := db.LoadColumn(pos, dim)
+		col, err := db.LoadColumn(pos)
 		if err != nil {
 			t.Fatalf("load column: %v", err)
 		}
@@ -455,18 +418,18 @@ func TestLoadEntitiesOldFormat(t *testing.T) {
 
 	t.Run("digp wins over keyEntitiesOld", func(t *testing.T) {
 		db := newDB(t)
-		pos, dim := world.ChunkPos{0, 0}, world.Overworld
-		k := dbKey{pos: pos, dim: dim}
-		col := emptyColumn(dim)
+		pos := world.ChunkPos{0, 0}
+		k := dbKey{pos: pos}
+		col := emptyColumn()
 		col.Entities = []chunk.Entity{{ID: 5, Data: map[string]any{"identifier": "minecraft:pig", "UniqueID": int64(5)}}}
-		if err := db.StoreColumn(pos, dim, col); err != nil {
+		if err := db.StoreColumn(pos, col); err != nil {
 			t.Fatalf("store column: %v", err)
 		}
 		putRaw(t, db, k.Sum(keyEntitiesOld), appendNBT(t,
 			map[string]any{"identifier": "minecraft:cow", "UniqueID": int64(6)},
 		))
 
-		got, err := db.LoadColumn(pos, dim)
+		got, err := db.LoadColumn(pos)
 		if err != nil {
 			t.Fatalf("load column: %v", err)
 		}
@@ -478,26 +441,26 @@ func TestLoadEntitiesOldFormat(t *testing.T) {
 // the old format and written back is migrated rather than left with two competing entity lists.
 func TestStoreColumnMigratesOldFormatEntities(t *testing.T) {
 	db := newDB(t)
-	pos, dim := world.ChunkPos{0, 0}, world.Overworld
-	k := dbKey{pos: pos, dim: dim}
-	if err := db.StoreColumn(pos, dim, emptyColumn(dim)); err != nil {
+	pos := world.ChunkPos{0, 0}
+	k := dbKey{pos: pos}
+	if err := db.StoreColumn(pos, emptyColumn()); err != nil {
 		t.Fatalf("store column: %v", err)
 	}
 	putRaw(t, db, k.Sum(keyEntitiesOld), appendNBT(t,
 		map[string]any{"identifier": "minecraft:pig", "UniqueID": int64(11)},
 	))
 
-	col, err := db.LoadColumn(pos, dim)
+	col, err := db.LoadColumn(pos)
 	if err != nil {
 		t.Fatalf("load column: %v", err)
 	}
-	if err := db.StoreColumn(pos, dim, col); err != nil {
+	if err := db.StoreColumn(pos, col); err != nil {
 		t.Fatalf("store column: %v", err)
 	}
 	if _, ok := getRaw(t, db, k.Sum(keyEntitiesOld)); ok {
 		t.Error("keyEntitiesOld survived a store")
 	}
-	got, err := db.LoadColumn(pos, dim)
+	got, err := db.LoadColumn(pos)
 	if err != nil {
 		t.Fatalf("load column: %v", err)
 	}
@@ -530,10 +493,10 @@ func TestRoundTripScheduledUpdates(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			db := newDB(t)
-			want := emptyColumn(world.Overworld)
+			want := emptyColumn()
 			want.Tick, want.ScheduledBlocks = c.tick, c.updates
-			got := storeLoad(t, db, world.ChunkPos{0, 0}, world.Overworld, want)
-			assertColumnEq(t, want, got, world.Overworld.Range())
+			got := storeLoad(t, db, world.ChunkPos{0, 0}, want)
+			assertColumnEq(t, want, got, world.Range())
 		})
 	}
 }
@@ -543,10 +506,10 @@ func TestRoundTripScheduledUpdates(t *testing.T) {
 // scheduled. A column with no pending ticks therefore comes back with Tick 0 no matter what was stored.
 func TestColumnTickLostWithoutScheduledUpdates(t *testing.T) {
 	db := newDB(t)
-	col := emptyColumn(world.Overworld)
+	col := emptyColumn()
 	col.Tick = 123456
 
-	got := storeLoad(t, db, world.ChunkPos{0, 0}, world.Overworld, col)
+	got := storeLoad(t, db, world.ChunkPos{0, 0}, col)
 	if got.Tick != 0 {
 		t.Fatalf("Tick = %v; the tick is no longer dropped when ScheduledBlocks is empty", got.Tick)
 	}
@@ -556,11 +519,11 @@ func TestColumnTickLostWithoutScheduledUpdates(t *testing.T) {
 // an int32, so any tick above 2^31-1 is silently truncated on store.
 func TestColumnTickTruncatedToInt32(t *testing.T) {
 	db := newDB(t)
-	col := emptyColumn(world.Overworld)
+	col := emptyColumn()
 	col.Tick = 1 << 31
 	col.ScheduledBlocks = []chunk.ScheduledBlockUpdate{{Pos: cube.Pos{0, 0, 0}, Block: ridStone, Tick: 1}}
 
-	got := storeLoad(t, db, world.ChunkPos{0, 0}, world.Overworld, col)
+	got := storeLoad(t, db, world.ChunkPos{0, 0}, col)
 	if got.Tick != -1<<31 {
 		t.Fatalf("Tick = %v, want %v (int32 truncation of %v)", got.Tick, -1<<31, col.Tick)
 	}
@@ -583,128 +546,36 @@ func TestRoundTripChunkPositions(t *testing.T) {
 		{-1 << 24, 1 << 24},
 		{2147483647, -2147483648},
 	}
-	for _, d := range dims {
-		t.Run(d.name, func(t *testing.T) {
-			db := newDB(t)
-			// All positions live in the same DB so that a coordinate encoding that collided would show up as
-			// a wrong block rather than passing.
-			for i, pos := range positions {
-				col := emptyColumn(d.dim)
-				col.Chunk.SetBlock(0, int16(d.dim.Range()[0]), 0, 0, 1+uint32(i)%5)
-				if err := db.StoreColumn(pos, d.dim, col); err != nil {
-					t.Fatalf("store %v: %v", pos, err)
-				}
-			}
-			for i, pos := range positions {
-				col, err := db.LoadColumn(pos, d.dim)
-				if err != nil {
-					t.Fatalf("load %v: %v", pos, err)
-				}
-				want := 1 + uint32(i)%5
-				if got := col.Chunk.Block(0, int16(d.dim.Range()[0]), 0, 0); got != want {
-					t.Errorf("%v: block = %v, want %v", pos, got, want)
-				}
-			}
-		})
-	}
-}
-
-// TestDimensionsDoNotCollide fixes that the same chunk position in different dimensions is stored under
-// different keys.
-func TestDimensionsDoNotCollide(t *testing.T) {
 	db := newDB(t)
-	pos := world.ChunkPos{5, -5}
-	for i, d := range dims {
-		col := emptyColumn(d.dim)
-		col.Chunk.SetBlock(0, int16(d.dim.Range()[0]), 0, 0, uint32(i)+1)
-		if err := db.StoreColumn(pos, d.dim, col); err != nil {
-			t.Fatalf("store %v: %v", d.name, err)
+	// All positions live in the same DB so that a coordinate encoding that collided would show up as
+	// a wrong block rather than passing.
+	for i, pos := range positions {
+		col := emptyColumn()
+		col.Chunk.SetBlock(0, int16(world.Range()[0]), 0, 0, 1+uint32(i)%5)
+		if err := db.StoreColumn(pos, col); err != nil {
+			t.Fatalf("store %v: %v", pos, err)
 		}
 	}
-	for i, d := range dims {
-		col, err := db.LoadColumn(pos, d.dim)
+	for i, pos := range positions {
+		col, err := db.LoadColumn(pos)
 		if err != nil {
-			t.Fatalf("load %v: %v", d.name, err)
+			t.Fatalf("load %v: %v", pos, err)
 		}
-		if got, want := col.Chunk.Block(0, int16(d.dim.Range()[0]), 0, 0), uint32(i)+1; got != want {
-			t.Errorf("%v: block = %v, want %v", d.name, got, want)
-		}
-		if got, want := col.Chunk.Range(), d.dim.Range(); got != want {
-			t.Errorf("%v: range = %v, want %v", d.name, got, want)
+		want := 1 + uint32(i)%5
+		if got := col.Chunk.Block(0, int16(world.Range()[0]), 0, 0); got != want {
+			t.Errorf("%v: block = %v, want %v", pos, got, want)
 		}
 	}
-}
-
-// TestStoreColumnUnregisteredDimensionOverwritesOverworld pins what a Dimension that was never registered
-// does to the database. No world in the tree uses one: the server creates only the three registered ones.
-//
-// PINNED BUG: index() throws away the ok result of world.DimensionID, so an unregistered Dimension encodes as dimension 0 and its column is written over the Overworld chunk at the same position.
-func TestStoreColumnUnregisteredDimensionOverwritesOverworld(t *testing.T) {
-	t.Run("key collides with the overworld", func(t *testing.T) {
-		unknown := unknownDim{world.Overworld.Range()}
-		if _, ok := world.DimensionID(unknown); ok {
-			t.Fatal("unknownDim is registered; this test needs an unregistered dimension")
-		}
-		if got, want := index(world.ChunkPos{2, 2}, unknown), index(world.ChunkPos{2, 2}, world.Overworld); !bytes.Equal(got, want) {
-			t.Fatalf("index(unknown) = %x, index(overworld) = %x; the dimension ID is no longer silently 0", got, want)
-		}
-	})
-
-	t.Run("same range replaces the overworld chunk silently", func(t *testing.T) {
-		db := newDB(t)
-		pos := world.ChunkPos{2, 2}
-		unknown := unknownDim{world.Overworld.Range()}
-
-		overworld := emptyColumn(world.Overworld)
-		overworld.Chunk.SetBlock(0, 0, 0, 0, ridStone)
-		if err := db.StoreColumn(pos, world.Overworld, overworld); err != nil {
-			t.Fatalf("store overworld: %v", err)
-		}
-		other := emptyColumn(unknown)
-		other.Chunk.SetBlock(0, 0, 0, 0, ridGlass)
-		if err := db.StoreColumn(pos, unknown, other); err != nil {
-			t.Fatalf("store unknown dimension: %v", err)
-		}
-
-		col, err := db.LoadColumn(pos, world.Overworld)
-		if err != nil {
-			t.Fatalf("load overworld: %v", err)
-		}
-		if got := col.Chunk.Block(0, 0, 0, 0); got != ridGlass {
-			t.Fatalf("overworld block = %v, want %v; the overworld chunk is no longer clobbered", got, ridGlass)
-		}
-	})
-
-	t.Run("shorter range makes the overworld chunk unreadable", func(t *testing.T) {
-		db := newDB(t)
-		pos := world.ChunkPos{2, 2}
-		unknown := unknownDim{cube.Range{0, 15}}
-
-		overworld := emptyColumn(world.Overworld)
-		overworld.Chunk.SetBlock(0, 0, 0, 0, ridStone)
-		if err := db.StoreColumn(pos, world.Overworld, overworld); err != nil {
-			t.Fatalf("store overworld: %v", err)
-		}
-		if err := db.StoreColumn(pos, unknown, emptyColumn(unknown)); err != nil {
-			t.Fatalf("store unknown dimension: %v", err)
-		}
-
-		// The one-sub-chunk biome value replaced the overworld's 24-storage one, so decoding runs out of
-		// data. The chunk is not recoverable through this API any more.
-		if _, err := db.LoadColumn(pos, world.Overworld); err == nil {
-			t.Fatal("load overworld succeeded; the shorter biome payload no longer destroys the chunk")
-		}
-	})
 }
 
 // TestStoreColumnReplacesPreviousState fixes that a store fully replaces what was there: entities, block
 // entities and scheduled ticks left over from an earlier store must not survive.
 func TestStoreColumnReplacesPreviousState(t *testing.T) {
 	db := newDB(t)
-	pos, dim := world.ChunkPos{0, 0}, world.Overworld
-	k := dbKey{pos: pos, dim: dim}
+	pos := world.ChunkPos{0, 0}
+	k := dbKey{pos: pos}
 
-	full := emptyColumn(dim)
+	full := emptyColumn()
 	full.Chunk.SetBlock(1, 1, 1, 0, ridStone)
 	full.Entities = []chunk.Entity{
 		{ID: 100, Data: map[string]any{"identifier": "minecraft:pig", "UniqueID": int64(100)}},
@@ -715,20 +586,20 @@ func TestStoreColumnReplacesPreviousState(t *testing.T) {
 	}
 	full.Tick = 10
 	full.ScheduledBlocks = []chunk.ScheduledBlockUpdate{{Pos: cube.Pos{1, 1, 1}, Block: ridStone, Tick: 11}}
-	if err := db.StoreColumn(pos, dim, full); err != nil {
+	if err := db.StoreColumn(pos, full); err != nil {
 		t.Fatalf("store full: %v", err)
 	}
 
-	empty := emptyColumn(dim)
-	if err := db.StoreColumn(pos, dim, empty); err != nil {
+	empty := emptyColumn()
+	if err := db.StoreColumn(pos, empty); err != nil {
 		t.Fatalf("store empty: %v", err)
 	}
 
-	got, err := db.LoadColumn(pos, dim)
+	got, err := db.LoadColumn(pos)
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
-	assertColumnEq(t, empty, got, dim.Range())
+	assertColumnEq(t, empty, got, world.Range())
 
 	// The entity records themselves must be gone, not merely unreferenced.
 	for _, id := range []int64{100, 101} {
@@ -737,7 +608,7 @@ func TestStoreColumnReplacesPreviousState(t *testing.T) {
 		}
 	}
 	for _, key := range [][]byte{
-		append([]byte(keyEntityIdentifiers), index(pos, dim)...),
+		append([]byte(keyEntityIdentifiers), index(pos)...),
 		k.Sum(keyBlockEntities),
 		k.Sum(keyPendingScheduledTicks),
 	} {
@@ -751,18 +622,18 @@ func TestStoreColumnReplacesPreviousState(t *testing.T) {
 // the chunk's index are removed.
 func TestStoreColumnKeepsEntitiesThatStay(t *testing.T) {
 	db := newDB(t)
-	pos, dim := world.ChunkPos{0, 0}, world.Overworld
+	pos := world.ChunkPos{0, 0}
 
-	col := emptyColumn(dim)
+	col := emptyColumn()
 	col.Entities = []chunk.Entity{
 		{ID: 1, Data: map[string]any{"identifier": "minecraft:pig", "UniqueID": int64(1)}},
 		{ID: 2, Data: map[string]any{"identifier": "minecraft:cow", "UniqueID": int64(2)}},
 	}
-	if err := db.StoreColumn(pos, dim, col); err != nil {
+	if err := db.StoreColumn(pos, col); err != nil {
 		t.Fatalf("store: %v", err)
 	}
 	col.Entities = col.Entities[:1]
-	if err := db.StoreColumn(pos, dim, col); err != nil {
+	if err := db.StoreColumn(pos, col); err != nil {
 		t.Fatalf("store: %v", err)
 	}
 
@@ -779,25 +650,24 @@ func TestStoreColumnKeepsEntitiesThatStay(t *testing.T) {
 // order a save pass may take. A's store must not delete the record B now points at.
 func TestStoreColumnKeepsEntityMovedToAnotherChunk(t *testing.T) {
 	db := newDB(t)
-	dim := world.Overworld
 	a, b := world.ChunkPos{0, 0}, world.ChunkPos{1, 0}
 
-	colA := emptyColumn(dim)
+	colA := emptyColumn()
 	colA.Entities = []chunk.Entity{{ID: 5, Data: map[string]any{"identifier": "minecraft:pig", "Pos": []float32{1, 64, 1}}}}
-	if err := db.StoreColumn(a, dim, colA); err != nil {
+	if err := db.StoreColumn(a, colA); err != nil {
 		t.Fatalf("store A: %v", err)
 	}
-	colB := emptyColumn(dim)
+	colB := emptyColumn()
 	colB.Entities = []chunk.Entity{{ID: 5, Data: map[string]any{"identifier": "minecraft:pig", "Pos": []float32{17, 64, 1}}}}
-	if err := db.StoreColumn(b, dim, colB); err != nil {
+	if err := db.StoreColumn(b, colB); err != nil {
 		t.Fatalf("store B: %v", err)
 	}
 	colA.Entities = nil
-	if err := db.StoreColumn(a, dim, colA); err != nil {
+	if err := db.StoreColumn(a, colA); err != nil {
 		t.Fatalf("store A again: %v", err)
 	}
 
-	got, err := db.LoadColumn(b, dim)
+	got, err := db.LoadColumn(b)
 	if err != nil {
 		t.Fatalf("load B: %v", err)
 	}
@@ -811,15 +681,15 @@ func TestStoreColumnKeepsEntityMovedToAnotherChunk(t *testing.T) {
 // record goes.
 func TestStoreColumnDeletesEntityRemovedInPlace(t *testing.T) {
 	db := newDB(t)
-	pos, dim := world.ChunkPos{0, 0}, world.Overworld
+	pos := world.ChunkPos{0, 0}
 
-	col := emptyColumn(dim)
+	col := emptyColumn()
 	col.Entities = []chunk.Entity{{ID: 6, Data: map[string]any{"identifier": "minecraft:pig", "Pos": []float32{1, 64, 1}}}}
-	if err := db.StoreColumn(pos, dim, col); err != nil {
+	if err := db.StoreColumn(pos, col); err != nil {
 		t.Fatalf("store: %v", err)
 	}
 	col.Entities = nil
-	if err := db.StoreColumn(pos, dim, col); err != nil {
+	if err := db.StoreColumn(pos, col); err != nil {
 		t.Fatalf("store: %v", err)
 	}
 	if _, ok := getRaw(t, db, entityIndex(6)); ok {
@@ -831,13 +701,13 @@ func TestStoreColumnMutatesCallerData(t *testing.T) {
 	// StoreColumn is read-only on its argument: the storage keys live in the
 	// on-disk bytes, never in the caller's maps.
 	db := newDB(t)
-	col := emptyColumn(world.Overworld)
+	col := emptyColumn()
 	entityData := map[string]any{"identifier": "minecraft:pig"}
 	blockEntityData := map[string]any{"id": "Chest"}
 	col.Entities = []chunk.Entity{{ID: 42, Data: entityData}}
 	col.BlockEntities = []chunk.BlockEntity{{Pos: cube.Pos{1, 2, 3}, Data: blockEntityData}}
 
-	if err := db.StoreColumn(world.ChunkPos{0, 0}, world.Overworld, col); err != nil {
+	if err := db.StoreColumn(world.ChunkPos{0, 0}, col); err != nil {
 		t.Fatalf("store: %v", err)
 	}
 	if _, ok := entityData["UniqueID"]; ok {
@@ -852,9 +722,9 @@ func TestStoreColumnMutatesCallerData(t *testing.T) {
 // only thing users ultimately care about.
 func TestRoundTripAcrossReopen(t *testing.T) {
 	dir := t.TempDir()
-	pos, dim := world.ChunkPos{-7, 3}, world.Nether
+	pos := world.ChunkPos{-7, 3}
 
-	want := emptyColumn(dim)
+	want := emptyColumn()
 	want.Chunk.SetBlock(2, 40, 6, 0, ridChest)
 	want.Chunk.SetBiome(2, 40, 6, 12)
 	want.Entities = []chunk.Entity{{ID: 3, Data: map[string]any{"identifier": "minecraft:pig", "UniqueID": int64(3)}}}
@@ -865,7 +735,7 @@ func TestRoundTripAcrossReopen(t *testing.T) {
 	want.ScheduledBlocks = []chunk.ScheduledBlockUpdate{{Pos: cube.Pos{2, 40, 6}, Block: ridWater, Tick: 80}}
 
 	first := newDBAt(t, dir)
-	if err := first.StoreColumn(pos, dim, want); err != nil {
+	if err := first.StoreColumn(pos, want); err != nil {
 		t.Fatalf("store: %v", err)
 	}
 	if err := first.Close(); err != nil {
@@ -873,25 +743,23 @@ func TestRoundTripAcrossReopen(t *testing.T) {
 	}
 
 	second := newDBAt(t, dir)
-	got, err := second.LoadColumn(pos, dim)
+	got, err := second.LoadColumn(pos)
 	if err != nil {
 		t.Fatalf("load after reopen: %v", err)
 	}
-	assertColumnEq(t, want, got, dim.Range())
+	assertColumnEq(t, want, got, world.Range())
 }
 
 // TestLoadColumnNotFound fixes the documented contract of LoadColumn: a position that was never written
 // reports leveldb.ErrNotFound through errors.Is.
 func TestLoadColumnNotFound(t *testing.T) {
 	db := newDB(t)
-	for _, d := range dims {
-		col, err := db.LoadColumn(world.ChunkPos{99, 99}, d.dim)
-		if !errors.Is(err, leveldb.ErrNotFound) {
-			t.Errorf("%v: err = %v, want leveldb.ErrNotFound", d.name, err)
-		}
-		if col != nil {
-			t.Errorf("%v: column = %+v, want nil", d.name, col)
-		}
+	col, err := db.LoadColumn(world.ChunkPos{99, 99})
+	if !errors.Is(err, leveldb.ErrNotFound) {
+		t.Errorf("err = %v, want leveldb.ErrNotFound", err)
+	}
+	if col != nil {
+		t.Errorf("column = %+v, want nil", col)
 	}
 }
 
@@ -899,9 +767,9 @@ func TestLoadColumnNotFound(t *testing.T) {
 // Both are read by vanilla, and neither is derived from the Column.
 func TestStoreColumnWritesVersionAndFinalisation(t *testing.T) {
 	db := newDB(t)
-	pos, dim := world.ChunkPos{0, 0}, world.Overworld
-	k := dbKey{pos: pos, dim: dim}
-	if err := db.StoreColumn(pos, dim, emptyColumn(dim)); err != nil {
+	pos := world.ChunkPos{0, 0}
+	k := dbKey{pos: pos}
+	if err := db.StoreColumn(pos, emptyColumn()); err != nil {
 		t.Fatalf("store: %v", err)
 	}
 
@@ -925,34 +793,30 @@ func TestStoreColumnWritesVersionAndFinalisation(t *testing.T) {
 	}
 }
 
-// TestStoreColumnWritesEverySubChunk fixes that all sub chunks of the dimension's range get a key, empty ones
+// TestStoreColumnWritesEverySubChunk fixes that all sub chunks of the world's range get a key, empty ones
 // included, and that the sub chunk index byte is the absolute Y >> 4 truncated to a byte.
 func TestStoreColumnWritesEverySubChunk(t *testing.T) {
-	for _, d := range dims {
-		t.Run(d.name, func(t *testing.T) {
-			db := newDB(t)
-			pos := world.ChunkPos{0, 0}
-			k := dbKey{pos: pos, dim: d.dim}
-			if err := db.StoreColumn(pos, d.dim, emptyColumn(d.dim)); err != nil {
-				t.Fatalf("store: %v", err)
-			}
-			r := d.dim.Range()
-			n := (r.Height() >> 4) + 1
-			for i := 0; i < n; i++ {
-				y := byte(i + (r[0] >> 4))
-				sub, ok := getRaw(t, db, k.Sum(keySubChunkData, y))
-				if !ok {
-					t.Fatalf("sub chunk %v (key byte %v) not written", i, y)
-				}
-				if len(sub) < 3 || sub[0] != chunk.SubChunkVersion || sub[2] != y {
-					t.Errorf("sub chunk %v header = %x, want version %v and index %v", i, sub[:min(3, len(sub))], chunk.SubChunkVersion, y)
-				}
-			}
-			// One past the top must not exist.
-			if _, ok := getRaw(t, db, k.Sum(keySubChunkData, byte(n+(r[0]>>4)))); ok {
-				t.Error("a sub chunk above the dimension range was written")
-			}
-		})
+	db := newDB(t)
+	pos := world.ChunkPos{0, 0}
+	k := dbKey{pos: pos}
+	if err := db.StoreColumn(pos, emptyColumn()); err != nil {
+		t.Fatalf("store: %v", err)
+	}
+	r := world.Range()
+	n := (r.Height() >> 4) + 1
+	for i := 0; i < n; i++ {
+		y := byte(i + (r[0] >> 4))
+		sub, ok := getRaw(t, db, k.Sum(keySubChunkData, y))
+		if !ok {
+			t.Fatalf("sub chunk %v (key byte %v) not written", i, y)
+		}
+		if len(sub) < 3 || sub[0] != chunk.SubChunkVersion || sub[2] != y {
+			t.Errorf("sub chunk %v header = %x, want version %v and index %v", i, sub[:min(3, len(sub))], chunk.SubChunkVersion, y)
+		}
+	}
+	// One past the top must not exist.
+	if _, ok := getRaw(t, db, k.Sum(keySubChunkData, byte(n+(r[0]>>4)))); ok {
+		t.Error("a sub chunk above the world range was written")
 	}
 }
 

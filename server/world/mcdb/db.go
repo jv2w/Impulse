@@ -159,14 +159,14 @@ func (db *DB) SavePlayerSpawnPosition(id uuid.UUID, pos cube.Pos) error {
 	return nil
 }
 
-// LoadColumn reads a world.Column from the DB at a position and dimension in
-// the DB. If no column at that position exists, errors.Is(err,
-// leveldb.ErrNotFound) equals true.
-func (db *DB) LoadColumn(pos world.ChunkPos, dim world.Dimension) (*chunk.Column, error) {
-	k := dbKey{pos: pos, dim: dim}
+// LoadColumn reads a world.Column from the DB at a position in the DB. If no
+// column at that position exists, errors.Is(err, leveldb.ErrNotFound) equals
+// true.
+func (db *DB) LoadColumn(pos world.ChunkPos) (*chunk.Column, error) {
+	k := dbKey{pos: pos}
 	col, err := db.column(k)
 	if err != nil {
-		return nil, fmt.Errorf("load column %v (%v): %w", pos, dim, err)
+		return nil, fmt.Errorf("load column %v: %w", pos, err)
 	}
 	return col, nil
 }
@@ -182,7 +182,7 @@ func (db *DB) column(k dbKey) (*chunk.Column, error) {
 		return nil, fmt.Errorf("read version: %w", err)
 	}
 	if ver != chunkVersion {
-		db.conf.Log.Debug("column: unsupported chunk version, trying to load anyway", "X", k.pos[0], "Z", k.pos[1], "dimension", fmt.Sprint(k.dim), "ver", ver)
+		db.conf.Log.Debug("column: unsupported chunk version, trying to load anyway", "X", k.pos[0], "Z", k.pos[1], "ver", ver)
 	}
 	cdata.Biomes, err = db.biomes(k)
 	if err != nil && !errors.Is(err, leveldb.ErrNotFound) {
@@ -194,7 +194,7 @@ func (db *DB) column(k dbKey) (*chunk.Column, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read sub chunks: %w", err)
 	}
-	col.Chunk, err = chunk.DiskDecode(db.conf.Blocks, cdata, k.dim.Range())
+	col.Chunk, err = chunk.DiskDecode(db.conf.Blocks, cdata, world.Range())
 	if err != nil {
 		return nil, fmt.Errorf("decode chunk data: %w", err)
 	}
@@ -247,7 +247,7 @@ func (db *DB) biomes(k dbKey) ([]byte, error) {
 }
 
 func (db *DB) subChunks(k dbKey) ([][]byte, error) {
-	r := k.dim.Range()
+	r := world.Range()
 	sub := make([][]byte, (r.Height()>>4)+1)
 
 	// r never changes in the loop, so the shift is the same value every iteration.
@@ -273,7 +273,7 @@ func (db *DB) entities(k dbKey) ([]chunk.Entity, error) {
 	// Same bytes as before: the prefix and the index are written into one buffer that is large enough for
 	// both, so the append no longer has to grow a buffer that only held the prefix.
 	idsKey := make([]byte, 0, len(keyEntityIdentifiers)+12)
-	idsKey = append(append(idsKey, keyEntityIdentifiers...), index(k.pos, k.dim)...)
+	idsKey = append(append(idsKey, keyEntityIdentifiers...), index(k.pos)...)
 	ids, err := db.ldb.Get(idsKey, nil)
 	if err != nil {
 		// Key not found, try old method of loading entities.
@@ -402,12 +402,12 @@ func (db *DB) scheduledUpdates(k dbKey) ([]chunk.ScheduledBlockUpdate, int64, er
 	return updates, int64(m.CurrentTick), nil
 }
 
-// StoreColumn stores a world.Column at a position and dimension in the DB. An
-// error is returned if storing was unsuccessful.
-func (db *DB) StoreColumn(pos world.ChunkPos, dim world.Dimension, col *chunk.Column) error {
-	k := dbKey{pos: pos, dim: dim}
+// StoreColumn stores a world.Column at a position in the DB. An error is
+// returned if storing was unsuccessful.
+func (db *DB) StoreColumn(pos world.ChunkPos, col *chunk.Column) error {
+	k := dbKey{pos: pos}
 	if err := db.storeColumn(k, col); err != nil {
-		return fmt.Errorf("store column %v (%v): %w", pos, dim, err)
+		return fmt.Errorf("store column %v: %w", pos, err)
 	}
 	return nil
 }
@@ -461,7 +461,7 @@ func (db *DB) storeEntities(batch *leveldb.Batch, k dbKey, entities []chunk.Enti
 	// Same bytes as before: the prefix and the index are written into one buffer that is large enough for
 	// both, so the append no longer has to grow a buffer that only held the prefix.
 	idsKey := make([]byte, 0, len(keyEntityIdentifiers)+12)
-	idsKey = append(append(idsKey, keyEntityIdentifiers...), index(k.pos, k.dim)...)
+	idsKey = append(append(idsKey, keyEntityIdentifiers...), index(k.pos)...)
 
 	// load the ids of the previous entities
 	var previousIDs []int64
@@ -652,31 +652,28 @@ func (db *DB) Close() error {
 	return saveErr
 }
 
-// dbKey holds a position and dimension.
+// dbKey holds a position.
 type dbKey struct {
 	pos world.ChunkPos
-	dim world.Dimension
 }
 
-// Sum converts k to its []byte representation and appends p.
+// Sum converts k to its []byte representation and appends p. The result is
+// allocated once, to exactly its length, so appending to one result never
+// writes into another.
 func (k dbKey) Sum(p ...byte) []byte {
-	return append(index(k.pos, k.dim), p...)
+	return append(appendIndex(make([]byte, 0, 8+len(p)), k.pos), p...)
 }
 
-// index returns a byte buffer holding the written index of the chunk position passed. If the dimension passed
-// is not world.Overworld, the length of the index returned is 12. It is 8 otherwise.
-func index(position world.ChunkPos, d world.Dimension) []byte {
-	dim, _ := world.DimensionID(d)
-	x, z := uint32(position[0]), uint32(position[1])
-	b := make([]byte, 12)
+// index returns a byte buffer holding the written index of the chunk position
+// passed. Its length is 8.
+func index(position world.ChunkPos) []byte {
+	return appendIndex(make([]byte, 0, 8), position)
+}
 
-	binary.LittleEndian.PutUint32(b, x)
-	binary.LittleEndian.PutUint32(b[4:], z)
-	if dim == 0 {
-		return b[:8]
-	}
-	binary.LittleEndian.PutUint32(b[8:], uint32(dim))
-	return b
+// appendIndex appends the written index of the chunk position passed to b.
+func appendIndex(b []byte, position world.ChunkPos) []byte {
+	b = binary.LittleEndian.AppendUint32(b, uint32(position[0]))
+	return binary.LittleEndian.AppendUint32(b, uint32(position[1]))
 }
 
 // blockPosFromNBT returns the position held in the 'x', 'y' and 'z' keys of the NBT data map passed. It

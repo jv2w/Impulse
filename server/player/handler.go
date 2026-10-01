@@ -58,8 +58,7 @@ type Handler interface {
 	HandleDeath(p *Player, src world.DamageSource, keepInv *bool)
 	// HandleRespawn handles the respawning of the player in the world. The spawn position passed may be
 	// changed by assigning to *pos. The world.World in which the Player is respawned may be modifying by assigning to
-	// *w. This world may be the world the Player died in, but it might also point to a different world (the overworld)
-	// if the Player died in the nether or end.
+	// *w. This world is the world the Player died in.
 	HandleRespawn(p *Player, pos *mgl64.Vec3, w **world.World)
 	// HandleSkinChange handles the player changing their skin. ctx.Cancel() may be called to cancel the skin
 	// change.

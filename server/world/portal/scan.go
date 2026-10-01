@@ -151,15 +151,15 @@ func widthOffset(axis cube.Axis, offset int) cube.Pos {
 // isFrame reports whether the block can act as a Nether portal frame block.
 func isFrame(b world.Block) bool {
 	f, ok := b.(frameBlock)
-	return ok && f.Frame(world.Nether)
+	return ok && f.Frame()
 }
 
 // matchesNetherPortalInterior reports whether the block may sit inside an unactivated Nether portal frame.
 func matchesNetherPortalInterior(b world.Block, _ cube.Axis) bool {
 	i, ok := b.(interface {
-		PortalInterior(target world.Dimension) bool
+		PortalInterior() bool
 	})
-	return ok && i.PortalInterior(world.Nether)
+	return ok && i.PortalInterior()
 }
 
 // matchesNetherPortal reports whether the block is an active Nether portal block aligned with the given axis.

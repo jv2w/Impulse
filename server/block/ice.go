@@ -58,10 +58,6 @@ func (i Ice) BreakInfo() BreakInfo {
 
 // melt ...
 func (Ice) melt(pos cube.Pos, tx *world.Tx) {
-	if tx.World().Dimension().WaterEvaporates() {
-		tx.SetBlock(pos, nil, nil)
-		return
-	}
 	tx.SetBlock(pos, Water{Still: true, Depth: 8}, nil)
 }
 

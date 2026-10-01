@@ -43,21 +43,19 @@ type globals struct {
 	creativeItems           int
 	creativeGroups          int
 	customItems             int
-	customDimensions        int
 	commands                int
 	blocksFinalized         bool
 }
 
 func snapshot() globals {
 	return globals{
-		recipes:          len(recipe.Recipes()),
-		dynamicRecipes:   len(recipe.DynamicRecipes()),
-		creativeItems:    len(creative.Items()),
-		creativeGroups:   len(creative.Groups()),
-		customItems:      len(world.CustomItems()),
-		customDimensions: len(world.CustomDimensions()),
-		commands:         len(cmd.Commands()),
-		blocksFinalized:  caught(func() { world.DefaultBlockRegistry.AirRuntimeID() }) == nil,
+		recipes:         len(recipe.Recipes()),
+		dynamicRecipes:  len(recipe.DynamicRecipes()),
+		creativeItems:   len(creative.Items()),
+		creativeGroups:  len(creative.Groups()),
+		customItems:     len(world.CustomItems()),
+		commands:        len(cmd.Commands()),
+		blocksFinalized: caught(func() { world.DefaultBlockRegistry.AirRuntimeID() }) == nil,
 	}
 }
 
