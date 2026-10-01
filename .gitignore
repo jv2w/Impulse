@@ -4,7 +4,6 @@
 .vscode/
 
 # Runtime artefacts
-/config.toml
 /world/
 /players/
 /resources/

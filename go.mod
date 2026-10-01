@@ -10,7 +10,6 @@ require (
 	github.com/df-mc/worldupgrader v1.0.22
 	github.com/go-gl/mathgl v1.2.0
 	github.com/google/uuid v1.6.0
-	github.com/pelletier/go-toml v1.9.5
 	github.com/pion/ice/v4 v4.2.7
 	github.com/pion/webrtc/v4 v4.2.16-0.20260627075746-7a223a6f4d4f
 	github.com/sandertv/gophertunnel v1.62.0

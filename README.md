@@ -23,7 +23,7 @@ cd Impulse
 go run .
 ```
 
-The server writes a `config.toml` on first start and reads it on every start after that. Press
+Settings live in `userConfig` in `main.go`; edit them there. No config file is read or written. Press
 ctrl+c to shut down.
 
 ## Using it as a library

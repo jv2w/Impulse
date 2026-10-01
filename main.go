@@ -1,18 +1,15 @@
 package main
 
 import (
-	"fmt"
 	"github.com/jv2w/Impulse/server"
 	"github.com/jv2w/Impulse/server/player/chat"
-	"github.com/pelletier/go-toml"
 	"log/slog"
-	"os"
 )
 
 func main() {
 	slog.SetLogLoggerLevel(slog.LevelDebug)
 	chat.Global.Subscribe(chat.StdoutSubscriber{})
-	conf, err := readConfig(slog.Default())
+	conf, err := userConfig().Config(slog.Default())
 	if err != nil {
 		panic(err)
 	}
@@ -26,27 +23,40 @@ func main() {
 	}
 }
 
-// readConfig reads the configuration from the config.toml file, or creates the
-// file if it does not yet exist.
-func readConfig(log *slog.Logger) (server.Config, error) {
+// userConfig returns the settings the server runs with. No file is read or
+// written: edit the values below to configure the server. Every field is set
+// explicitly to its default so that all available settings are visible here.
+func userConfig() server.UserConfig {
 	c := server.DefaultConfig()
-	var zero server.Config
-	if _, err := os.Stat("config.toml"); os.IsNotExist(err) {
-		data, err := toml.Marshal(c)
-		if err != nil {
-			return zero, fmt.Errorf("encode default config: %v", err)
-		}
-		if err := os.WriteFile("config.toml", data, 0644); err != nil {
-			return zero, fmt.Errorf("create default config: %v", err)
-		}
-		return c.Config(log)
-	}
-	data, err := os.ReadFile("config.toml")
-	if err != nil {
-		return zero, fmt.Errorf("read config: %v", err)
-	}
-	if err := toml.Unmarshal(data, &c); err != nil {
-		return zero, fmt.Errorf("decode config: %v", err)
-	}
-	return c.Config(log)
+
+	// Network.
+	c.Network.Address = ":19132"
+	c.Network.Transport = nil // "raknet" and/or "nethernet"; empty means RakNet only.
+	c.Network.NetherNet.Address = ""
+	c.Network.NetherNet.KeyFile = ""
+	c.Network.NetherNet.Domain = ""
+	c.Network.NetherNet.UDPPorts = ""
+
+	// Server.
+	c.Server.Name = "Impulse Server"
+	c.Server.AuthEnabled = true
+	c.Server.DisableJoinQuitMessages = false
+	c.Server.MuteEmoteChat = false
+
+	// World.
+	c.World.SaveData = true
+	c.World.Folder = "world"
+
+	// Players.
+	c.Players.MaxCount = 0 // 0 grows the limit as players join.
+	c.Players.MaximumChunkRadius = 32
+	c.Players.SaveData = true
+	c.Players.Folder = "players"
+
+	// Resources.
+	c.Resources.AutoBuildPack = true
+	c.Resources.Folder = "resources"
+	c.Resources.Required = false
+
+	return c
 }
