@@ -164,21 +164,9 @@ func matchesNetherPortalInterior(b world.Block, _ cube.Axis) bool {
 
 // matchesNetherPortal reports whether the block is an active Nether portal block aligned with the given axis.
 func matchesNetherPortal(b world.Block, axis cube.Axis) bool {
-	p, ok := b.(portalBlock)
-	if !ok || p.Portal() != world.Nether {
-		return false
-	}
+	// block.Portal is the only block with the model.Portal model, so the model identifies it.
 	m, ok := b.Model().(model.Portal)
 	return ok && m.Axis == axis
-}
-
-// air returns an air block.
-func air() world.Block {
-	a, ok := world.BlockByName("minecraft:air", nil)
-	if !ok {
-		panic("could not find air block")
-	}
-	return a
 }
 
 // portal returns a portal block.
@@ -188,13 +176,4 @@ func portal(axis cube.Axis) world.Block {
 		panic("could not find portal block")
 	}
 	return p
-}
-
-// obsidian returns an obsidian block.
-func obsidian() world.Block {
-	o, ok := world.BlockByName("minecraft:obsidian", nil)
-	if !ok {
-		panic("could not find obsidian block")
-	}
-	return o
 }

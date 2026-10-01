@@ -21,11 +21,10 @@ type Behaviour interface {
 // share a lot of code. It is currently under development and is prone to
 // (breaking) changes.
 type Ent struct {
-	tx                *world.Tx
-	handle            *world.EntityHandle
-	data              *world.EntityData
-	deferPortalTravel bool
-	once              sync.Once
+	tx     *world.Tx
+	handle *world.EntityHandle
+	data   *world.EntityData
+	once   sync.Once
 }
 
 // Open converts a world.EntityHandle to an Ent in a world.Tx.
@@ -144,11 +143,6 @@ func (e *Ent) updateState() {
 // Tick ticks Ent, progressing its lifetime and closing the entity if it is
 // in the void.
 func (e *Ent) Tick(tx *world.Tx, current int64) {
-	e.deferPortalTravel = true
-	defer func() {
-		e.deferPortalTravel = false
-	}()
-
 	y := e.data.Pos[1]
 	if y < float64(tx.Range()[0]) && current%10 == 0 {
 		_ = e.Close()
@@ -157,20 +151,8 @@ func (e *Ent) Tick(tx *world.Tx, current int64) {
 	e.SetOnFire(e.OnFireDuration() - time.Second/20)
 
 	m := e.Behaviour().Tick(e, tx)
-	// A behaviour is installed once, at creation, and never replaced, so every
-	// portal step below shares the one computer looked up here.
-	tc := e.portalTravelComputer()
-	if tc != nil && tc.finishPendingPortalTravel(e, tx) {
-		return
-	}
 	if m != nil {
 		m.Send()
-	}
-	if e.checkPortalInsiders() && tc != nil && tc.finishPendingPortalTravel(e, tx) {
-		return
-	}
-	if tc != nil {
-		tc.StopPortalContact()
 	}
 	e.data.Age += time.Second / 20
 }
@@ -182,52 +164,4 @@ func (e *Ent) Close() error {
 		_ = e.handle.Close()
 	})
 	return nil
-}
-
-// TravelThroughPortal handles the entity touching a portal block.
-func (e *Ent) TravelThroughPortal(tx *world.Tx, target world.Dimension) {
-	if tc := e.portalTravelComputer(); tc != nil {
-		if e.deferPortalTravel {
-			tc.queuePortalTravel(tx, target)
-			return
-		}
-		tc.EnterPortal(e, tx, target)
-	}
-}
-
-// portalTravelComputer returns the behaviour's portal travel state, if any.
-func (e *Ent) portalTravelComputer() *PortalTravelComputer {
-	if b, ok := e.Behaviour().(portalTravelComputerProvider); ok {
-		return b.PortalTravelComputer()
-	}
-	return nil
-}
-
-// pendingPortalTravel reports whether this tick queued terminal portal travel.
-func (e *Ent) pendingPortalTravel() bool {
-	if tc := e.portalTravelComputer(); tc != nil {
-		return tc.hasPendingPortalTravel()
-	}
-	return false
-}
-
-type portalBlock interface {
-	Portal() world.Dimension
-}
-
-// checkPortalInsiders checks whether the entity is inside portal blocks.
-// Other EntityInsider blocks are intentionally left to entity physics.
-func (e *Ent) checkPortalInsiders() bool {
-	box := e.H().Type().BBox(e).Translate(e.Position()).Grow(-0.0001)
-	low, high := cube.PosFromVec3(box.Min()), cube.PosFromVec3(box.Max())
-
-	for blockPos := range cube.Range3D(low, high) {
-		if p, ok := e.tx.Block(blockPos).(portalBlock); ok {
-			e.TravelThroughPortal(e.tx, p.Portal())
-			if e.pendingPortalTravel() {
-				return true
-			}
-		}
-	}
-	return false
 }

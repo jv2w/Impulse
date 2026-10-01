@@ -36,9 +36,8 @@ func (conf PassiveBehaviourConfig) New() *PassiveBehaviour {
 		conf.ExistenceDuration = math.MaxInt64
 	}
 	return &PassiveBehaviour{
-		BaseBehaviour: NewBaseBehaviour(),
-		conf:          conf,
-		fuse:          conf.ExistenceDuration,
+		conf: conf,
+		fuse: conf.ExistenceDuration,
 		mc: &MovementComputer{
 			Gravity:           conf.Gravity,
 			Drag:              conf.Drag,
@@ -51,8 +50,6 @@ func (conf PassiveBehaviourConfig) New() *PassiveBehaviour {
 // means that they can move, but only under influence of the environment, which
 // includes, for example, falling, and flowing water.
 type PassiveBehaviour struct {
-	BaseBehaviour
-
 	conf PassiveBehaviourConfig
 	mc   *MovementComputer
 

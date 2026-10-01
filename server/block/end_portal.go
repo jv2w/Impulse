@@ -7,8 +7,8 @@ import (
 	"github.com/jv2w/Impulse/server/world/portal"
 )
 
-// EndPortal is the translucent block that teleports the player to and from the End. It is created by inserting an Eye
-// of Ender into all twelve frame blocks of an End portal frame ring.
+// EndPortal is the translucent block of an End portal. It is created by inserting an Eye of Ender into all twelve frame
+// blocks of an End portal frame ring.
 type EndPortal struct {
 	transparent
 }
@@ -28,11 +28,6 @@ func (EndPortal) HasLiquidDrops() bool {
 	return false
 }
 
-// Portal returns the End dimension. The same block leads back to the Overworld when entered from the End.
-func (EndPortal) Portal() world.Dimension {
-	return world.End
-}
-
 // EncodeNBT encodes the End portal block actor.
 func (EndPortal) EncodeNBT() map[string]any {
 	return map[string]any{"id": "EndPortal"}
@@ -50,13 +45,6 @@ func (EndPortal) NeighbourUpdateTick(pos, _ cube.Pos, tx *world.Tx) {
 		return
 	}
 	portal.DeactivateEndPortal(tx, pos)
-}
-
-// EntityInside ...
-func (EndPortal) EntityInside(_ cube.Pos, tx *world.Tx, e world.Entity) {
-	if t, ok := e.(portalTraveller); ok {
-		t.TravelThroughPortal(tx, world.End)
-	}
 }
 
 // EncodeBlock ...

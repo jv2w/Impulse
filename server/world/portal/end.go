@@ -1,40 +1,9 @@
 package portal
 
 import (
-	"github.com/go-gl/mathgl/mgl64"
 	"github.com/jv2w/Impulse/server/block/cube"
 	"github.com/jv2w/Impulse/server/world"
 )
-
-// endSpawnX, endSpawnY and endSpawnZ are the centre of the End arrival platform.
-const (
-	endSpawnX = 100
-	endSpawnY = 49
-	endSpawnZ = 0
-)
-
-// EndSpawnPosition returns the Bedrock End platform arrival position: y=49 for players and y=50 for other entities.
-func EndSpawnPosition(player bool) mgl64.Vec3 {
-	y := endSpawnY + 1
-	if player {
-		y = endSpawnY
-	}
-	return mgl64.Vec3{float64(endSpawnX) + 0.5, float64(y), float64(endSpawnZ) + 0.5}
-}
-
-// GenerateEndSpawnPlatform builds the 5x5 obsidian arrival platform at (100, 48, 0) and clears the 5x5x3 air column
-// above it. It runs on every travel into the End, matching vanilla's unconditional regeneration.
-func GenerateEndSpawnPlatform(tx *world.Tx) {
-	ob := obsidian()
-	for dx := -2; dx <= 2; dx++ {
-		for dz := -2; dz <= 2; dz++ {
-			tx.SetBlock(cube.Pos{endSpawnX + dx, endSpawnY - 1, endSpawnZ + dz}, ob, nil)
-			for dy := 0; dy < 3; dy++ {
-				tx.SetBlock(cube.Pos{endSpawnX + dx, endSpawnY + dy, endSpawnZ + dz}, nil, nil)
-			}
-		}
-	}
-}
 
 // endRingFrame is one of the twelve canonical ring positions and the Facing each frame must have.
 type endRingFrame struct {

@@ -7,7 +7,7 @@ import (
 	"github.com/jv2w/Impulse/server/world/portal"
 )
 
-// Portal is the translucent part of the nether portal that teleports the player to and from the Nether.
+// Portal is the translucent part of the nether portal.
 type Portal struct {
 	transparent
 
@@ -15,19 +15,9 @@ type Portal struct {
 	Axis cube.Axis
 }
 
-// portalTraveller represents an entity that can handle touching a portal block.
-type portalTraveller interface {
-	TravelThroughPortal(tx *world.Tx, target world.Dimension)
-}
-
 // Model ...
 func (p Portal) Model() world.BlockModel {
 	return model.Portal{Axis: p.Axis}
-}
-
-// Portal ...
-func (Portal) Portal() world.Dimension {
-	return world.Nether
 }
 
 // LightEmissionLevel returns 11.
@@ -59,11 +49,4 @@ func (p Portal) NeighbourUpdateTick(pos, neighbour cube.Pos, tx *world.Tx) {
 		return
 	}
 	portal.DeactivateNetherPortal(tx, pos)
-}
-
-// EntityInside ...
-func (p Portal) EntityInside(_ cube.Pos, tx *world.Tx, e world.Entity) {
-	if t, ok := e.(portalTraveller); ok {
-		t.TravelThroughPortal(tx, p.Portal())
-	}
 }

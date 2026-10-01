@@ -1719,7 +1719,7 @@ func projectileSpawn(tx *world.Tx, pos, vel mgl64.Vec3, conf ProjectileBehaviour
 // Living, so it satisfies DamageableEntity without receiving knockback or
 // effects.
 func projectileTarget(tx *world.Tx, pos mgl64.Vec3) (*world.EntityHandle, *projectileTargetBehaviour) {
-	b := &projectileTargetBehaviour{BaseBehaviour: NewBaseBehaviour()}
+	b := &projectileTargetBehaviour{}
 	handle := world.EntitySpawnOpts{Position: pos}.New(testMovingEntType{}, projectileTargetConfig{b: b})
 	tx.AddEntity(handle)
 	return handle, b
@@ -1777,8 +1777,6 @@ func (c projectileTargetConfig) Apply(data *world.EntityData) { data.Data = c.b 
 
 // projectileTargetBehaviour makes an *Ent damageable without making it Living.
 type projectileTargetBehaviour struct {
-	BaseBehaviour
-
 	hurts        []projectileHurt
 	invulnerable bool
 }
@@ -1804,8 +1802,6 @@ func (c projectileLivingConfig) Apply(data *world.EntityData) { data.Data = c.b 
 // lives on the handle so that it survives the wrapper being rebuilt on every
 // EntityType.Open call.
 type projectileLivingBehaviour struct {
-	BaseBehaviour
-
 	mode         world.GameMode
 	invulnerable bool
 
@@ -1840,7 +1836,7 @@ type projectileLiving struct{ *Ent }
 
 // projectileLivingAt adds a Living victim with the game mode passed to tx.
 func projectileLivingAt(tx *world.Tx, pos mgl64.Vec3, mode world.GameMode) projectileLiving {
-	b := &projectileLivingBehaviour{BaseBehaviour: NewBaseBehaviour(), mode: mode}
+	b := &projectileLivingBehaviour{mode: mode}
 	handle := world.EntitySpawnOpts{Position: pos}.New(projectileLivingType{}, projectileLivingConfig{b: b})
 	return tx.AddEntity(handle).(projectileLiving)
 }
@@ -1884,8 +1880,6 @@ func (c projectileCollectorConfig) Apply(data *world.EntityData) { data.Data = c
 // projectileCollectorBehaviour records what tryPickup offered a collector and
 // controls what the collector reports back.
 type projectileCollectorBehaviour struct {
-	BaseBehaviour
-
 	collected []item.Stack
 	n         int
 	ok        bool
@@ -1920,7 +1914,7 @@ func (c projectileCollector) Collect(stack item.Stack) (int, bool) {
 // projectileCollectorAt adds a collector to tx that reports collecting n items
 // and reports ok as its ability to collect at all.
 func projectileCollectorAt(tx *world.Tx, pos mgl64.Vec3, n int, ok bool) *projectileCollectorBehaviour {
-	b := &projectileCollectorBehaviour{BaseBehaviour: NewBaseBehaviour(), n: n, ok: ok}
+	b := &projectileCollectorBehaviour{n: n, ok: ok}
 	handle := world.EntitySpawnOpts{Position: pos}.New(projectileCollectorType{}, projectileCollectorConfig{b: b})
 	tx.AddEntity(handle)
 	return b

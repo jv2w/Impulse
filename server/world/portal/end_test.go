@@ -202,24 +202,3 @@ func TestEndPortalKeptOnPortalBlockBreak(t *testing.T) {
 		}
 	})
 }
-
-func TestGenerateEndSpawnPlatformClearsThreeLayers(t *testing.T) {
-	w := world.New()
-	t.Cleanup(func() { _ = w.Close() })
-
-	mustDo(t, w, func(tx *world.Tx) {
-		for y := 49; y <= 52; y++ {
-			tx.SetBlock(cube.Pos{100, y, 0}, block.Obsidian{}, nil)
-		}
-		portal.GenerateEndSpawnPlatform(tx)
-
-		for y := 49; y <= 51; y++ {
-			if _, ok := tx.Block(cube.Pos{100, y, 0}).(block.Air); !ok {
-				t.Fatalf("block at y=%d = %T, want block.Air", y, tx.Block(cube.Pos{100, y, 0}))
-			}
-		}
-		if _, ok := tx.Block(cube.Pos{100, 52, 0}).(block.Obsidian); !ok {
-			t.Fatalf("block at y=52 = %T, want block.Obsidian", tx.Block(cube.Pos{100, 52, 0}))
-		}
-	})
-}

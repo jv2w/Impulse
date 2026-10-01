@@ -72,8 +72,6 @@ func (v *entLogViewer) ViewSound(_ mgl64.Vec3, s world.Sound) { v.log.add("sound
 // entity state it observed on every call, which is what pins where in Ent.Tick
 // the behaviour is invoked relative to the fire decrement and the age increment.
 type entBehaviour struct {
-	BaseBehaviour
-
 	log   *entLog
 	tick  func(b *entBehaviour, e *Ent, tx *world.Tx) *Movement
 	ticks int
@@ -609,30 +607,6 @@ func entAssertMovements(t *testing.T, name string, v *entChunkViewer, want []mgl
 	}
 }
 
-func TestEntTickLoadsTheChunkAtTheEntityPosition(t *testing.T) {
-	// Stage 2.1 replaces the per-chunk entity slice with a spatial index; these
-	// assertions are exactly the contract it must preserve.
-	//
-	// Ent.Tick scans the blocks inside the entity's bounding box for portals on
-	// every tick. That scan uses Tx.Block, which loads or generates the chunk, so
-	// a single tick pulls the chunk the entity is standing in into memory even
-	// when nothing else in the world has ever touched it.
-	w := syncWorld(t)
-	handle := entSpawn(mgl64.Vec3{8.5, 100, 8.5}, &entBehaviour{})
-	mustDo(t, w, func(tx *world.Tx) {
-		e := tx.AddEntity(handle).(*Ent)
-		e.data.Pos = mgl64.Vec3{24.5, 100, 8.5}
-
-		if _, ok := tx.BlockLoaded(cube.Pos{24, 100, 8}); ok {
-			t.Fatal("chunk (1,0) was already loaded before the tick, want the test to start with it unloaded")
-		}
-		e.Tick(tx, 1)
-		if _, ok := tx.BlockLoaded(cube.Pos{24, 100, 8}); !ok {
-			t.Fatal("chunk (1,0) is still unloaded after one Ent.Tick, want the portal insider scan to have loaded it")
-		}
-	})
-}
-
 func TestEntInUnloadedChunkIsNeitherRelocatedNorTicked(t *testing.T) {
 	// Stage 2.1 replaces the per-chunk entity slice with a spatial index; these
 	// assertions are exactly the contract it must preserve.
@@ -1067,43 +1041,6 @@ func TestEntExplodeForwardsOnlyToBehavioursThatImplementIt(t *testing.T) {
 				assertVec3(t, "Velocity() after Explode()", e.Velocity(), test.wantVel)
 			})
 		})
-	}
-}
-
-func TestNewBaseBehaviourCarriesAPortalTravelComputer(t *testing.T) {
-	b := NewBaseBehaviour()
-	if b.portalTravel == nil {
-		t.Fatal("NewBaseBehaviour().portalTravel = nil, want a computer built up front")
-	}
-	if got := b.PortalTravelComputer(); got != b.portalTravel {
-		t.Fatalf("PortalTravelComputer() = %p, want the computer the constructor stored %p", got, b.portalTravel)
-	}
-	// NewPortalTravelComputer's defaults: instant travel, 15 second cooldown.
-	if got := b.portalTravel.Cooldown; got != 15*time.Second {
-		t.Fatalf("Cooldown = %v, want %v", got, 15*time.Second)
-	}
-	if b.portalTravel.Instantaneous == nil || !b.portalTravel.Instantaneous(world.Overworld, world.Nether) {
-		t.Fatal("Instantaneous(Overworld, Nether) = false, want instant travel by default")
-	}
-}
-
-func TestBaseBehaviourPortalTravelComputerIsCreatedOnceLazily(t *testing.T) {
-	// A zero BaseBehaviour builds its computer on first use. Returning the same
-	// pointer afterwards is load-bearing: the cooldown and the four second portal
-	// timer live in it, so a second computer would reset both.
-	var b BaseBehaviour
-	if b.portalTravel != nil {
-		t.Fatal("zero BaseBehaviour already has a portal travel computer, want nil until first use")
-	}
-	first := b.PortalTravelComputer()
-	if first == nil {
-		t.Fatal("PortalTravelComputer() = nil, want a lazily created computer")
-	}
-	if second := b.PortalTravelComputer(); second != first {
-		t.Fatalf("second PortalTravelComputer() = %p, want the same pointer as the first %p", second, first)
-	}
-	if got := b.portalTravel; got != first {
-		t.Fatalf("portalTravel = %p, want the returned computer %p to have been stored", got, first)
 	}
 }
 
