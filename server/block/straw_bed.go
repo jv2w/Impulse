@@ -11,7 +11,7 @@ import (
 )
 
 // StrawBed is a bed crafted from hay bales that a player can sleep in without resetting their spawn point.
-// It breaks once its sleeper wakes up, and destroys itself instead of exploding outside the Overworld.
+// It breaks once its sleeper wakes up.
 type StrawBed struct {
 	transparent
 	sourceWaterDisplacer

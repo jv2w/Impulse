@@ -77,7 +77,7 @@ func TestListenerFactoryErrorsAreSkipped(t *testing.T) {
 
 // PINNED CONSTRAINT: Listen may be called once and Close only after Listen. A
 // Server that is created and then abandoned cannot be shut down at all: Close
-// panics, and the three worlds it started keep ticking for the life of the
+// panics, and the world it started keeps ticking for the life of the
 // process.
 func TestListenAndCloseOrdering(t *testing.T) {
 	srv := newServer(t, Config{})

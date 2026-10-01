@@ -110,7 +110,7 @@ func captureGlobals() {
 	gAfterProbes = snapshot()
 
 	// 4. The first successful Config.New(). Its log is recorded so that the
-	// order in which it creates the three worlds can be asserted.
+	// way it creates the world can be asserted.
 	firstLog, firstRec := recordLog()
 	firstNewLog = firstRec
 	firstServer = Config{Log: firstLog}.New()

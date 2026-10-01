@@ -58,8 +58,8 @@ func TestTuningNilWorldIsVanilla(t *testing.T) {
 }
 
 // TestTuningUnstoredWorldIsVanilla pins the answers of a World that never
-// went through Config.New, which is what a Server holds for its three worlds
-// until createWorld replaces them. Nothing has been stored, so every rule reads
+// went through Config.New, which is what a Server holds for its world
+// until createWorld replaces it. Nothing has been stored, so every rule reads
 // as its atomic's zero value and only PickupScanPeriod needs a floor.
 func TestTuningUnstoredWorldIsVanilla(t *testing.T) {
 	w := &World{}

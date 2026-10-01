@@ -129,7 +129,7 @@ const (
 )
 
 // overworldRange is the vertical range used by every test unless a case needs a different one. It matches the
-// dimension range chunks are created with in production.
+// range chunks are created with in production.
 var overworldRange = cube.Range{-64, 319}
 
 // newTestChunk returns an empty chunk over overworldRange backed by the test registry.

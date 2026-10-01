@@ -1,6 +1,6 @@
 package cube
 
-// Range represents the height range of a Dimension in blocks. The first value
+// Range represents the height range of a World in blocks. The first value
 // of the Range holds the minimum Y value, the second value holds the maximum Y
 // value.
 type Range [2]int

@@ -121,7 +121,7 @@ func (w *World) Name() string {
 }
 
 // Range returns the range in blocks of the World (min and max). It is
-// equivalent to calling Range().
+// equivalent to calling the package-level Range function.
 func (w *World) Range() cube.Range {
 	return w.ra
 }
@@ -1708,7 +1708,7 @@ func (w *World) columnFrom(c *chunk.Column, _ ChunkPos) *Column {
 	r := w.Range()
 	for _, be := range c.BlockEntities {
 		// Which input was the problem: a stored block entity whose Y lies outside
-		// the dimension, as in a world converted from another height range.
+		// the world height, as in a world converted from another height range.
 		// Chunk.Block indexed its sub chunks with it and panicked, ending the
 		// process when the chunk was loaded inside a transaction.
 		if be.Pos[1] < r[0] || be.Pos[1] > r[1] {

@@ -10,9 +10,9 @@ import (
 	"github.com/jv2w/Impulse/server/block/cube"
 )
 
-// encodeNetherRange is a second vertical range used to prove that nothing in the encoders assumes the
+// encodeShortRange is a second vertical range used to prove that nothing in the encoders assumes the
 // overworld's 24 sub chunks. It yields (127>>4)+1 = 8 sub chunks.
-var encodeNetherRange = cube.Range{0, 127}
+var encodeShortRange = cube.Range{0, 127}
 
 // encodeCase describes one chunk shape that must survive a full encode/decode round trip unchanged.
 type encodeCase struct {
@@ -118,7 +118,7 @@ var encodeCases = []encodeCase{
 		},
 	},
 	{
-		name: "nether range", r: encodeNetherRange, layers: 0,
+		name: "short range", r: encodeShortRange, layers: 0,
 		build: func(c *Chunk) {
 			for y := int16(0); y < 128; y += 7 {
 				c.SetBlock(uint8(y%16), y, uint8((y*3)%16), 0, ridTorch)

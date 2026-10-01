@@ -45,7 +45,7 @@ func (f Flat) GenerateChunk(pos world.ChunkPos, chunk *chunk.Chunk) {
 
 	for x := range uint8(16) {
 		for z := range uint8(16) {
-			// Which input was the problem: any dimension whose range does not
+			// Which input was the problem: any range that does not
 			// start at 0. The loop counted the offset from the bottom up to the
 			// top coordinate, so it stopped min blocks short of the top: the
 			// overworld left the biome of everything above y 255 unset, which

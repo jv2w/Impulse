@@ -41,8 +41,8 @@ func TestChunkNewAllocatesEverySubChunkEagerly(t *testing.T) {
 		want int
 	}{
 		{name: "overworld", r: cube.Range{-64, 319}, want: 24},
-		{name: "nether", r: cube.Range{0, 127}, want: 8},
-		{name: "end", r: cube.Range{0, 255}, want: 16},
+		{name: "0 to 127", r: cube.Range{0, 127}, want: 8},
+		{name: "0 to 255", r: cube.Range{0, 255}, want: 16},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
