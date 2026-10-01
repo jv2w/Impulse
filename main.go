@@ -48,8 +48,8 @@ func userConfig() server.UserConfig {
 	c.World.Folder = "world"
 
 	// Players.
-	c.Players.MaxCount = 0 // 0 grows the limit as players join.
-	c.Players.MaximumChunkRadius = 32
+	c.Players.MaxCount = 10
+	c.Players.MaximumChunkRadius = 16
 	c.Players.SaveData = true
 	c.Players.Folder = "players"
 
