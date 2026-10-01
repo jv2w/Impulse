@@ -95,7 +95,7 @@ type onlinePlayer struct {
 	name   string
 }
 
-// New creates a Server using a default Config. The Server's worlds are created
+// New creates a Server using a default Config. The Server's world is created
 // and connections from the Server's listeners may be accepted by calling
 // Server.Listen() and Server.Accept() afterwards.
 func New() *Server {
@@ -188,7 +188,7 @@ func (srv *Server) Accept() iter.Seq[*player.Player] {
 	}
 }
 
-// World returns the overworld of the server. Players will be spawned in this
+// World returns the world of the server. Players will be spawned in this
 // world and this world will be read from and written to when the world is
 // edited.
 func (srv *Server) World() *world.World {
@@ -383,7 +383,7 @@ func (srv *Server) close() {
 		}
 	})
 
-	srv.conf.Log.Debug("Closing worlds...")
+	srv.conf.Log.Debug("Closing world...")
 	srv.closeStep("close world", func() {
 		if err := srv.world.Close(); err != nil {
 			srv.conf.Log.Error("Close world: " + err.Error())

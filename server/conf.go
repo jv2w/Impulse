@@ -94,7 +94,7 @@ type Config struct {
 	// chunks will always be newly generated when loaded. The world provider
 	// will be used for storing/loading the default world.
 	WorldProvider world.Provider
-	// ReadOnlyWorld specifies if the standard worlds should be read only. If
+	// ReadOnlyWorld specifies if the standard world should be read only. If
 	// set to true, the WorldProvider won't be saved to at all.
 	ReadOnlyWorld bool
 	// Generator should return a function that specifies the world.Generator to
@@ -102,7 +102,7 @@ type Config struct {
 	// world.
 	Generator func() world.Generator
 	// RandomTickSpeed specifies the rate at which blocks should be ticked in
-	// the default worlds. Setting this value to -1 or lower will stop random
+	// the default world. Setting this value to -1 or lower will stop random
 	// ticking altogether, while setting it higher results in faster ticking. If
 	// left as 0, the RandomTickSpeed will default to a speed of 3 blocks per
 	// sub chunk per tick (normal ticking speed).
@@ -119,15 +119,15 @@ type Config struct {
 	// altogether. This should be done using a Loader with a custom Viewer.
 	ChunkUnloadInterval time.Duration
 	// ChunkLoadWorkers is the number of background workers that load and generate
-	// chunks in each world, defaulting to 1. Values above 1 generate chunks
+	// chunks in the world, defaulting to 1. Values above 1 generate chunks
 	// concurrently and require a concurrency-safe Generator.
 	ChunkLoadWorkers int
 	// Entities is a world.EntityRegistry with all entity types registered that
-	// may be added to the Server's worlds. If no entity types are registered,
+	// may be added to the Server's world. If no entity types are registered,
 	// Entities will be set to entity.DefaultRegistry.
 	Entities world.EntityRegistry
 	// Tuning holds toggles for world behaviour that may be turned off to save
-	// the work they cost. The zero value leaves the worlds behaving as vanilla
+	// the work they cost. The zero value leaves the world behaving as vanilla
 	// does. The toggles are applied to the default world as it is
 	// created and may be changed later using World.SetTuning.
 	Tuning world.Tuning
@@ -142,7 +142,7 @@ type Config struct {
 	Blocks world.BlockRegistry
 }
 
-// New creates a Server using fields of conf. The Server's worlds are created
+// New creates a Server using fields of conf. The Server's world is created
 // and connections from the Server's listeners may be accepted by calling
 // Server.Listen() and Server.Accept() afterwards.
 func (conf Config) New() *Server {

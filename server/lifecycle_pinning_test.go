@@ -176,7 +176,7 @@ func TestCloseLogsItsShutdownOrder(t *testing.T) {
 		t.Fatalf("Close() = %v", err)
 	}
 
-	want := []string{"Server closing...", "Disconnecting players...", "Closing player provider...", "Closing worlds...", "Closing listeners..."}
+	want := []string{"Server closing...", "Disconnecting players...", "Closing player provider...", "Closing world...", "Closing listeners..."}
 	lines := rec.Lines()
 	i := 0
 	for _, line := range lines {

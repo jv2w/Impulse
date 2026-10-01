@@ -10,7 +10,7 @@ import (
 	"github.com/jv2w/Impulse/server/world"
 )
 
-// Bed is a dyeable utility block that allows a player in the Overworld to sleep through the night and reset
+// Bed is a dyeable utility block that allows a player to sleep through the night and reset
 // their spawn point to within a few blocks of the bed, as long as it is not broken or obstructed.
 type Bed struct {
 	transparent
